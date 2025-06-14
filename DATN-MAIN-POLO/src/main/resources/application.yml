@@ -1,0 +1,56 @@
+spring:
+  application:
+    name: PoLo
+
+  datasource:
+    url: jdbc:sqlserver://localhost;databaseName=DATN;trustServerCertificate=true;useUnicode=true;characterEncoding=UTF-8
+    username: sa
+    password: 123
+
+  jpa:
+    generate-ddl: true
+    defer-datasource-initialization: true
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.SQLServerDialect
+
+  sql:
+    init:
+      mode: always
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 15MB
+      max-request-size: 30MB
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: 937869295665-bqpvb5npqp7dq48q2p9ht6nhnpp7ogrh.apps.googleusercontent.com
+            client-secret: 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
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope:
+              - email
+              - profile
+        provider:
+          google:
+            authorization-uri: https://accounts.google.com/o/oauth2/auth
+            token-uri: https://oauth2.googleapis.com/token
+            user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
+
+upload:
+  dir: uploads/images
+
+logging:
+  pattern:
+    console: "${LOGPATTERN_CONSOLE:%green(%d{HH:mm:ss.SSS}) %yellow(%-5level) %red([%thread]) %blue(%logger{255}) - %msg%n}"
+  level:
+    net.ttddyy.dsproxy.listener: debug
+    org.hibernate.type: trace

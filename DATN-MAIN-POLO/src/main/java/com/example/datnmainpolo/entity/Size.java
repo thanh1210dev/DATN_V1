@@ -1,0 +1,43 @@
+package com.example.datnmainpolo.entity;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.time.Instant;
+
+@Getter
+@Setter
+@Entity
+@Table(name = "size")
+public class Size {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY) // Thêm để tự động tăng id
+    @Column(name = "id", nullable = false)
+    private Integer id;
+
+    @jakarta.validation.constraints.Size(max = 50)
+    @Column(name = "code", length = 50)
+    private String code;
+
+    @jakarta.validation.constraints.Size(max = 100)
+    @Column(name = "name", length = 100)
+    private String name;
+
+    @Column(name = "created_at")
+    private Instant createdAt;
+
+    @Column(name = "updated_at")
+    private Instant updatedAt;
+
+
+
+    @Column(name = "deleted")
+    private Boolean deleted;
+
+}

@@ -1,0 +1,23 @@
+package com.example.datnmainpolo.dto.ProductDTO;
+
+import lombok.Getter;
+import lombok.Setter;
+
+import java.time.Instant;
+
+@Getter
+@Setter
+public class ProductResponseDTO {
+    private Integer id;
+    private Integer materialId;
+    private String materialName;
+    private Integer brandId;
+    private String brandName;
+    private Integer categoryId;
+    private String categoryName;
+    private String code;
+    private String name;
+    private String description;
+    private Instant createdAt;
+    private Instant updatedAt;
+}

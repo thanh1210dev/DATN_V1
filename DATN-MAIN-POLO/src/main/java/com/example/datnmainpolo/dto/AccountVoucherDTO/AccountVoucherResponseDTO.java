@@ -1,0 +1,22 @@
+package com.example.datnmainpolo.dto.AccountVoucherDTO;
+
+import com.example.datnmainpolo.enums.PromotionStatus;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.time.Instant;
+
+@Getter
+@Setter
+public class AccountVoucherResponseDTO {
+    private Integer id;
+    private Integer voucherId;
+    private Integer accountId;
+    private String voucherName;
+    private String voucherStatus;
+    private String accountName;
+    private Boolean status;
+    private Instant createdAt;
+
+
+}
