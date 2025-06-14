@@ -11,4 +11,6 @@ public interface ImageRepository extends JpaRepository<Image, Integer> {
     List<Image> findAllActiveImages();
 
 
+
+
 }

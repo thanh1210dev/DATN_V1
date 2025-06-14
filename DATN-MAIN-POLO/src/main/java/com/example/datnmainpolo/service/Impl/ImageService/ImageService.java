@@ -1,5 +1,6 @@
 package com.example.datnmainpolo.service.Impl.ImageService;
 
+
 import com.example.datnmainpolo.dto.ImageDTO.ImageDTO;
 import com.example.datnmainpolo.dto.ImageDTO.ImageSelectionDTO;
 import com.example.datnmainpolo.entity.Image;
@@ -11,9 +12,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -50,7 +48,6 @@ public class ImageService {
 
     public List<ImageDTO> getAllImages() {
         return imageRepository.findAllActiveImages().stream()
-
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
@@ -84,7 +81,7 @@ public class ImageService {
         ProductDetail productDetail = productDetailRepository.findById(productDetailId)
                 .orElseThrow(() -> new IllegalArgumentException("Product detail not found"));
         return productDetail.getImages().stream()
-                .filter(image -> !image.getDeleted()) // Chỉ lấy ảnh có deleted = false
+                .filter(image -> !image.getDeleted())
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
@@ -108,16 +105,10 @@ public class ImageService {
         Image image = imageRepository.findById(imageId)
                 .orElseThrow(() -> new Exception("Image not found"));
 
-        // Xóa file khỏi hệ thống
-        String fileName = image.getUrl().replace("/images/", "");
-        Path filePath = Paths.get(uploadDir, fileName);
-        File file = new File(filePath.toString());
-        if (file.exists()) {
-            file.delete();
-        }
-
-
-        imageRepository.delete(image);
+        image.setDeleted(true);
+        image.setUpdatedAt(Instant.now());
+        image.setUpdatedBy(username);
+        imageRepository.save(image);
     }
 
     private ImageDTO mapToDTO(Image image) {

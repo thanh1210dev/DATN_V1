@@ -5,18 +5,11 @@ import com.example.datnmainpolo.dto.ImageDTO.ImageDTO;
 import com.example.datnmainpolo.service.Impl.ImageService.ImageService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -45,19 +38,19 @@ public class ImageController {
         return ResponseEntity.ok(imageService.getAllImages());
     }
 
+    @DeleteMapping
+    public ResponseEntity<Void> deleteImages(@RequestParam("imageIds") List<Integer> imageIds) throws Exception {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        for (Integer imageId : imageIds) {
+            imageService.deleteImage(imageId, username);
+        }
+        return ResponseEntity.ok().build();
+    }
+
     @DeleteMapping("/{imageId}")
     public ResponseEntity<Void> deleteImage(@PathVariable Integer imageId) throws Exception {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         imageService.deleteImage(imageId, username);
         return ResponseEntity.ok().build();
-    }
-
-
-
-    private String getFileExtension(String fileName) {
-        if (fileName.contains(".")) {
-            return fileName.substring(fileName.lastIndexOf(".") + 1).toLowerCase();
-        }
-        return "jpg"; // Mặc định
     }
 }
