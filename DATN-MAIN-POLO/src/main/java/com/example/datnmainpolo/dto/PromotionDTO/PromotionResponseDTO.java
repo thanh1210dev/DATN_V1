@@ -18,10 +18,10 @@ public class PromotionResponseDTO {
     private DiscountType typePromotion;
     private Instant startTime;
     private Instant endTime;
-    private BigDecimal fixedDiscountValue;
+
     private BigDecimal percentageDiscountValue;
     private BigDecimal maxDiscountValue;
-    private BigDecimal minOrderValue; // New field
+
     private String description;
     private PromotionStatus status;
     private Integer createdByUserId;

@@ -37,9 +37,6 @@ public class ProductDetail {
     @JoinColumn(name = "color_id")
     private Color color;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "shirt_collar_id")
-    private ShirtCollar shirtCollar;
 
     @Column(name = "quantity")
     private Integer quantity;

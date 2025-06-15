@@ -19,8 +19,7 @@ public class ProductDetailResponseDTO {
     private String sizeName;
     private Integer colorId;
     private String colorName;
-    private Integer shirtCollarId;
-    private String shirtCollarName;
+    private String colorCode;
     private Integer quantity;
     private BigDecimal price;
     private BigDecimal promotionalPrice;

@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.support.WebExchangeBindException;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -24,21 +26,22 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IOException.class)
     public ResponseEntity<ErrorResponse> handleIOException(IOException ex) {
         ErrorResponse error = new ErrorResponse(
-                HttpStatus.CONFLICT.value(), // 409 Conflict for duplicate resource
-                ex.getMessage()
+                HttpStatus.CONFLICT.value(),
+                ex.getMessage() // ví dụ: "Hình ảnh đã tồn tại: Không thể đăng trùng ảnh!"
         );
         return new ResponseEntity<>(error, HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(WebExchangeBindException.class)
     public ResponseEntity<ErrorResponse> handleValidationException(WebExchangeBindException ex) {
-        String message = ex.getFieldErrors().stream()
-                .map(error -> error.getDefaultMessage())
-                .findFirst()
-                .orElse("Dữ liệu không hợp lệ");
+        List<String> errors = ex.getFieldErrors().stream()
+                .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                .collect(Collectors.toList());
+
         ErrorResponse error = new ErrorResponse(
                 HttpStatus.BAD_REQUEST.value(),
-                message
+                "Dữ liệu không hợp lệ",
+                errors
         );
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
@@ -47,10 +50,17 @@ public class GlobalExceptionHandler {
     static class ErrorResponse {
         private int status;
         private String message;
+        private List<String> errors;
 
         public ErrorResponse(int status, String message) {
             this.status = status;
             this.message = message;
+        }
+
+        public ErrorResponse(int status, String message, List<String> errors) {
+            this.status = status;
+            this.message = message;
+            this.errors = errors;
         }
     }
 }

@@ -7,5 +7,5 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ProductDetailRepository extends JpaRepository<ProductDetail,Integer> {
-    Page<ProductDetail> findByDeleted(Boolean deleted, Pageable pageable);
+    Page<ProductDetail> findByDeletedAndProduct_Id(Boolean deleted, int id,Pageable pageable);
 }

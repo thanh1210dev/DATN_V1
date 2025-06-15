@@ -56,7 +56,6 @@ public class Product {
     private Instant updatedAt;
 
 
-
     @Column(name = "deleted")
     private Boolean deleted;
 

@@ -47,8 +47,7 @@ public class Promotion {
     @Column(name = "end_time")
     private Instant endTime;
 
-    @Column(name = "fixed_discount_value", precision = 10, scale = 2)
-    private BigDecimal fixedDiscountValue; // Giá trị giảm cố định
+
 
     @Column(name = "percentage_discount_value", precision = 5, scale = 2)
     private BigDecimal percentageDiscountValue; // Giá trị giảm theo phần trăm (0-100)
@@ -56,8 +55,7 @@ public class Promotion {
     @Column(name = "max_discount_value", precision = 10, scale = 2)
     private BigDecimal maxDiscountValue; // Giá trị giảm tối đa
 
-    @Column(name = "min_order_value") // New field for minimum order value
-    private BigDecimal minOrderValue; // Giá trị đơn hàng tối thiểu để áp dụng promotion
+
 
     @Lob
     @Column(name = "description", columnDefinition = "NVARCHAR(MAX)")

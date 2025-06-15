@@ -24,8 +24,6 @@ public class ProductDetailRequestDTO {
     @NotNull(message = "ID màu sắc không được để trống")
     private Integer colorId;
 
-    @NotNull(message = "ID cổ áo không được để trống")
-    private Integer shirtCollarId;
 
     @Min(value = 0, message = "Số lượng phải lớn hơn hoặc bằng 0")
     private Integer quantity;

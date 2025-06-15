@@ -99,9 +99,7 @@ public class PromotionServiceImpl implements PromotionService {
         promotion.setUpdatedAt(Instant.now());
         promotion.setDeleted(false);
 
-        UserEntity user = userEntityRepository.findById(requestDTO.getCreatedByUserId())
-                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy người dùng"));
-        promotion.setCreatedByUser(user);
+
 
         promotion = promotionRepository.save(promotion);
         return mapToResponseDTO(promotion);
@@ -170,31 +168,18 @@ public class PromotionServiceImpl implements PromotionService {
         }
 
         if (DiscountType.FIXED.equals(requestDTO.getTypePromotion())) {
-            if (requestDTO.getFixedDiscountValue() == null ||
-                    requestDTO.getFixedDiscountValue().compareTo(BigDecimal.ZERO) <= 0) {
-                throw new IllegalArgumentException("Giá trị giảm cố định phải lớn hơn 0");
-            }
+
             if (requestDTO.getPercentageDiscountValue() != null) {
                 throw new IllegalArgumentException("Không được nhập phần trăm giảm khi chọn giảm cố định");
             }
-            if (requestDTO.getMinOrderValue() == null ||
-                    requestDTO.getMinOrderValue().compareTo(BigDecimal.ZERO) < 0) {
-                throw new IllegalArgumentException("Giá trị đơn hàng tối thiểu phải không âm");
-            }
-            if (requestDTO.getFixedDiscountValue() != null &&
-                    requestDTO.getMinOrderValue() != null &&
-                    requestDTO.getFixedDiscountValue().compareTo(requestDTO.getMinOrderValue()) > 0) {
-                throw new IllegalArgumentException("Giá trị giảm cố định không được lớn hơn giá trị đơn hàng tối thiểu");
-            }
+
         } else if (DiscountType.PERCENTAGE.equals(requestDTO.getTypePromotion())) {
             if (requestDTO.getPercentageDiscountValue() == null ||
                     requestDTO.getPercentageDiscountValue().compareTo(BigDecimal.ZERO) <= 0 ||
                     requestDTO.getPercentageDiscountValue().compareTo(new BigDecimal("100")) > 0) {
                 throw new IllegalArgumentException("Phần trăm giảm giá phải nằm trong khoảng từ 0 đến 100");
             }
-            if (requestDTO.getFixedDiscountValue() != null) {
-                throw new IllegalArgumentException("Không được nhập giá trị cố định khi chọn giảm theo phần trăm");
-            }
+
         } else {
             throw new IllegalArgumentException("Kiểu giảm giá không hợp lệ");
         }
@@ -212,10 +197,10 @@ public class PromotionServiceImpl implements PromotionService {
         promotion.setTypePromotion(dto.getTypePromotion());
         promotion.setStartTime(dto.getStartTime());
         promotion.setEndTime(dto.getEndTime());
-        promotion.setFixedDiscountValue(dto.getFixedDiscountValue());
+
         promotion.setPercentageDiscountValue(dto.getPercentageDiscountValue());
         promotion.setMaxDiscountValue(dto.getMaxDiscountValue());
-        promotion.setMinOrderValue(dto.getMinOrderValue());
+
         promotion.setDescription(dto.getDescription());
         promotion.setStatus(dto.getStatus());
         return promotion;
@@ -229,10 +214,10 @@ public class PromotionServiceImpl implements PromotionService {
         dto.setTypePromotion(promotion.getTypePromotion());
         dto.setStartTime(promotion.getStartTime());
         dto.setEndTime(promotion.getEndTime());
-        dto.setFixedDiscountValue(promotion.getFixedDiscountValue());
+
         dto.setPercentageDiscountValue(promotion.getPercentageDiscountValue());
         dto.setMaxDiscountValue(promotion.getMaxDiscountValue());
-        dto.setMinOrderValue(promotion.getMinOrderValue());
+
         dto.setDescription(promotion.getDescription());
         dto.setStatus(promotion.getStatus());
         dto.setCreatedAt(promotion.getCreatedAt());
@@ -250,14 +235,12 @@ public class PromotionServiceImpl implements PromotionService {
         promotion.setTypePromotion(dto.getTypePromotion());
         promotion.setStartTime(dto.getStartTime());
         promotion.setEndTime(dto.getEndTime());
-        promotion.setFixedDiscountValue(dto.getFixedDiscountValue());
+
         promotion.setPercentageDiscountValue(dto.getPercentageDiscountValue());
         promotion.setMaxDiscountValue(dto.getMaxDiscountValue());
-        promotion.setMinOrderValue(dto.getMinOrderValue());
+
         promotion.setDescription(dto.getDescription());
         promotion.setStatus(dto.getStatus());
-        UserEntity user = userEntityRepository.findById(dto.getCreatedByUserId())
-                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy người dùng"));
-        promotion.setCreatedByUser(user);
+
     }
 }

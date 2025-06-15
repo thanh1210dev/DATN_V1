@@ -27,8 +27,7 @@ public class PromotionRequestDTO {
 
     private Instant endTime;
 
-    @PositiveOrZero(message = "Giá trị giảm cố định phải không âm")
-    private BigDecimal fixedDiscountValue; // Giá trị giảm cố định
+
 
     @DecimalMin(value = "0.00", message = "Phần trăm giảm giá phải ít nhất là 0%")
     @DecimalMax(value = "100.00", message = "Phần trăm giảm giá không được vượt quá 100%")
@@ -37,14 +36,12 @@ public class PromotionRequestDTO {
     @PositiveOrZero(message = "Giá trị giảm tối đa phải không âm")
     private BigDecimal maxDiscountValue; // Giá trị giảm tối đa
 
-    @PositiveOrZero(message = "Giá trị đơn hàng tối thiểu phải không âm") // New validation
-    private BigDecimal minOrderValue; // Giá trị đơn hàng tối thiểu
+
 
     private String description;
 
     @NotNull(message = "Trạng thái là bắt buộc")
     private PromotionStatus status;
 
-    @NotNull(message = "ID người tạo là bắt buộc")
-    private Integer createdByUserId;
+
 }

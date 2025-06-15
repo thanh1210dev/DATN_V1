@@ -37,11 +37,11 @@ public class ProductDetailController {
         return ResponseEntity.ok(productDetailService.getById(id));
     }
 
-    @GetMapping
+    @GetMapping("/all/{id}")
     public ResponseEntity<PaginationResponse<ProductDetailResponseDTO>> getAll(
-
+            @PathVariable Integer id,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(productDetailService.getAll( page, size));
+        return ResponseEntity.ok(productDetailService.getAll( id,page, size));
     }
 }

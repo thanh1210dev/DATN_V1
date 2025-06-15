@@ -28,7 +28,7 @@ public class ProductDetailServiceImpl implements ProductDetailService {
     private final ImageRepository imageRepository;
     private final SizeRepository sizeRepository;
     private final ColorRepository colorRepository;
-    private final ShirtCollarRepository shirtCollarRepository;
+
 
     @Override
     @Transactional
@@ -76,10 +76,10 @@ public class ProductDetailServiceImpl implements ProductDetailService {
     }
 
     @Override
-    public PaginationResponse<ProductDetailResponseDTO> getAll( int page, int size) {
+    public PaginationResponse<ProductDetailResponseDTO> getAll( int id,int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
-        Page<ProductDetail> pageData = productDetailRepository.findByDeleted(
-                false, pageable);
+        Page<ProductDetail> pageData = productDetailRepository.findByDeletedAndProduct_Id(
+                false,id, pageable);
         return new PaginationResponse<>(pageData.map(this::toResponse));
     }
 
@@ -97,8 +97,7 @@ public class ProductDetailServiceImpl implements ProductDetailService {
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy kích thước với ID: " + requestDTO.getSizeId())));
         entity.setColor(colorRepository.findById(requestDTO.getColorId())
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy màu sắc với ID: " + requestDTO.getColorId())));
-        entity.setShirtCollar(shirtCollarRepository.findById(requestDTO.getShirtCollarId())
-                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy cổ áo với ID: " + requestDTO.getShirtCollarId())));
+
         entity.setQuantity(requestDTO.getQuantity());
         entity.setPrice(requestDTO.getPrice());
         entity.setPromotionalPrice(requestDTO.getPromotionalPrice());
@@ -123,8 +122,7 @@ public class ProductDetailServiceImpl implements ProductDetailService {
         response.setSizeName(entity.getSize().getName());
         response.setColorId(entity.getColor().getId());
         response.setColorName(entity.getColor().getName());
-        response.setShirtCollarId(entity.getShirtCollar().getId());
-        response.setShirtCollarName(entity.getShirtCollar().getName());
+        response.setColorCode(entity.getColor().getCode());
         response.setQuantity(entity.getQuantity());
         response.setPrice(entity.getPrice());
         response.setPromotionalPrice(entity.getPromotionalPrice());

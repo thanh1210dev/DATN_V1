@@ -1,6 +1,5 @@
 package com.example.datnmainpolo.service.Impl.ImageService;
 
-
 import com.example.datnmainpolo.dto.ImageDTO.ImageDTO;
 import com.example.datnmainpolo.dto.ImageDTO.ImageSelectionDTO;
 import com.example.datnmainpolo.entity.Image;
@@ -12,8 +11,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -105,6 +106,15 @@ public class ImageService {
         Image image = imageRepository.findById(imageId)
                 .orElseThrow(() -> new Exception("Image not found"));
 
+        // Delete the physical file
+        String fileName = image.getUrl().replace("/images/", "");
+        Path filePath = Paths.get(uploadDir, fileName);
+        File file = new File(filePath.toString());
+        if (file.exists()) {
+            file.delete();
+        }
+
+        // Soft delete in database
         image.setDeleted(true);
         image.setUpdatedAt(Instant.now());
         image.setUpdatedBy(username);
