@@ -11,7 +11,11 @@ const ImageService = {
       headers: { "Content-Type": "multipart/form-data" },
     });
   },
-  Delete: (imageId) => axiosInstance.delete(`/images/${imageId}`),
+  Delete: (imageIds) => {
+    const params = new URLSearchParams();
+    imageIds.forEach((id) => params.append("imageIds", id));
+    return axiosInstance.delete("/images", { params });
+  },
 };
 
 export default ImageService;

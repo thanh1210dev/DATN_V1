@@ -1,6 +1,4 @@
-import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import Decimal from 'decimal.js';
+import React, { useState, useEffect, useCallback } from "react";
 import {
   HiOutlineSearch,
   HiOutlinePlus,
@@ -17,7 +15,6 @@ const DotGiamGiaAdmin = () => {
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
-  const [searchCode, setSearchCode] = useState("");
   const [searchStartTime, setSearchStartTime] = useState("");
   const [searchEndTime, setSearchEndTime] = useState("");
   const [searchStatus, setSearchStatus] = useState("");
@@ -26,17 +23,14 @@ const DotGiamGiaAdmin = () => {
   const [deleteId, setDeleteId] = useState(null);
   const [selectedPromotion, setSelectedPromotion] = useState(null);
   const [formData, setFormData] = useState({
-
     name: "",
-    typePromotion: "",
+    typePromotion: DiscountType.PERCENTAGE,
     startTime: "",
     endTime: "",
-    fixedDiscountValue: "",
     percentageDiscountValue: "",
     maxDiscountValue: "",
-    minOrderValue: "",
     description: "",
-    status: "",
+    status: PromotionStatus.COMING_SOON,
   });
   const [formErrors, setFormErrors] = useState({});
 
@@ -51,21 +45,15 @@ const DotGiamGiaAdmin = () => {
   };
 
   const discountTypeLabels = {
-    FIXED: "Giảm cố định",
     PERCENTAGE: "Giảm theo phần trăm",
   };
 
   const currentDate = new Date().toISOString().slice(0, 16);
   const MAX_NUMERIC_VALUE = 99999999.99;
 
-  useEffect(() => {
-    fetchData();
-  }, [page, size, searchCode, searchStartTime, searchEndTime, searchStatus]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const params = {
-        code: searchCode || undefined,
         startTime: searchStartTime ? new Date(searchStartTime).toISOString() : undefined,
         endTime: searchEndTime ? new Date(searchEndTime).toISOString() : undefined,
         status: searchStatus || undefined,
@@ -73,15 +61,27 @@ const DotGiamGiaAdmin = () => {
         size,
       };
       const response = await DotGiamGiaApi.search(params);
-      setData(response.data.content);
+      const content = response.data.content;
+      if (content.some(item => !item.id)) {
+        console.warn("Một số khuyến mãi không có id:", content);
+        toast.warn("Dữ liệu khuyến mãi không hợp lệ, vui lòng kiểm tra backend", {
+          position: "top-right",
+          autoClose: 5000,
+        });
+      }
+      setData(content.filter(item => !item.deleted)); // Lọc bỏ các khuyến mãi đã bị soft delete
       setTotalPages(response.data.totalPages);
     } catch (error) {
-      toast.error(error.response?.data?.message || "Đã xảy ra lỗi không xác định", {
+      toast.error(error.response?.data?.message || "Đã xảy ra lỗi khi tải dữ liệu", {
         position: "top-right",
         autoClose: 5000,
       });
     }
-  };
+  }, [page, size, searchStartTime, searchEndTime, searchStatus]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -92,35 +92,36 @@ const DotGiamGiaAdmin = () => {
   const handleAdd = () => {
     setSelectedPromotion(null);
     setFormData({
-      code: "",
       name: "",
-      typePromotion: "",
+      typePromotion: DiscountType.PERCENTAGE,
       startTime: currentDate,
       endTime: currentDate,
-      fixedDiscountValue: "",
       percentageDiscountValue: "",
       maxDiscountValue: "",
-      minOrderValue: "",
       description: "",
-      status: "",
+      status: PromotionStatus.COMING_SOON,
     });
     setFormErrors({});
     setIsFormOpen(true);
   };
 
   const handleUpdate = (promotion) => {
+    if (!promotion.id) {
+      toast.error("Không thể cập nhật: ID khuyến mãi không hợp lệ", {
+        position: "top-right",
+        autoClose: 5000,
+      });
+      return;
+    }
     setSelectedPromotion(promotion);
     setFormData({
-      code: promotion.code,
       name: promotion.name,
       typePromotion: promotion.typePromotion,
       startTime: promotion.startTime ? new Date(promotion.startTime).toISOString().slice(0, 16) : currentDate,
       endTime: promotion.endTime ? new Date(promotion.endTime).toISOString().slice(0, 16) : currentDate,
-      fixedDiscountValue: promotion.fixedDiscountValue?.toString() || "",
-      percentageDiscountValue: promotion.percentageDiscountValue?.toString() || "",
-      maxDiscountValue: promotion.maxDiscountValue?.toString() || "",
-      minOrderValue: promotion.minOrderValue?.toString() || "",
-      description: promotion.description,
+      percentageDiscountValue: promotion.percentageDiscountValue ? promotion.percentageDiscountValue.toString() : "",
+      maxDiscountValue: promotion.maxDiscountValue ? promotion.maxDiscountValue.toString() : "",
+      description: promotion.description || "",
       status: promotion.status,
     });
     setFormErrors({});
@@ -128,6 +129,13 @@ const DotGiamGiaAdmin = () => {
   };
 
   const handleDeleteClick = (id) => {
+    if (!id) {
+      toast.error("Không thể xóa: ID không hợp lệ", {
+        position: "top-right",
+        autoClose: 5000,
+      });
+      return;
+    }
     setDeleteId(id);
     setIsDeleteModalOpen(true);
   };
@@ -153,8 +161,10 @@ const DotGiamGiaAdmin = () => {
 
   const validateForm = () => {
     const errors = {};
- 
+
     if (!formData.name) errors.name = "Tên khuyến mãi là bắt buộc";
+    else if (formData.name.length > 100) errors.name = "Tên khuyến mãi không được vượt quá 100 ký tự";
+
     if (!formData.typePromotion) errors.typePromotion = "Loại giảm giá là bắt buộc";
     if (!formData.status) errors.status = "Trạng thái là bắt buộc";
     if (!formData.startTime) errors.startTime = "Thời gian bắt đầu là bắt buộc";
@@ -163,44 +173,20 @@ const DotGiamGiaAdmin = () => {
       errors.endTime = "Thời gian kết thúc phải sau thời gian bắt đầu";
     }
 
-    if (formData.typePromotion === DiscountType.FIXED) {
-      const fixed = parseFloat(formData.fixedDiscountValue);
-      if (isNaN(fixed) || fixed <= 0) {
-        errors.fixedDiscountValue = "Giá trị giảm cố định phải lớn hơn 0";
-      } else if (fixed > MAX_NUMERIC_VALUE) {
-        errors.fixedDiscountValue = "Giá trị giảm cố định quá lớn";
-      }
-      if (formData.percentageDiscountValue) {
-        errors.percentageDiscountValue = "Không sử dụng phần trăm giảm giá cho loại FIXED";
-      }
-      const minOrder = parseFloat(formData.minOrderValue);
-      if (isNaN(minOrder) || minOrder <= 0) {
-        errors.minOrderValue = "Giá trị đơn hàng tối thiểu phải lớn hơn 0";
-      } else if (fixed && minOrder && fixed > minOrder) {
-        errors.minOrderValue = "Giá trị đơn hàng tối thiểu phải lớn hơn hoặc bằng giá trị giảm cố định";
-      }
-    } else if (formData.typePromotion === DiscountType.PERCENTAGE) {
-      const percentage = parseFloat(formData.percentageDiscountValue);
-      if (isNaN(percentage) || percentage <= 0) {
-        errors.percentageDiscountValue = "Phần trăm giảm giá phải lớn hơn 0";
-      } else if (percentage > 100) {
-        errors.percentageDiscountValue = "Phần trăm giảm giá không được vượt quá 100";
+    const percentage = parseFloat(formData.percentageDiscountValue);
+    if (isNaN(percentage) || percentage < 0) {
+      errors.percentageDiscountValue = "Phần trăm giảm giá phải ít nhất là 0";
+    } else if (percentage > 100) {
+      errors.percentageDiscountValue = "Phần trăm giảm giá không được vượt quá 100";
+    } else if (percentage > MAX_NUMERIC_VALUE) {
+      errors.percentageDiscountValue = "Phần trăm giảm giá quá lớn";
+    }
 
-      } else if (percentage > MAX_NUMERIC_VALUE) {
-        errors.percentageDiscountValue = "Phần trăm giảm giá quá lớn";
-      }
-      const maxDiscount = parseFloat(formData.maxDiscountValue);
-      if (isNaN(maxDiscount) || maxDiscount <= 0) {
-        errors.maxDiscountValue = "Giá trị giảm tối đa phải lớn hơn 0";
-      } else if (maxDiscount > MAX_NUMERIC_VALUE) {
-        errors.maxDiscountValue = "Giá trị giảm tối đa quá lớn";
-      }
-      if (formData.fixedDiscountValue) {
-        errors.fixedDiscountValue = "Không sử dụng giá trị giảm cố định cho loại PERCENTAGE";
-      }
-      if (formData.minOrderValue) {
-        errors.minOrderValue = "Không sử dụng giá trị đơn hàng tối thiểu cho loại PERCENTAGE";
-      }
+    const maxDiscount = parseFloat(formData.maxDiscountValue);
+    if (isNaN(maxDiscount) || maxDiscount < 0) {
+      errors.maxDiscountValue = "Giá trị giảm tối đa phải không âm";
+    } else if (maxDiscount > MAX_NUMERIC_VALUE) {
+      errors.maxDiscountValue = "Giá trị giảm tối đa quá lớn";
     }
 
     setFormErrors(errors);
@@ -210,23 +196,34 @@ const DotGiamGiaAdmin = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) {
-      toast.error("Vui lòng kiểm tra các trường dữ liệu", { position: "top-right", autoClose: 5000 });
+      toast.error("Vui lòng kiểm tra các trường dữ liệu", {
+        position: "top-right",
+        autoClose: 5000,
+      });
       return;
     }
 
     try {
       const payload = {
-        ...formData,
-        createdByUserId: idUser ? parseInt(idUser) : null,
+        name: formData.name,
+        typePromotion: formData.typePromotion,
         startTime: formData.startTime ? new Date(formData.startTime).toISOString() : null,
         endTime: formData.endTime ? new Date(formData.endTime).toISOString() : null,
-        fixedDiscountValue: formData.fixedDiscountValue ? parseFloat(formData.fixedDiscountValue).toFixed(2) : null,
-        percentageDiscountValue: formData.percentageDiscountValue ? parseFloat(formData.percentageDiscountValue).toFixed(2) : null,
-        maxDiscountValue: formData.maxDiscountValue ,
-        minOrderValue: formData.typePromotion === DiscountType.FIXED && formData.minOrderValue ? parseFloat(formData.minOrderValue).toFixed(2) : null,
+        percentageDiscountValue: formData.percentageDiscountValue
+          ? parseFloat(formData.percentageDiscountValue).toFixed(2)
+          : null,
+        maxDiscountValue: formData.maxDiscountValue
+          ? parseFloat(formData.maxDiscountValue).toFixed(2)
+          : null,
+        description: formData.description || null,
+        status: formData.status,
+        createdByUserId: idUser ? parseInt(idUser) : null,
       };
 
       if (selectedPromotion) {
+        if (!selectedPromotion.id) {
+          throw new Error("ID khuyến mãi không hợp lệ");
+        }
         await DotGiamGiaApi.update(selectedPromotion.id, payload);
         toast.success("Cập nhật thành công!", {
           position: "top-right",
@@ -255,20 +252,15 @@ const DotGiamGiaAdmin = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => {
-      const updatedFormData = { ...prev, [name]: value };
-      if (name === "typePromotion") {
-        if (value === DiscountType.FIXED) {
-          updatedFormData.percentageDiscountValue = "";
-          updatedFormData.maxDiscountValue = "";
-        } else if (value === DiscountType.PERCENTAGE) {
-          updatedFormData.fixedDiscountValue = "";
-          updatedFormData.minOrderValue = "";
-        }
-      }
-      return updatedFormData;
-    });
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
     setFormErrors((prev) => ({ ...prev, [name]: "" }));
+  };
+
+  const formatCurrency = (value) => {
+    return value ? new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(value) : "-";
   };
 
   return (
@@ -277,24 +269,14 @@ const DotGiamGiaAdmin = () => {
       {/* Search and Filter */}
       <div className="flex justify-between items-center mb-4">
         <form onSubmit={handleSearch} className="flex items-center gap-2">
-          <div className="relative">
-            <input
-              type="text"
-              value={searchCode}
-              onChange={(e) => setSearchCode(e.target.value)}
-              placeholder="Tìm kiếm bằng mã..."
-              className="pl-8 pr-3 py-1.5 border border-indigo-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <HiOutlineSearch className="absolute left-2 top-2 text-indigo-500" size={16} />
-          </div>
           <input
-            type="date"
+            type="datetime-local"
             value={searchStartTime}
             onChange={(e) => setSearchStartTime(e.target.value)}
             className="px-2 py-1.5 border border-indigo-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <input
-            type="date"
+            type="datetime-local"
             value={searchEndTime}
             onChange={(e) => setSearchEndTime(e.target.value)}
             className="px-2 py-1.5 border border-indigo-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -333,15 +315,12 @@ const DotGiamGiaAdmin = () => {
           <thead className="text-xs font-medium uppercase bg-indigo-50 text-indigo-700">
             <tr>
               <th className="px-2 py-2 rounded-tl-lg">#</th>
-              <th className="px-2 py-2">Mã</th>
               <th className="px-2 py-2">Tên</th>
               <th className="px-2 py-2">Loại</th>
               <th className="px-2 py-2">Thời gian bắt đầu</th>
               <th className="px-2 py-2">Thời gian kết thúc</th>
-              <th className="px-2 py-2">Giảm cố định</th>
               <th className="px-2 py-2">Giảm %</th>
               <th className="px-2 py-2">Giảm tối đa</th>
-              <th className="px-2 py-2">Đơn tối thiểu</th>
               <th className="px-2 py-2">Trạng thái</th>
               <th className="px-2 py-2 rounded-tr-lg">Hành động</th>
             </tr>
@@ -349,7 +328,7 @@ const DotGiamGiaAdmin = () => {
           <tbody>
             {data.length === 0 ? (
               <tr>
-                <td colSpan="12" className="px-2 py-4 text-center text-gray-500 text-xs">
+                <td colSpan="8" className="px-2 py-4 text-center text-gray-500 text-xs">
                   Không có dữ liệu
                 </td>
               </tr>
@@ -360,15 +339,12 @@ const DotGiamGiaAdmin = () => {
                   className="border-b hover:bg-indigo-50 transition-colors"
                 >
                   <td className="px-2 py-2 text-center">{page * size + index + 1}</td>
-                  <td className="px-2 py-2">{item.code}</td>
                   <td className="px-2 py-2">{item.name}</td>
                   <td className="px-2 py-2">{discountTypeLabels[item.typePromotion] || item.typePromotion}</td>
-                  <td className="px-2 py-2">{new Date(item.startTime).toLocaleString()}</td>
-                  <td className="px-2 py-2">{new Date(item.endTime).toLocaleString()}</td>
-                  <td className="px-2 py-2">{item.fixedDiscountValue ? `${item.fixedDiscountValue} VND` : "-"}</td>
-                  <td className="px-2 py-2">{item.percentageDiscountValue ? `${item.percentageDiscountValue} %` : "-"}</td>
-                  <td className="px-2 py-2">{item.maxDiscountValue ? `${item.maxDiscountValue} VND` : "-"}</td>
-                  <td className="px-2 py-2">{item.minOrderValue ? `${item.minOrderValue} VND` : "-"}</td>
+                  <td className="px-2 py-2">{new Date(item.startTime).toLocaleString("vi-VN")}</td>
+                  <td className="px-2 py-2">{new Date(item.endTime).toLocaleString("vi-VN")}</td>
+                  <td className="px-2 py-2">{item.percentageDiscountValue ? `${item.percentageDiscountValue}%` : "-"}</td>
+                  <td className="px-2 py-2">{formatCurrency(item.maxDiscountValue)}</td>
                   <td className="px-2 py-2">{statusLabels[item.status]}</td>
                   <td className="px-2 py-2 text-center flex justify-center gap-1">
                     <button
@@ -435,7 +411,6 @@ const DotGiamGiaAdmin = () => {
               {selectedPromotion ? "Cập nhật" : "Thêm mới"} Đợt Giảm Giá
             </h2>
             <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-3">
-            
               <div>
                 <label className="block text-xs font-medium text-gray-700">Tên</label>
                 <input
@@ -458,36 +433,24 @@ const DotGiamGiaAdmin = () => {
                   required
                 >
                   <option value="">Chọn loại giảm giá</option>
-                  {Object.values(DiscountType).map((type) => (
-                    <option key={type} value={type}>
-                      {discountTypeLabels[type]}
-                    </option>
-                  ))}
+                  <option value={DiscountType.PERCENTAGE}>{discountTypeLabels[DiscountType.PERCENTAGE]}</option>
                 </select>
                 {formErrors.typePromotion && <p className="text-xs text-red-500 mt-1">{formErrors.typePromotion}</p>}
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700">
-                  {formData.typePromotion === DiscountType.FIXED ? "Giá trị giảm cố định (VND)" : "Phần trăm giảm (%)"}
-                </label>
+                <label className="block text-xs font-medium text-gray-700">Phần trăm giảm (%)</label>
                 <input
                   type="number"
-                  name={formData.typePromotion === DiscountType.FIXED ? "fixedDiscountValue" : "percentageDiscountValue"}
-                  value={
-                    formData.typePromotion === DiscountType.FIXED
-                      ? formData.fixedDiscountValue
-                      : formData.percentageDiscountValue
-                  }
+                  name="percentageDiscountValue"
+                  value={formData.percentageDiscountValue}
                   onChange={handleInputChange}
-                  className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.fixedDiscountValue || formErrors.percentageDiscountValue ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
+                  className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.percentageDiscountValue ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
                   min="0"
+                  max="100"
                   step="0.01"
-                  required={!!formData.typePromotion}
-                  disabled={!formData.typePromotion}
+                  required
                 />
-                {(formErrors.fixedDiscountValue || formErrors.percentageDiscountValue) && (
-                  <p className="text-xs text-red-500 mt-1">{formErrors.fixedDiscountValue || formErrors.percentageDiscountValue}</p>
-                )}
+                {formErrors.percentageDiscountValue && <p className="text-xs text-red-500 mt-1">{formErrors.percentageDiscountValue}</p>}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700">Giá trị giảm tối đa (VND)</label>
@@ -499,25 +462,9 @@ const DotGiamGiaAdmin = () => {
                   className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.maxDiscountValue ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
                   min="0"
                   step="0.01"
-                  required={formData.typePromotion === DiscountType.PERCENTAGE}
-                  disabled={formData.typePromotion !== DiscountType.PERCENTAGE}
+                  required
                 />
                 {formErrors.maxDiscountValue && <p className="text-xs text-red-500 mt-1">{formErrors.maxDiscountValue}</p>}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700">Giá trị đơn hàng tối thiểu (VND)</label>
-                <input
-                  type="number"
-                  name="minOrderValue"
-                  value={formData.minOrderValue}
-                  onChange={handleInputChange}
-                  className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.minOrderValue ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
-                  min="0"
-                  step="0.01"
-                  required={formData.typePromotion === DiscountType.FIXED}
-                  disabled={formData.typePromotion !== DiscountType.FIXED}
-                />
-                {formErrors.minOrderValue && <p className="text-xs text-red-500 mt-1">{formErrors.minOrderValue}</p>}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700">Thời gian bắt đầu</label>
@@ -550,6 +497,7 @@ const DotGiamGiaAdmin = () => {
                   value={formData.description}
                   onChange={handleInputChange}
                   className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.description ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
+                  rows="4"
                 />
                 {formErrors.description && <p className="text-xs text-red-500 mt-1">{formErrors.description}</p>}
               </div>
