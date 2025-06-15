@@ -59,7 +59,7 @@ public class UserController {
             @RequestParam(required = false) String code,
             @RequestParam(required = false) String name,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "5") int size) {
         return userService.findTopPurchasers(code, name, page, size);
     }
 

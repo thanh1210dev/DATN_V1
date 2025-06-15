@@ -77,6 +77,20 @@ public class PromotionServiceImpl implements PromotionService {
         throw new IllegalStateException("Không thể tạo mã khuyến mãi duy nhất sau " + maxAttempts + " lần thử");
     }
 
+    private PromotionStatus determineStatus(Instant startTime, Instant endTime, PromotionStatus requestedStatus) {
+        Instant now = Instant.now();
+        if (startTime != null && startTime.isAfter(now)) {
+            return PromotionStatus.COMING_SOON;
+        } else if (startTime != null && endTime != null && startTime.isBefore(now) && endTime.isAfter(now)) {
+            return PromotionStatus.ACTIVE;
+        } else if (endTime != null && endTime.isBefore(now)) {
+            return PromotionStatus.EXPIRED;
+        } else if (requestedStatus == PromotionStatus.USED_UP || requestedStatus == PromotionStatus.INACTIVE) {
+            return requestedStatus;
+        }
+        return PromotionStatus.ACTIVE; // Default if no other conditions apply
+    }
+
     @Override
     public PaginationResponse<PromotionResponseDTO> findByCodeAndStartTimeAndEndTimeAndStatus(
             String code, Instant startTime, Instant endTime, PromotionStatus status, int page, int size) {
@@ -95,11 +109,11 @@ public class PromotionServiceImpl implements PromotionService {
         // Generate unique code with 5 random characters
         String newCode = generateUniqueCode(requestDTO.getCode());
         promotion.setCode(newCode);
+        // Determine status based on startTime and endTime
+        promotion.setStatus(determineStatus(requestDTO.getStartTime(), requestDTO.getEndTime(), requestDTO.getStatus()));
         promotion.setCreatedAt(Instant.now());
         promotion.setUpdatedAt(Instant.now());
         promotion.setDeleted(false);
-
-
 
         promotion = promotionRepository.save(promotion);
         return mapToResponseDTO(promotion);
@@ -112,6 +126,8 @@ public class PromotionServiceImpl implements PromotionService {
         Promotion promotion = promotionRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy chương trình khuyến mãi"));
         updateEntityFromRequestDTO(promotion, requestDTO);
+        // Determine status based on startTime and endTime
+        promotion.setStatus(determineStatus(requestDTO.getStartTime(), requestDTO.getEndTime(), requestDTO.getStatus()));
         promotion.setUpdatedAt(Instant.now());
 
         promotion = promotionRepository.save(promotion);
@@ -122,6 +138,9 @@ public class PromotionServiceImpl implements PromotionService {
     public PromotionResponseDTO getPromotionById(Integer id) {
         Promotion promotion = promotionRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy chương trình khuyến mãi"));
+        // Update status dynamically when fetching
+        promotion.setStatus(determineStatus(promotion.getStartTime(), promotion.getEndTime(), promotion.getStatus()));
+        promotion = promotionRepository.save(promotion);
         return mapToResponseDTO(promotion);
     }
 
@@ -137,10 +156,11 @@ public class PromotionServiceImpl implements PromotionService {
     @Override
     @Transactional
     public void updateExpiredPromotions() {
-        List<Promotion> expiredPromotions = promotionRepository.findPromotionsToExpire(Instant.now());
+        Instant now = Instant.now();
+        List<Promotion> expiredPromotions = promotionRepository.findByEndTimeBeforeAndStatusNot(now, PromotionStatus.EXPIRED);
         for (Promotion promotion : expiredPromotions) {
             promotion.setStatus(PromotionStatus.EXPIRED);
-            promotion.setUpdatedAt(Instant.now());
+            promotion.setUpdatedAt(now);
             promotionRepository.save(promotion);
         }
     }
@@ -148,11 +168,18 @@ public class PromotionServiceImpl implements PromotionService {
     @Override
     @Transactional
     public void updateActivePromotions() {
-        List<Promotion> promotionsToActivate = promotionRepository.findPromotionsToActivate(Instant.now());
-        for (Promotion promotion : promotionsToActivate) {
-            promotion.setStatus(PromotionStatus.ACTIVE);
-            promotion.setUpdatedAt(Instant.now());
-            promotionRepository.save(promotion);
+        Instant now = Instant.now();
+        List<Promotion> promotions = promotionRepository.findByStatusInAndDeletedFalse(
+                List.of(PromotionStatus.COMING_SOON, PromotionStatus.ACTIVE)
+        );
+
+        for (Promotion promotion : promotions) {
+            PromotionStatus newStatus = determineStatus(promotion.getStartTime(), promotion.getEndTime(), promotion.getStatus());
+            if (newStatus != promotion.getStatus()) {
+                promotion.setStatus(newStatus);
+                promotion.setUpdatedAt(now);
+                promotionRepository.save(promotion);
+            }
         }
     }
 
@@ -168,18 +195,15 @@ public class PromotionServiceImpl implements PromotionService {
         }
 
         if (DiscountType.FIXED.equals(requestDTO.getTypePromotion())) {
-
             if (requestDTO.getPercentageDiscountValue() != null) {
                 throw new IllegalArgumentException("Không được nhập phần trăm giảm khi chọn giảm cố định");
             }
-
         } else if (DiscountType.PERCENTAGE.equals(requestDTO.getTypePromotion())) {
             if (requestDTO.getPercentageDiscountValue() == null ||
                     requestDTO.getPercentageDiscountValue().compareTo(BigDecimal.ZERO) <= 0 ||
                     requestDTO.getPercentageDiscountValue().compareTo(new BigDecimal("100")) > 0) {
                 throw new IllegalArgumentException("Phần trăm giảm giá phải nằm trong khoảng từ 0 đến 100");
             }
-
         } else {
             throw new IllegalArgumentException("Kiểu giảm giá không hợp lệ");
         }
@@ -197,12 +221,9 @@ public class PromotionServiceImpl implements PromotionService {
         promotion.setTypePromotion(dto.getTypePromotion());
         promotion.setStartTime(dto.getStartTime());
         promotion.setEndTime(dto.getEndTime());
-
         promotion.setPercentageDiscountValue(dto.getPercentageDiscountValue());
         promotion.setMaxDiscountValue(dto.getMaxDiscountValue());
-
         promotion.setDescription(dto.getDescription());
-        promotion.setStatus(dto.getStatus());
         return promotion;
     }
 
@@ -214,10 +235,8 @@ public class PromotionServiceImpl implements PromotionService {
         dto.setTypePromotion(promotion.getTypePromotion());
         dto.setStartTime(promotion.getStartTime());
         dto.setEndTime(promotion.getEndTime());
-
         dto.setPercentageDiscountValue(promotion.getPercentageDiscountValue());
         dto.setMaxDiscountValue(promotion.getMaxDiscountValue());
-
         dto.setDescription(promotion.getDescription());
         dto.setStatus(promotion.getStatus());
         dto.setCreatedAt(promotion.getCreatedAt());
@@ -235,12 +254,8 @@ public class PromotionServiceImpl implements PromotionService {
         promotion.setTypePromotion(dto.getTypePromotion());
         promotion.setStartTime(dto.getStartTime());
         promotion.setEndTime(dto.getEndTime());
-
         promotion.setPercentageDiscountValue(dto.getPercentageDiscountValue());
         promotion.setMaxDiscountValue(dto.getMaxDiscountValue());
-
         promotion.setDescription(dto.getDescription());
-        promotion.setStatus(dto.getStatus());
-
     }
 }

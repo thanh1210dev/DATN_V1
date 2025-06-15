@@ -1,22 +1,22 @@
 import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
-  FaChartPie,
-  FaCashRegister,
-  FaUndo,
-  FaStore,
-  FaFileInvoice,
-  FaTags,
-  FaUserCog,
-  FaList,
-  FaTrademark,
-  FaTv,
-  FaTshirt,
-  FaPaintBrush,
-  FaRulerCombined,
-  FaChevronDown,
-  FaChevronUp,
-} from "react-icons/fa";
+  HiOutlineChartPie,
+  HiOutlineShoppingCart,
+  HiOutlineReply,
+  HiOutlineCube,
+  HiOutlineDocumentReport,
+  HiOutlineTag,
+  HiOutlineUser,
+  HiOutlineViewList,
+  HiOutlineCollection,
+  HiOutlinePhotograph,
+  HiOutlineBeaker,
+  HiOutlineAdjustments,
+  HiOutlineColorSwatch,
+  HiChevronDown,
+  HiChevronUp,
+} from "react-icons/hi";
 import Logo from "../assets/image/image copy.png";
 import { getRoleFromToken } from "../utils/auth";
 
@@ -34,33 +34,90 @@ function SideBar({ isOpen }) {
   }, []);
 
   const iconClass = "text-xl";
+
   const menuItems = [
-    { label: "Thống Kê", path: "/dashboard", icon: <FaChartPie className="text-purple-600" /> },
-    { label: "Bán Hàng Tại Quầy", path: "/ban-hang-tai-quay", icon: <FaCashRegister className="text-pink-600" /> },
-    { label: "Trả hàng", path: "/tra-hang", icon: <FaUndo className="text-red-500" /> },
+    {
+      label: "Thống Kê",
+      path: "/dashboard",
+      icon: <HiOutlineChartPie className="text-purple-600" />,
+    },
+    {
+      label: "Bán Hàng Tại Quầy",
+      path: "/ban-hang-tai-quay",
+      icon: <HiOutlineShoppingCart className="text-pink-600" />,
+    },
+    {
+      label: "Trả hàng",
+      path: "/tra-hang",
+      icon: <HiOutlineReply className="text-red-500" />,
+    },
     {
       label: "Quản Lý Sản Phẩm",
-      icon: <FaStore className="text-green-600" />,
+      icon: <HiOutlineCube className="text-green-600" />,
       subItems: [
-        { label: "Danh Sách Sản Phẩm", path: "/quan-ly-san-pham/danh-sach", icon: <FaList className="text-blue-600" /> },
-        { label: "Thương Hiệu", path: "/thuong-hieu", icon: <FaTrademark className="text-teal-600" /> },
-        { label: "ảnh sản phẩm", path: "/chanel", icon: <FaTv className="text-indigo-600" /> },
-        { label: "Chất liệu", path: "/materials", icon: <FaTshirt className="text-orange-600" /> },
-        { label: "Kích cỡ", path: "/size", icon: <FaPaintBrush className="text-rose-600" /> },
-        { label: "Màu sắc", path: "/mau-sac", icon: <FaRulerCombined className="text-yellow-600" /> },
-        { label: "Loại", path: "/category", icon: <FaRulerCombined className="text-yellow-600" /> },
+        {
+          label: "Danh Sách Sản Phẩm",
+          path: "/quan-ly-san-pham/danh-sach",
+          icon: <HiOutlineViewList className="text-blue-600" />,
+        },
+        {
+          label: "Thương Hiệu",
+          path: "/thuong-hieu",
+          icon: <HiOutlineCollection className="text-teal-600" />,
+        },
+        {
+          label: "Ảnh Sản Phẩm",
+          path: "/chanel",
+          icon: <HiOutlinePhotograph className="text-indigo-600" />,
+        },
+        {
+          label: "Chất Liệu",
+          path: "/materials",
+          icon: <HiOutlineBeaker className="text-orange-600" />,
+        },
+        {
+          label: "Kích Cỡ",
+          path: "/size",
+          icon: <HiOutlineAdjustments className="text-rose-600" />,
+        },
+        {
+          label: "Màu Sắc",
+          path: "/mau-sac",
+          icon: <HiOutlineColorSwatch className="text-yellow-600" />,
+        },
+        {
+          label: "Loại",
+          path: "/category",
+          icon: <HiOutlineColorSwatch className="text-yellow-600" />,
+        },
       ],
     },
-    { label: "Danh Sách Hóa Đơn", path: "/danh-sach-hoa-don", icon: <FaFileInvoice className="text-sky-600" /> },
+    {
+      label: "Danh Sách Hóa Đơn",
+      path: "/danh-sach-hoa-don",
+      icon: <HiOutlineDocumentReport className="text-sky-600" />,
+    },
     {
       label: "Quản Lý Giảm Giá",
-      icon: <FaTags className="text-red-600" />,
+      icon: <HiOutlineTag className="text-red-600" />,
       subItems: [
-        { label: "Đợt Giảm Giá", path: "/quan-ly-giam-gia/dot-giam-gia", icon: <FaTags className="text-red-500" /> },
-        { label: "Phiếu Giảm Giá", path: "/quan-ly-giam-gia/phieu-giam-gia", icon: <FaTags className="text-red-400" /> },
+        {
+          label: "Đợt Giảm Giá",
+          path: "/quan-ly-giam-gia/dot-giam-gia",
+          icon: <HiOutlineTag className="text-red-500" />,
+        },
+        {
+          label: "Phiếu Giảm Giá",
+          path: "/quan-ly-giam-gia/phieu-giam-gia",
+          icon: <HiOutlineTag className="text-red-400" />,
+        },
       ],
     },
-    { label: "Quản Lý Tài Khoản", path: "/quan-ly-tai-khoan", icon: <FaUserCog className="text-cyan-600" /> },
+    {
+      label: "Quản Lý Tài Khoản",
+      path: "/quan-ly-tai-khoan",
+      icon: <HiOutlineUser className="text-cyan-600" />,
+    },
   ];
 
   const handleToggle = (label) => {
@@ -95,7 +152,11 @@ function SideBar({ isOpen }) {
               <span>{item.label}</span>
               {item.subItems && (
                 <span className="ml-auto text-black">
-                  {expandedItems[item.label] ? <FaChevronUp size={14} /> : <FaChevronDown size={14} />}
+                  {expandedItems[item.label] ? (
+                    <HiChevronUp size={16} />
+                  ) : (
+                    <HiChevronDown size={16} />
+                  )}
                 </span>
               )}
             </Link>

@@ -41,7 +41,7 @@ public class ProductDetailController {
     public ResponseEntity<PaginationResponse<ProductDetailResponseDTO>> getAll(
             @PathVariable Integer id,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "5") int size) {
         return ResponseEntity.ok(productDetailService.getAll( id,page, size));
     }
 }

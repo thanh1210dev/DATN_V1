@@ -24,7 +24,7 @@ public class VoucherController {
             @RequestParam(required = false) Instant endTime,
             @RequestParam(required = false) PromotionStatus status,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "5") int size) {
         PaginationResponse<VoucherResponseDTO> response = voucherService.findByCodeAndStartTimeAndEndTimeAndStatus(
                 code, startTime, endTime, status, page, size);
         return ResponseEntity.ok(response);
