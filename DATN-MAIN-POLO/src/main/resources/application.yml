@@ -44,7 +44,20 @@ spring:
             authorization-uri: https://accounts.google.com/o/oauth2/auth
             token-uri: https://oauth2.googleapis.com/token
             user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
-
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: huynq24092005@gmail.com
+    password: xhnj reot vfvn djhq
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          connectiontimeout: 5000
+          timeout: 3000
+          writetimeout: 5000
 upload:
   dir: uploads/images
 

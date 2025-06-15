@@ -100,7 +100,7 @@ public class ProductDetailServiceImpl implements ProductDetailService {
 
         entity.setQuantity(requestDTO.getQuantity());
         entity.setPrice(requestDTO.getPrice());
-        entity.setPromotionalPrice(requestDTO.getPromotionalPrice());
+
         entity.setStatus(requestDTO.getStatus());
     }
 

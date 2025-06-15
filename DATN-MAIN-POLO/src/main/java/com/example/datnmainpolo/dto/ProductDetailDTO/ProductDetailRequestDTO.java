@@ -32,9 +32,8 @@ public class ProductDetailRequestDTO {
     @DecimalMin(value = "0.0", inclusive = false, message = "Giá phải lớn hơn 0")
     private BigDecimal price;
 
-    @DecimalMin(value = "0.0", message = "Giá khuyến mãi phải lớn hơn hoặc bằng 0")
-    private BigDecimal promotionalPrice;
 
-    @Size(max = 50, message = "Trạng thái không được vượt quá 50 ký tự")
+
+
     private ProductStatus status;
 }

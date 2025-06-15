@@ -26,7 +26,7 @@ public class PromotionController {
             @RequestParam(required = false) Instant endTime,
             @RequestParam(required = false) PromotionStatus status,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "5") int size) {
         return promotionService.findByCodeAndStartTimeAndEndTimeAndStatus(code, startTime, endTime, status, page, size);
     }
 

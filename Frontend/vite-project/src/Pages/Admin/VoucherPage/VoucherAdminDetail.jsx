@@ -429,7 +429,7 @@ const VoucherAdminDetail = () => {
                   setVoucherPage(0);
                 }}
               >
-                <option value={5}>5 / trang</option>
+                
                 <option value={10}>10 / trang</option>
                 <option value={20}>20 / trang</option>
               </select>

@@ -47,8 +47,8 @@ public class ProductDetail {
     @Column(name = "promotional_price", precision = 10, scale = 2)
     private BigDecimal promotionalPrice;
 
-    @Size(max = 50)
-    @Column(name = "status", length = 50)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status")
     private ProductStatus status;
 
     @Column(name = "created_at")

@@ -23,6 +23,17 @@ const ProductService = {
     }
   },
 
+   
+  getById: async (id) => {
+    try {
+      const response = await axiosInstance.get(`/products/${id}`);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || 'Có lỗi xảy ra khi cập nhật sản phẩm';
+    }
+  },
+
+
   // Update a product
   update: async (id, productData) => {
     try {

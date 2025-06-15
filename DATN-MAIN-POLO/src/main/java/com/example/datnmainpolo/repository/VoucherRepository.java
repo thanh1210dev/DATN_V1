@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -37,4 +38,8 @@ public interface VoucherRepository extends JpaRepository<Voucher, Integer> {
 
     @Query("SELECT v FROM Voucher v WHERE v.status IN (com.example.datnmainpolo.enums.PromotionStatus.ACTIVE, com.example.datnmainpolo.enums.PromotionStatus.COMING_SOON) AND v.endTime < :currentTime AND v.deleted = false")
     List<Voucher> findVouchersToExpire(@Param("currentTime") Instant currentTime);
+
+    List<Voucher> findByEndTimeBeforeAndStatusNot(Instant endTimeBefore, PromotionStatus status);
+
+    List<Voucher> findByStatusInAndDeletedFalse(Collection<PromotionStatus> statuses);
 }

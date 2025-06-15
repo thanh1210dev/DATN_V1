@@ -6,6 +6,7 @@ import ColorAdmin from "../../Pages/Admin/QuanlySanPhamPage/ProductDetail/ColorA
 import MaterialAdmin from "../../Pages/Admin/QuanlySanPhamPage/ProductDetail/MaterialAdmin";
 import CategoryAdmin from "../../Pages/Admin/QuanlySanPhamPage/ProductDetail/CategoryAdmin";
 import ProductAdmin from "../../Pages/Admin/QuanlySanPhamPage/Product/ProductAdmin";
+import ProductDetail from "../../Pages/Admin/QuanlySanPhamPage/ProductDetail/ProductDetail";
 
 const AdminQuanLySanPham = [
     <Route path="/chanel" element={<ImageAdmin />} />,
@@ -15,6 +16,7 @@ const AdminQuanLySanPham = [
     <Route path="/materials" element={<MaterialAdmin />} />,
     <Route path="/quan-ly-san-pham/danh-sach" element={<ProductAdmin />} />,
     <Route path="/category" element={<CategoryAdmin />} />,
+    <Route path="/detail-product/:id" element={<ProductDetail />} />
     
   ];
   

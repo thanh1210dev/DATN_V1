@@ -1,5 +1,6 @@
 package com.example.datnmainpolo.service.Impl.VoucherServiceImpl;
 
+
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.dto.VoucherDTO.VoucherRequestDTO;
 import com.example.datnmainpolo.dto.VoucherDTO.VoucherResponseDTO;
@@ -71,6 +72,20 @@ public class VoucherServiceImpl implements VoucherService {
         throw new IllegalStateException("Không thể tạo mã voucher duy nhất sau " + maxAttempts + " lần thử");
     }
 
+    private PromotionStatus determineStatus(Instant startTime, Instant endTime, PromotionStatus requestedStatus) {
+        Instant now = Instant.now();
+        if (startTime != null && startTime.isAfter(now)) {
+            return PromotionStatus.COMING_SOON;
+        } else if (startTime != null && endTime != null && startTime.isBefore(now) && endTime.isAfter(now)) {
+            return PromotionStatus.ACTIVE;
+        } else if (endTime != null && endTime.isBefore(now)) {
+            return PromotionStatus.EXPIRED;
+        } else if (requestedStatus == PromotionStatus.USED_UP || requestedStatus == PromotionStatus.INACTIVE) {
+            return requestedStatus;
+        }
+        return PromotionStatus.ACTIVE; // Default if no other conditions apply
+    }
+
     @Override
     public PaginationResponse<VoucherResponseDTO> findByCodeAndStartTimeAndEndTimeAndStatus(
             String code, Instant startTime, Instant endTime, PromotionStatus status, int page, int size) {
@@ -90,6 +105,7 @@ public class VoucherServiceImpl implements VoucherService {
 
         Voucher voucher = mapToEntity(requestDTO);
         voucher.setCode(newCode);
+        voucher.setStatus(determineStatus(requestDTO.getStartTime(), requestDTO.getEndTime(), requestDTO.getStatus()));
         voucher.setCreatedAt(Instant.now());
         voucher.setUpdatedAt(Instant.now());
         voucher.setDeleted(false);
@@ -111,6 +127,7 @@ public class VoucherServiceImpl implements VoucherService {
         Voucher voucher = voucherRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy voucher"));
         updateEntityFromRequestDTO(voucher, requestDTO);
+        voucher.setStatus(determineStatus(requestDTO.getStartTime(), requestDTO.getEndTime(), requestDTO.getStatus()));
         voucher.setUpdatedAt(Instant.now());
 
         voucher = voucherRepository.save(voucher);
@@ -121,6 +138,8 @@ public class VoucherServiceImpl implements VoucherService {
     public VoucherResponseDTO getVoucherById(Integer id) {
         Voucher voucher = voucherRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy voucher"));
+        voucher.setStatus(determineStatus(voucher.getStartTime(), voucher.getEndTime(), voucher.getStatus()));
+        voucher = voucherRepository.save(voucher);
         return mapToResponseDTO(voucher);
     }
 
@@ -136,10 +155,11 @@ public class VoucherServiceImpl implements VoucherService {
     @Override
     @Transactional
     public void updateExpiredVouchers() {
-        List<Voucher> expiredVouchers = voucherRepository.findVouchersToExpire(Instant.now());
+        Instant now = Instant.now();
+        List<Voucher> expiredVouchers = voucherRepository.findByEndTimeBeforeAndStatusNot(now, PromotionStatus.EXPIRED);
         for (Voucher voucher : expiredVouchers) {
             voucher.setStatus(PromotionStatus.EXPIRED);
-            voucher.setUpdatedAt(Instant.now());
+            voucher.setUpdatedAt(now);
             voucherRepository.save(voucher);
         }
     }
@@ -147,11 +167,16 @@ public class VoucherServiceImpl implements VoucherService {
     @Override
     @Transactional
     public void updateActiveVouchers() {
-        List<Voucher> vouchersToActivate = voucherRepository.findVouchersToActivate(Instant.now());
-        for (Voucher voucher : vouchersToActivate) {
-            voucher.setStatus(PromotionStatus.ACTIVE);
-            voucher.setUpdatedAt(Instant.now());
-            voucherRepository.save(voucher);
+        Instant now = Instant.now();
+        List<Voucher> vouchers = voucherRepository.findByStatusInAndDeletedFalse(
+                List.of(PromotionStatus.COMING_SOON, PromotionStatus.ACTIVE));
+        for (Voucher voucher : vouchers) {
+            PromotionStatus newStatus = determineStatus(voucher.getStartTime(), voucher.getEndTime(), voucher.getStatus());
+            if (newStatus != voucher.getStatus()) {
+                voucher.setStatus(newStatus);
+                voucher.setUpdatedAt(now);
+                voucherRepository.save(voucher);
+            }
         }
     }
 
@@ -161,7 +186,8 @@ public class VoucherServiceImpl implements VoucherService {
             throw new ConstraintViolationException(violations);
         }
 
-        if (!requestDTO.getStartTime().isBefore(requestDTO.getEndTime())) {
+        if (requestDTO.getStartTime() != null && requestDTO.getEndTime() != null &&
+                !requestDTO.getStartTime().isBefore(requestDTO.getEndTime())) {
             throw new IllegalArgumentException("Thời gian bắt đầu phải trước thời gian kết thúc");
         }
 
@@ -213,7 +239,6 @@ public class VoucherServiceImpl implements VoucherService {
         voucher.setStartTime(dto.getStartTime());
         voucher.setEndTime(dto.getEndTime());
         voucher.setQuantity(dto.getQuantity());
-        voucher.setStatus(dto.getStatus());
         voucher.setFixedDiscountValue(dto.getFixedDiscountValue());
         voucher.setPercentageDiscountValue(dto.getPercentageDiscountValue());
         voucher.setMaxDiscountValue(dto.getMaxDiscountValue());
@@ -251,7 +276,6 @@ public class VoucherServiceImpl implements VoucherService {
         voucher.setStartTime(dto.getStartTime());
         voucher.setEndTime(dto.getEndTime());
         voucher.setQuantity(dto.getQuantity());
-        voucher.setStatus(dto.getStatus());
         voucher.setFixedDiscountValue(dto.getFixedDiscountValue());
         voucher.setPercentageDiscountValue(dto.getPercentageDiscountValue());
         voucher.setMaxDiscountValue(dto.getMaxDiscountValue());
