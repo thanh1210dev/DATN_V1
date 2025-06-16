@@ -77,9 +77,9 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public PaginationResponse<ProductResponseDTO> getAll(int page, int size) {
+    public PaginationResponse<ProductResponseDTO> getAll(int page, int size, String code, String name, Integer materialId, Integer brandId, Integer categoryId) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
-        Page<Product> pageData = productRepository.findAllByDeletedFalse(pageable);
+        Page<Product> pageData = productRepository.findAllByFilters(code, name, materialId, brandId, categoryId, pageable);
         return new PaginationResponse<>(pageData.map(this::toResponse));
     }
 

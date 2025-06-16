@@ -5,9 +5,12 @@ import 'react-toastify/dist/ReactToastify.css';
 import Select from 'react-select';
 import { useNavigate } from 'react-router-dom';
 import ProductService from '../../../../Service/AdminProductSevice/ProductService';
-import BrandService from '../../../../Service/AdminProductSevice/BranchService';
+
 import MaterialService from '../../../../Service/AdminProductSevice/MaterialService';
+import BrandService from '../../../../Service/AdminProductSevice/BranchService';
 import CategoryService from '../../../../Service/AdminProductSevice/CategoryService';
+
+
 
 const ProductAdmin = () => {
   const [products, setProducts] = useState([]);
@@ -22,6 +25,13 @@ const ProductAdmin = () => {
     brandId: null,
     categoryId: null,
     description: '',
+  });
+  const [filters, setFilters] = useState({
+    code: '',
+    name: '',
+    materialId: null,
+    brandId: null,
+    categoryId: null,
   });
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -42,10 +52,18 @@ const ProductAdmin = () => {
     return result;
   };
 
-  // Fetch products
+  // Fetch products with filters 10
   const fetchProducts = async () => {
     try {
-      const data = await ProductService.getAll(page, size);
+      const data = await ProductService.getAll(
+        page,
+        size,
+        filters.code || null,
+        filters.name || null,
+        filters.materialId || null,
+        filters.brandId || null,
+        filters.categoryId || null
+      );
       setProducts(data.content);
       setTotalPages(data.totalPages);
     } catch (error) {
@@ -72,7 +90,20 @@ const ProductAdmin = () => {
   useEffect(() => {
     fetchProducts();
     fetchComboboxData();
-  }, [page, size]);
+  }, [page, size, filters]);
+
+  // Handle filter input changes
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    setFilters((prev) => ({ ...prev, [name]: value }));
+    setPage(0); // Reset to first page when filters change
+  };
+
+  // Handle filter combobox changes
+  const handleFilterSelectChange = (selectedOption, { name }) => {
+    setFilters((prev) => ({ ...prev, [name]: selectedOption ? selectedOption.value : null }));
+    setPage(0); // Reset to first page when filters change
+  };
 
   // Handle form input changes
   const handleInputChange = (e) => {
@@ -173,6 +204,71 @@ const ProductAdmin = () => {
         </button>
       </div>
 
+      {/* Filter Section */}
+      <div className="bg-white shadow-lg rounded-lg p-4 mb-4">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Lọc sản phẩm</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Mã sản phẩm</label>
+            <input
+              type="text"
+              name="code"
+              value={filters.code}
+              onChange={handleFilterChange}
+              className="block w-full rounded-lg border border-gray-300 shadow-sm px-4 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition-colors"
+              placeholder="Nhập mã sản phẩm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Tên sản phẩm</label>
+            <input
+              type="text"
+              name="name"
+              value={filters.name}
+              onChange={handleFilterChange}
+              className="block w-full rounded-lg border border-gray-300 shadow-sm px-4 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition-colors"
+              placeholder="Nhập tên sản phẩm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Chất liệu</label>
+            <Select
+              name="materialId"
+              value={materials.find(option => option.value === filters.materialId) || null}
+              onChange={(selectedOption) => handleFilterSelectChange(selectedOption, { name: 'materialId' })}
+              options={[{ value: null, label: 'Tất cả' }, ...materials]}
+              placeholder="Chọn chất liệu"
+              isSearchable
+              className="text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Thương hiệu</label>
+            <Select
+              name="brandId"
+              value={brands.find(option => option.value === filters.brandId) || null}
+              onChange={(selectedOption) => handleFilterSelectChange(selectedOption, { name: 'brandId' })}
+              options={[{ value: null, label: 'Tất cả' }, ...brands]}
+              placeholder="Chọn thương hiệu"
+              isSearchable
+              className="text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Danh mục</label>
+            <Select
+              name="categoryId"
+              value={categories.find(option => option.value === filters.categoryId) || null}
+              onChange={(selectedOption) => handleFilterSelectChange(selectedOption, { name: 'categoryId' })}
+              options={[{ value: null, label: 'Tất cả' }, ...categories]}
+              placeholder="Chọn danh mục"
+              isSearchable
+              className="text-sm"
+            />
+          </div>
+        </div>
+      </div>
+
       <div className="bg-white shadow-lg rounded-lg overflow-hidden">
         <table className="w-full text-sm text-left text-gray-700">
           <thead className="text-xs font-semibold uppercase bg-indigo-50 text-indigo-700">
@@ -265,7 +361,7 @@ const ProductAdmin = () => {
             setPage(0);
           }}
         >
-          <option value={5}>5 / trang</option>
+          
           <option value={10}>10 / trang</option>
           <option value={20}>20 / trang</option>
           <option value={50}>50 / trang</option>

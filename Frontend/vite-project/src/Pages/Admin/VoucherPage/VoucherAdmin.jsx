@@ -4,9 +4,10 @@ import { BsSendDashFill } from "react-icons/bs";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 // import VoucherApi from "../../../Service/AdminDotGiamGiaSevice/VoucherApi";
-import { PromotionStatus, DiscountType } from "../DotGiamGiaPage/PromotionStatus";
+import { PromotionStatus } from "../DotGiamGiaPage/PromotionStatus";
 import { useNavigate } from "react-router-dom";
 import VoucherApi from "../../../Service/AdminDotGiamGiaSevice/VoucherApi";
+import { VoucherType } from "./VoucherEnums";
 // import VoucherApi from "../../../Service/AdminDotGiamGiaSevice/VoucherApi";
 
 const VoucherAdmin = () => {
@@ -172,7 +173,7 @@ const VoucherAdmin = () => {
       errors.minOrderValue = "Giá trị đơn hàng tối thiểu phải lớn hơn 0";
     }
 
-    if (formData.type === DiscountType.FIXED) {
+    if (formData.type === VoucherType.FIXED) {
       const fixed = parseFloat(formData.fixedDiscountValue);
       if (isNaN(fixed) || fixed <= 0) {
         errors.fixedDiscountValue = "Giá trị giảm cố định phải lớn hơn 0";
@@ -187,7 +188,7 @@ const VoucherAdmin = () => {
       if (formData.maxDiscountValue) {
         errors.maxDiscountValue = "Không sử dụng giá trị giảm tối đa cho loại FIXED";
       }
-    } else if (formData.type === DiscountType.PERCENTAGE) {
+    } else if (formData.type === VoucherType.PERCENTAGE) {
       const percentage = parseFloat(formData.percentageDiscountValue);
       if (isNaN(percentage) || percentage <= 0) {
         errors.percentageDiscountValue = "Phần trăm giảm giá phải lớn hơn 0";
@@ -263,10 +264,10 @@ const VoucherAdmin = () => {
     setFormData((prev) => {
       const updatedFormData = { ...prev, [name]: value };
       if (name === "type") {
-        if (value === DiscountType.FIXED) {
+        if (value === VoucherType.FIXED) {
           updatedFormData.percentageDiscountValue = "";
           updatedFormData.maxDiscountValue = "";
-        } else if (value === DiscountType.PERCENTAGE) {
+        } else if (value === VoucherType.PERCENTAGE) {
           updatedFormData.fixedDiscountValue = "";
         }
       }
@@ -368,7 +369,7 @@ const VoucherAdmin = () => {
                   <td className="px-2 py-2">{new Date(item.endTime).toLocaleString()}</td>
                   <td className="px-2 py-2">{item.quantity || "-"}</td>
                   <td className="px-2 py-2">
-                    {item.type === DiscountType.PERCENTAGE && item.percentageDiscountValue
+                    {item.type === VoucherType.PERCENTAGE && item.percentageDiscountValue
                       ? `${item.percentageDiscountValue}%`
                       : item.fixedDiscountValue
                       ? `${item.fixedDiscountValue} VND`
@@ -470,7 +471,7 @@ const VoucherAdmin = () => {
                   required
                 >
                   <option value="">Chọn loại</option>
-                  {Object.values(DiscountType).map((type) => (
+                  {Object.values(VoucherType).map((type) => (
                     <option key={type} value={type}>
                       {typeLabels[type]}
                     </option>
@@ -480,13 +481,13 @@ const VoucherAdmin = () => {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700">
-                  {formData.type === DiscountType.PERCENTAGE ? "Phần trăm giảm (%)" : "Giá trị giảm (VND)"}
+                  {formData.type === VoucherType.PERCENTAGE ? "Phần trăm giảm (%)" : "Giá trị giảm (VND)"}
                 </label>
                 <input
                   type="number"
-                  name={formData.type === DiscountType.PERCENTAGE ? "percentageDiscountValue" : "fixedDiscountValue"}
+                  name={formData.type === VoucherType.PERCENTAGE ? "percentageDiscountValue" : "fixedDiscountValue"}
                   value={
-                    formData.type === DiscountType.PERCENTAGE
+                    formData.type === VoucherType.PERCENTAGE
                       ? formData.percentageDiscountValue
                       : formData.fixedDiscountValue
                   }
@@ -511,8 +512,8 @@ const VoucherAdmin = () => {
                   className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.maxDiscountValue ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
                   min="0"
                   step="0.01"
-                  required={formData.type === DiscountType.PERCENTAGE}
-                  disabled={formData.type !== DiscountType.PERCENTAGE}
+                  required={formData.type === VoucherType.PERCENTAGE}
+                  disabled={formData.type !== VoucherType.PERCENTAGE}
                 />
                 {formErrors.maxDiscountValue && <p className="text-xs text-red-500 mt-1">{formErrors.maxDiscountValue}</p>}
               </div>

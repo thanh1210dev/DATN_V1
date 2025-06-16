@@ -13,6 +13,7 @@ public class AccountVoucherResponseDTO {
     private Integer voucherId;
     private Integer accountId;
     private String voucherName;
+    private Integer quantity;
     private String voucherStatus;
     private String accountName;
     private Boolean status;

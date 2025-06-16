@@ -53,4 +53,13 @@ public interface PromotionRepository extends JpaRepository<Promotion, Integer> {
     List<Promotion> findByEndTimeBeforeAndStatusNot(Instant endTimeBefore, PromotionStatus status);
 
     List<Promotion> findByStatusInAndDeletedFalse(Collection<PromotionStatus> statuses);
+
+
+
+
+
+    Optional<Promotion> findByIdAndStatus(Integer id, PromotionStatus status);
+
+    @Query("SELECT p FROM Promotion p WHERE p.endTime <= :now AND p.status = :status")
+    List<Promotion> findByEndTimeBeforeAndStatus(Instant now, PromotionStatus status);
 }

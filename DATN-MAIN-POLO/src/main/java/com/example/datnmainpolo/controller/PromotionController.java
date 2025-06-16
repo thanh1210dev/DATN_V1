@@ -3,6 +3,9 @@ package com.example.datnmainpolo.controller;
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.dto.PromotionDTO.PromotionRequestDTO;
 import com.example.datnmainpolo.dto.PromotionDTO.PromotionResponseDTO;
+import com.example.datnmainpolo.dto.PromotionProductDetailDTO.AssignPromotionRequest;
+import com.example.datnmainpolo.dto.PromotionProductDetailDTO.AssignSinglePromotionRequest;
+import com.example.datnmainpolo.dto.PromotionProductDetailDTO.PromotionProductDetailResponse;
 import com.example.datnmainpolo.enums.PromotionStatus;
 import com.example.datnmainpolo.service.PromotionService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 
 import java.time.Instant;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/promotions")
@@ -54,5 +58,27 @@ public class PromotionController {
     public ResponseEntity<Void> softDeletePromotion(@PathVariable Integer id) {
         promotionService.softDeletePromotion(id);
         return ResponseEntity.noContent().build();
+    }
+
+
+    @PostMapping("/assign")
+    public ResponseEntity<String> assignPromotion(@RequestBody AssignPromotionRequest request) {
+        promotionService.assignPromotionToProducts(request);
+        return ResponseEntity.ok("Khuyến mãi đã được phân thành công");
+    }
+
+    @PostMapping("/assign-single")
+    public ResponseEntity<String> assignSinglePromotion(@RequestBody AssignSinglePromotionRequest request) {
+        promotionService.assignPromotionToSingleProductDetail(request);
+        return ResponseEntity.ok("Khuyến mãi đã được phân cho chi tiết sản phẩm thành công");
+    }
+
+    @GetMapping("/{promotionId}/products")
+    public ResponseEntity<PaginationResponse<PromotionProductDetailResponse>> getPromotionProducts(
+            @PathVariable Integer promotionId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size) {
+        PaginationResponse<PromotionProductDetailResponse> response = promotionService.getPromotionProductsByPromotionId(promotionId, page, size);
+        return ResponseEntity.ok(response);
     }
 }

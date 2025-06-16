@@ -2,5 +2,5 @@
   
   export const VoucherType = {
     FIXED: "FIXED",
-    PERCENT: "PERCENT",
+    PERCENTAGE: "PERCENTAGE",
   };

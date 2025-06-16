@@ -8,7 +8,7 @@ import PrivateRoute from "../component/PrivateRoute";
 import LoginPage from "../Pages/Login/LoginPage";
 import RegisterPage from "../Pages/Login/RegisterPage";
 import OAuth2RedirectHandler from "../Pages/Login/OAuth2RedirectHandler";
-import HomeClient from "../Pages/Client/Home/HomeClient";
+
 import AdminQuanlyGiamGia from "./AdminRouter/AdminQuanlyGiamGia";
 import AdminQuanLySanPham from "./AdminRouter/AdminQuanLySanPham";
 
@@ -21,7 +21,7 @@ const AppRouter = () => {
 
   return (
     <Routes>
-       <Route path="/" element={<HomeClient />} />
+      
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/oauth2/redirect" element={<OAuth2RedirectHandler />} />
