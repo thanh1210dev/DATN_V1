@@ -1,14 +1,8 @@
 package com.example.datnmainpolo.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import com.example.datnmainpolo.enums.OrderStatus;
+import com.example.datnmainpolo.enums.PaymentType;
+import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
@@ -26,40 +20,14 @@ public class Bill {
     @Column(name = "id", nullable = false)
     private Integer id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "customer_id")
-    private UserEntity customer;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "employee_id")
-    private UserEntity employee;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "customer_infor_id")
-    private CustomerInformation customerInfor;
-
     @Size(max = 100)
     @Column(name = "code", length = 100)
     private String code;
 
-    @Column(name = "confirmation_date")
-    private Instant confirmationDate;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 50)
+    private OrderStatus status;
 
-    @Column(name = "delivery_date")
-    private Instant deliveryDate;
-
-    @Column(name = "received_date")
-    private Instant receivedDate;
-
-    @Column(name = "completion_date")
-    private Instant completionDate;
-
-    @Column(name = "desired_date")
-    private Instant desiredDate;
-
-    @Size(max = 100)
-    @Column(name = "type", length = 100)
-    private String type;
 
     @Size(max = 100)
     @Column(name = "customer_name", length = 100)
@@ -73,21 +41,53 @@ public class Bill {
     @Column(name = "address", length = 100)
     private String address;
 
-    @Column(name = "money_ship", precision = 10, scale = 2)
+
+    @Column(name = "confirmation_date")
+    private Instant confirmationDate;   //ngay xac nhan don hang
+
+    @Column(name = "delivery_date")
+    private Instant deliveryDate;       //ngay giao hang
+
+    @Column(name = "received_date")
+    private Instant receivedDate;       //ngay nhan hang
+
+    @Column(name = "completion_date")   //ngay hoan thanh don hang
+    private Instant completionDate;
+
+    @Column(name = "desired_date")      // ngay mong muon giao hang
+    private Instant desiredDate;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type", length = 100) //online , cash
+    private PaymentType type;
+
+
+
+    @Column(name = "money_ship", precision = 10, scale = 2)      // tien ship
     private BigDecimal moneyShip;
 
-    @Column(name = "total_money", precision = 10, scale = 2)
+    @Column(name = "total_money", precision = 10, scale = 2)    // tong tien
     private BigDecimal totalMoney;
 
-    @Column(name = "reduction_amount", precision = 10, scale = 2)
+    @Column(name = "reduction_amount", precision = 10, scale = 2)   // so tien giam gia
     private BigDecimal reductionAmount;
 
-    @Column(name = "deposit", precision = 10, scale = 2)
+    @Column(name = "deposit", precision = 10, scale = 2)         // so tien dat coc
     private BigDecimal deposit;
 
-    @Size(max = 50)
-    @Column(name = "status", length = 50)
-    private String status;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_id")
+    private UserEntity customer;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "employee_id")
+    private UserEntity employee;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_infor_id")
+    private CustomerInformation customerInfor;
+
 
     @Column(name = "created_at")
     private Instant createdAt;
