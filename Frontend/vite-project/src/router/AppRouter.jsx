@@ -1,16 +1,13 @@
 import React, { useState } from "react";
 import { Routes, Route } from "react-router-dom";
-
+import PrivateRoute from "../component/PrivateRoute";
 import SideBar from "../component/SideBar";
 import Header from "../component/Header";
-import PrivateRoute from "../component/PrivateRoute";
-
-import LoginPage from "../Pages/Login/LoginPage";
-import RegisterPage from "../Pages/Login/RegisterPage";
-import OAuth2RedirectHandler from "../Pages/Login/OAuth2RedirectHandler";
 
 import AdminQuanlyGiamGia from "./AdminRouter/AdminQuanlyGiamGia";
 import AdminQuanLySanPham from "./AdminRouter/AdminQuanLySanPham";
+import ClientRouter from "./ClientRouTer/ClientRouter";
+
 
 const AppRouter = () => {
   const [isOpen, setIsOpen] = useState(true);
@@ -21,29 +18,25 @@ const AppRouter = () => {
 
   return (
     <Routes>
-      
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
-      <Route path="/oauth2/redirect" element={<OAuth2RedirectHandler />} />
-     
+      {/* Client Routes */}
+      <Route path="/*" element={<ClientRouter />} />
 
+      {/* Admin Routes */}
       <Route
-        path="*"
+        path="/admin/*"
         element={
           <PrivateRoute allowedRoles={["STAFF", "ADMIN"]}>
-            <div className="flex h-screen overflow-hidden">
-              <div className={`transition-all duration-300 ${isOpen ? "w-80" : "w-0"}`}>
+            <div className="flex h-screen overflow-hidden bg-gray-100">
+              <div className={`transition-all duration-300 ${isOpen ? "w-80" : "w-16"}`}>
                 <SideBar isOpen={isOpen} toggleSidebar={toggleSidebar} />
               </div>
               <div className="flex-1 flex flex-col">
                 <Header toggleSidebar={toggleSidebar} />
                 <main className="p-6 flex-1 overflow-auto">
                   <Routes>
-                  <Route path="/" element={<div>Trang Quản Lý Admin</div>} />
-
-                     {AdminQuanlyGiamGia}
+                    <Route path="/" element={<div className="text-2xl font-bold text-indigo-700">Trang Quản Lý Admin</div>} />
+                    {AdminQuanlyGiamGia}
                     {AdminQuanLySanPham}
-                    
                   </Routes>
                 </main>
               </div>
