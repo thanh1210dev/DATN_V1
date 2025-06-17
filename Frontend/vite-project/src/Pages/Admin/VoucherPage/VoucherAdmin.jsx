@@ -108,7 +108,7 @@ const VoucherAdmin = () => {
   };
 
   const handleViewDetail = (id) => {
-    navigate(`/chi-tiet-voucher/${id}`);
+    navigate(`/admin/chi-tiet-voucher/${id}`);
   };
 
   const handleUpdate = (voucher) => {

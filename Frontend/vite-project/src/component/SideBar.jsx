@@ -38,17 +38,17 @@ function SideBar({ isOpen }) {
   const menuItems = [
     {
       label: "Thống Kê",
-      path: "/dashboard",
+      path: "/admin/dashboard",
       icon: <HiOutlineChartPie className="text-purple-600" />,
     },
     {
       label: "Bán Hàng Tại Quầy",
-      path: "/ban-hang-tai-quay",
+      path: "/admin/ban-hang-tai-quay",
       icon: <HiOutlineShoppingCart className="text-pink-600" />,
     },
     {
       label: "Trả hàng",
-      path: "/tra-hang",
+      path: "/admin/tra-hang",
       icon: <HiOutlineReply className="text-red-500" />,
     },
     {
@@ -57,44 +57,44 @@ function SideBar({ isOpen }) {
       subItems: [
         {
           label: "Danh Sách Sản Phẩm",
-          path: "/quan-ly-san-pham/danh-sach",
+          path: "/admin/quan-ly-san-pham/danh-sach",
           icon: <HiOutlineViewList className="text-blue-600" />,
         },
         {
           label: "Thương Hiệu",
-          path: "/thuong-hieu",
+          path: "/admin/thuong-hieu",
           icon: <HiOutlineCollection className="text-teal-600" />,
         },
         {
           label: "Ảnh Sản Phẩm",
-          path: "/chanel",
+          path: "/admin/chanel",
           icon: <HiOutlinePhotograph className="text-indigo-600" />,
         },
         {
           label: "Chất Liệu",
-          path: "/materials",
+          path: "/admin/materials",
           icon: <HiOutlineBeaker className="text-orange-600" />,
         },
         {
           label: "Kích Cỡ",
-          path: "/size",
+          path: "/admin/size",
           icon: <HiOutlineAdjustments className="text-rose-600" />,
         },
         {
           label: "Màu Sắc",
-          path: "/mau-sac",
+          path: "/admin/mau-sac",
           icon: <HiOutlineColorSwatch className="text-yellow-600" />,
         },
         {
           label: "Loại",
-          path: "/category",
+          path: "/admin/category",
           icon: <HiOutlineColorSwatch className="text-yellow-600" />,
         },
       ],
     },
     {
       label: "Danh Sách Hóa Đơn",
-      path: "/danh-sach-hoa-don",
+      path: "/admin/danh-sach-hoa-don",
       icon: <HiOutlineDocumentReport className="text-sky-600" />,
     },
     {
@@ -103,19 +103,19 @@ function SideBar({ isOpen }) {
       subItems: [
         {
           label: "Đợt Giảm Giá",
-          path: "/quan-ly-giam-gia/dot-giam-gia",
+          path: "/admin/quan-ly-giam-gia/dot-giam-gia",
           icon: <HiOutlineTag className="text-red-500" />,
         },
         {
           label: "Phiếu Giảm Giá",
-          path: "/quan-ly-giam-gia/phieu-giam-gia",
+          path: "/admin/quan-ly-giam-gia/phieu-giam-gia",
           icon: <HiOutlineTag className="text-red-400" />,
         },
       ],
     },
     {
       label: "Quản Lý Tài Khoản",
-      path: "/quan-ly-tai-khoan",
+      path: "/admin/quan-ly-tai-khoan",
       icon: <HiOutlineUser className="text-cyan-600" />,
     },
   ];

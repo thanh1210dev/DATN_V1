@@ -51,7 +51,7 @@ const DotGiamGiaAdmin = () => {
   };
   const navigate = useNavigate();
   const handleViewDetail = (id) => {
-    navigate(`/chi-tiet-dot-giam-gia/${id}`);
+    navigate(`/admin/chi-tiet-dot-giam-gia/${id}`);
   };
 
   const currentDate = new Date().toISOString().slice(0, 16);
