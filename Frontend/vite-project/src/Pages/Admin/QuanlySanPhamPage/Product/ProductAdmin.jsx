@@ -147,7 +147,7 @@ const ProductAdmin = () => {
 
   // Handle view product details
   const handleViewDetails = (id) => {
-    navigate(`/detail-product/${id}`);
+    navigate(`/admin/detail-product/${id}`);
   };
 
   // Handle form submission
