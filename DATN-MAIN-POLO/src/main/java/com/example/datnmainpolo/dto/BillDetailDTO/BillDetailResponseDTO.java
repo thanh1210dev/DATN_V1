@@ -5,34 +5,49 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 
 @Getter
 @Setter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class BillDetailResponseDTO {
-    private Integer id; // ID của BillDetail
+    private Integer id;
+
+    private Integer billId; // ID của hóa đơn mà chi tiết này thuộc về
+
+    private String billCode;
 
     private Integer productDetailId;
 
-    private String productName; // Tên sản phẩm (Lấy từ Product hoặc ProductDetail)
+    private String productName;
 
-    private Integer quantity; // Số lượng sản phẩm trong chi tiết hóa đơn
+    private String productColor;
 
-    private BigDecimal price; // Giá của sản phẩm
+    private String productSize;
 
-    private BigDecimal promotionalPrice; // Giá giảm sau khi áp dụng giảm giá
+    private String productImage;
 
+    private BigDecimal price;
+
+    private BigDecimal promotionalPrice;
+
+    private Integer quantity;
+
+    private BigDecimal totalPrice;
+    
     private BillDetailStatus status; // Trạng thái của sản phẩm trong chi tiết hóa đơn
-
-    private BigDecimal totalPrice; // Tổng tiền (Giá * Số lượng)
-
-    private Integer billId; // ID của hóa đơn mà chi tiết này thuộc về
 
     private Instant createdAt; // Thời gian tạo chi tiết hóa đơn
 
     private Instant updatedAt; // Thời gian cập nhật chi tiết hóa đơn
 
+    private String createdBy;
 
+    private String updatedBy;
 }

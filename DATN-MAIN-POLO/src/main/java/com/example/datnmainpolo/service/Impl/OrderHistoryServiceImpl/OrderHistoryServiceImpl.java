@@ -5,6 +5,7 @@ import com.example.datnmainpolo.dto.OrderHistoryDTO.OrderHistoryResponseDTO;
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.entity.Bill;
 import com.example.datnmainpolo.entity.OrderHistory;
+import com.example.datnmainpolo.enums.OrderStatus;
 import com.example.datnmainpolo.repository.BillRepository;
 import com.example.datnmainpolo.repository.OrderHistoryRepository;
 import com.example.datnmainpolo.service.OrderHistoryService;
@@ -86,12 +87,25 @@ public class OrderHistoryServiceImpl implements OrderHistoryService {
 
     private OrderHistoryResponseDTO toResponse(OrderHistory entity) {
         OrderHistoryResponseDTO response = new OrderHistoryResponseDTO();
-        response.setBillId(entity.getId());
+        response.setId(entity.getId());
         response.setBillId(entity.getBill().getId());
         response.setStatusOrder(entity.getStatusOrder());
         response.setActionDescription(entity.getActionDescription());
         response.setCreatedAt(entity.getCreatedAt());
         response.setUpdatedAt(entity.getUpdatedAt());
         return response;
+    }
+
+    public void addHistory(Integer billId, String actionDescription, String createdBy) {
+        Bill bill = billRepository.findById(billId)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy hóa đơn với ID: " + billId));
+        OrderHistory entity = new OrderHistory();
+        entity.setBill(bill);
+        entity.setStatusOrder(bill.getStatus());
+        entity.setActionDescription(actionDescription);
+        entity.setCreatedAt(Instant.now());
+        entity.setCreatedBy(createdBy);
+        entity.setDeleted(false);
+        orderHistoryRepository.save(entity);
     }
 }

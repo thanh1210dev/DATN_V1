@@ -1,6 +1,7 @@
 package com.example.datnmainpolo.controller;
 
-import com.example.datnmainpolo.dto.BillDetailDTO.BillDetailRequestDTO;
+import com.example.datnmainpolo.dto.BillDetailDTO.AddProductToBillRequestDTO;
+import com.example.datnmainpolo.dto.BillDetailDTO.BillDetailCreateDTO;
 import com.example.datnmainpolo.dto.BillDetailDTO.BillDetailResponseDTO;
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.entity.BillDetail;
@@ -17,32 +18,42 @@ import org.springframework.web.bind.annotation.*;
 public class BillDetailController {
     private final BillDetailService billDetailService;
 
-    @PostMapping
-    public ResponseEntity<?> createAdmin(@Valid @RequestBody BillDetailRequestDTO requestDTO) {
-        return ResponseEntity.ok(billDetailService.createAdmin(requestDTO));
-    }
-
-    @PutMapping("/{id}")
-    public ResponseEntity<?> updateAdmin(@PathVariable int id, @Valid @RequestBody BillDetailRequestDTO requestDTO) {
-        return ResponseEntity.ok(billDetailService.updateAdmin(id, requestDTO));
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteAdmin(@PathVariable int id) {
-        billDetailService.softDelete(id);
-        return ResponseEntity.noContent().build();
-    }
-
-    @GetMapping("/{id}")
-    public ResponseEntity<?> getById(@PathVariable int id) {
-        return ResponseEntity.ok(billDetailService.getById(id));
-    }
-
-    @GetMapping("/search")
-    public ResponseEntity<PaginationResponse<BillDetailResponseDTO>> getAllBillDetailsByStatusAdmin(
-            @RequestParam(defaultValue = "PENDING") BillDetailStatus status,
+    @GetMapping("/{billId}")
+    public ResponseEntity<PaginationResponse<BillDetailResponseDTO>> getBillDetailsByBillId(
+            @PathVariable Integer billId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(billDetailService.getAllBillDetailByStatusAdmin(status, page, size));
+        return ResponseEntity.ok(billDetailService.getBillDetailsByBillId(billId, page, size));
+    }
+
+    @PostMapping("/{billId}")
+    // @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    public ResponseEntity<BillDetailResponseDTO> createBillDetail(
+            @PathVariable Integer billId,
+            @RequestBody BillDetailCreateDTO request) {
+        return ResponseEntity.ok(billDetailService.createBillDetail(billId, request));
+    }
+
+    @PostMapping("/{billId}/product")
+    // @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    public ResponseEntity<BillDetailResponseDTO> addProductToBill(
+            @PathVariable Integer billId,
+            @RequestBody AddProductToBillRequestDTO request) {
+        return ResponseEntity.ok(billDetailService.addProductToBill(billId, request.getProductDetailId()));
+    }
+
+    @PutMapping("/{billDetailId}/quantity")
+    // @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    public ResponseEntity<BillDetailResponseDTO> updateQuantity(
+            @PathVariable Integer billDetailId,
+            @RequestParam Integer quantity) {
+        return ResponseEntity.ok(billDetailService.updateQuantity(billDetailId, quantity));
+    }
+
+    @DeleteMapping("/{billDetailId}")
+    // @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    public ResponseEntity<Void> deleteBillDetail(@PathVariable Integer billDetailId) {
+        billDetailService.deleteBillDetail(billDetailId);
+        return ResponseEntity.ok().build();
     }
 }

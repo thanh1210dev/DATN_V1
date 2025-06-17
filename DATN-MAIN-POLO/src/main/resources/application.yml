@@ -67,3 +67,12 @@ logging:
   level:
     net.ttddyy.dsproxy.listener: debug
     org.hibernate.type: trace
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs # Đường dẫn tài liệu API (mặc định là /v3/api-docs)
+  swagger-ui:
+    path: /swagger-ui.html # Đường dẫn giao diện Swagger (mặc định là /swagger-ui.html)
+    operationsSorter: method # Sắp xếp theo GET, POST,...
+    tagsSorter: alpha # Sắp xếp thẻ theo thứ tự alphabet
+    display-request-duration: true # Hiển thị thời gian phản hồi
