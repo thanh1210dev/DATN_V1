@@ -66,11 +66,15 @@ public class Voucher {
     @Column(name = "min_order_value") // New field for minimum order value
     private BigDecimal minOrderValue; // Giá trị đơn hàng tối thiểu để áp dụng voucher
 
+
+
     @Column(name = "created_at")
     private Instant createdAt;
 
     @Column(name = "updated_at")
     private Instant updatedAt;
+
+
 
     @ManyToOne
     @JoinColumn(name = "created_by", referencedColumnName = "id")
