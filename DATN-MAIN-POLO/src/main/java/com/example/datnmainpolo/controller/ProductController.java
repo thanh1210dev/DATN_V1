@@ -40,7 +40,12 @@ public class ProductController {
     @GetMapping
     public ResponseEntity<PaginationResponse<ProductResponseDTO>> getAll(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(productService.getAll(page, size));
+            @RequestParam(defaultValue = "5") int size,
+            @RequestParam(required = false) String code,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) Integer materialId,
+            @RequestParam(required = false) Integer brandId,
+            @RequestParam(required = false) Integer categoryId) {
+        return ResponseEntity.ok(productService.getAll(page, size, code, name, materialId, brandId, categoryId));
     }
 }

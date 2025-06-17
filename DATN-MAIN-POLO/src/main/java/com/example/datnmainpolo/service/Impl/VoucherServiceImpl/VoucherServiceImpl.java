@@ -101,7 +101,7 @@ public class VoucherServiceImpl implements VoucherService {
         validateRequestDTO(requestDTO);
 
         String newCode = generateUniqueCode(requestDTO.getCode());
-        checkUniqueCode(newCode, null);
+
 
         Voucher voucher = mapToEntity(requestDTO);
         voucher.setCode(newCode);
@@ -122,7 +122,7 @@ public class VoucherServiceImpl implements VoucherService {
     @Transactional
     public VoucherResponseDTO updateVoucher(Integer id, VoucherRequestDTO requestDTO) {
         validateRequestDTO(requestDTO);
-        checkUniqueCode(requestDTO.getCode(), id);
+
 
         Voucher voucher = voucherRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy voucher"));
@@ -191,7 +191,7 @@ public class VoucherServiceImpl implements VoucherService {
             throw new IllegalArgumentException("Thời gian bắt đầu phải trước thời gian kết thúc");
         }
 
-        if (VoucherType.PERCENT.equals(requestDTO.getType())) {
+        if (VoucherType.PERCENTAGE.equals(requestDTO.getType())) {
             if (requestDTO.getPercentageDiscountValue() == null ||
                     requestDTO.getPercentageDiscountValue().compareTo(BigDecimal.ZERO) <= 0 ||
                     requestDTO.getPercentageDiscountValue().compareTo(new BigDecimal("100")) > 0) {
@@ -224,12 +224,7 @@ public class VoucherServiceImpl implements VoucherService {
         }
     }
 
-    private void checkUniqueCode(String code, Integer excludeId) {
-        Optional<Voucher> existing = voucherRepository.findByCodeAndDeletedFalse(code);
-        if (existing.isPresent() && (excludeId == null || !existing.get().getId().equals(excludeId))) {
-            throw new IllegalArgumentException("Mã voucher đã tồn tại");
-        }
-    }
+
 
     private Voucher mapToEntity(VoucherRequestDTO dto) {
         Voucher voucher = new Voucher();

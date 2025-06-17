@@ -1,7 +1,8 @@
 package com.example.datnmainpolo.controller;
 
+import com.example.datnmainpolo.dto.AccountVoucherDTO.AccountVoucherAssignDTO;
 import com.example.datnmainpolo.dto.AccountVoucherDTO.AccountVoucherResponseDTO;
-import com.example.datnmainpolo.dto.AccountVoucherDTO.AssignVoucherRequestDTO;
+
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.service.AccountVoucherService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,8 +20,8 @@ public class AccountVoucherController {
 
     // phân hóa đơn cho khách hàng
     @PostMapping("/assign")
-    public ResponseEntity<Void> assignVoucherToUsers(@RequestBody AssignVoucherRequestDTO requestDTO) {
-        accountVoucherService.assignVoucherToUsers(requestDTO.getVoucherId(), requestDTO.getUserIds());
+    public ResponseEntity<Void> assignVoucherToUsers(@RequestBody AccountVoucherAssignDTO requestDTO) {
+        accountVoucherService.assignVoucherToUsers(requestDTO);
         return ResponseEntity.ok().build();
     }
    // dach sách voucher có bao nhiêu người

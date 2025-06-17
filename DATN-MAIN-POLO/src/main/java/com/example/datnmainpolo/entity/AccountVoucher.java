@@ -35,8 +35,11 @@ public class AccountVoucher {
     @JoinColumn(name = "account_id")
     private UserEntity userEntity;
 
+    @Column(name = "quantity")
+    private Integer quantity; // 👈 Số lượng voucher phân cho account này
+
     @Column(name = "status")
-    private Boolean status;
+    private Boolean status;  // true: còn hiệu lực, false: đã bị thu hồi/chặn
 
     @Column(name = "created_at")
     private Instant createdAt;

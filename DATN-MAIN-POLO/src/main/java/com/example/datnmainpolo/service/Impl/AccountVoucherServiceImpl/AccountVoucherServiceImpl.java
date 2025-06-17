@@ -1,7 +1,7 @@
 package com.example.datnmainpolo.service.Impl.AccountVoucherServiceImpl;
 
 
-
+import com.example.datnmainpolo.dto.AccountVoucherDTO.AccountVoucherAssignDTO;
 import com.example.datnmainpolo.dto.AccountVoucherDTO.AccountVoucherResponseDTO;
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.entity.AccountVoucher;
@@ -12,7 +12,6 @@ import com.example.datnmainpolo.repository.AccountVoucherRepository;
 import com.example.datnmainpolo.repository.UserRepository;
 import com.example.datnmainpolo.repository.VoucherRepository;
 import com.example.datnmainpolo.service.AccountVoucherService;
-
 import com.example.datnmainpolo.service.Impl.Email.EmailService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -32,7 +31,7 @@ public class AccountVoucherServiceImpl implements AccountVoucherService {
     private final AccountVoucherRepository accountVoucherRepository;
     private final VoucherRepository voucherRepository;
     private final UserRepository userRepository;
-    private final com.example.datnmainpolo.service.Impl.Email.EmailService emailService;
+    private final EmailService emailService;
 
     public AccountVoucherServiceImpl(AccountVoucherRepository accountVoucherRepository,
                                      VoucherRepository voucherRepository,
@@ -53,31 +52,49 @@ public class AccountVoucherServiceImpl implements AccountVoucherService {
 
     @Override
     @Transactional
-    public void assignVoucherToUsers(Integer voucherId, List<Integer> userIds) {
-        Voucher voucher = voucherRepository.findByIdAndDeletedFalse(voucherId)
+    public void assignVoucherToUsers(AccountVoucherAssignDTO assignDTO) {
+        Voucher voucher = voucherRepository.findByIdAndDeletedFalse(assignDTO.getVoucherId())
                 .orElseThrow(() -> new EntityNotFoundException("Voucher không tồn tại"));
 
         if (voucher.getStatus() != PromotionStatus.COMING_SOON && voucher.getStatus() != PromotionStatus.ACTIVE) {
-            throw new IllegalArgumentException("Chỉ có thể gán voucher ở trạng thái sắp ra mắt hoặc Đang hoạt động");
+            throw new IllegalArgumentException("Chỉ có thể gán voucher ở trạng thái Sắp ra mắt hoặc Đang hoạt động");
         }
 
-        for (Integer userId : userIds) {
+        Integer assignQuantity = assignDTO.getQuantity();
+        if (assignQuantity == null || assignQuantity <= 0) {
+            throw new IllegalArgumentException("Số lượng voucher phải lớn hơn 0");
+        }
+
+        if (voucher.getQuantity() < assignQuantity * assignDTO.getUserIds().size()) {
+            throw new IllegalArgumentException("Số lượng voucher còn lại không đủ để phân bổ");
+        }
+
+        for (Integer userId : assignDTO.getUserIds()) {
             UserEntity user = userRepository.findByIdAndDeletedFalse(userId)
                     .orElseThrow(() -> new EntityNotFoundException("Người dùng không tồn tại với ID: " + userId));
 
-            if (accountVoucherRepository.existsByVoucherIdAndUserEntityIdAndDeletedFalse(voucherId, userId)) {
+            if (accountVoucherRepository.existsByVoucherIdAndUserEntityIdAndDeletedFalse(assignDTO.getVoucherId(), userId)) {
                 continue;
             }
 
             AccountVoucher accountVoucher = new AccountVoucher();
             accountVoucher.setVoucher(voucher);
             accountVoucher.setUserEntity(user);
+            accountVoucher.setQuantity(assignQuantity);
             accountVoucher.setStatus(true);
             accountVoucher.setCreatedAt(Instant.now());
             accountVoucher.setUpdatedAt(Instant.now());
             accountVoucher.setDeleted(false);
 
             accountVoucherRepository.save(accountVoucher);
+
+            // Trừ số lượng voucher
+            voucher.setQuantity(voucher.getQuantity() - assignQuantity);
+            if (voucher.getQuantity() == null) {
+                voucher.setStatus(PromotionStatus.USED_UP);
+            }
+            voucher.setUpdatedAt(Instant.now());
+            voucherRepository.save(voucher);
 
             try {
                 emailService.sendVoucherAssignmentEmail(
@@ -105,13 +122,13 @@ public class AccountVoucherServiceImpl implements AccountVoucherService {
         return new PaginationResponse(pageData.map(this::toResponse));
     }
 
-
     private AccountVoucherResponseDTO toResponse(AccountVoucher entity) {
         AccountVoucherResponseDTO dto = new AccountVoucherResponseDTO();
         dto.setId(entity.getId());
         dto.setVoucherId(entity.getVoucher().getId());
         dto.setAccountId(entity.getUserEntity().getId());
         dto.setVoucherName(entity.getVoucher().getName());
+        dto.setQuantity(entity.getQuantity());
         dto.setVoucherStatus(entity.getVoucher().getStatus().name());
         dto.setAccountName(entity.getUserEntity().getName());
         dto.setStatus(entity.getStatus());

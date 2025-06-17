@@ -43,6 +43,11 @@ public class PromotionProductDetailServiceImpl implements PromotionProductDetail
 
 
 
+
+
+
+
+
     @Override
     public PaginationResponse<PromotionProductDetailResponseDTO> getAllByStatusAndDeletedFalse(PromotionStatus status, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());

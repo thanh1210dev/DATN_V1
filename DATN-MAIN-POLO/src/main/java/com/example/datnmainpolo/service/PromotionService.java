@@ -4,9 +4,14 @@ package com.example.datnmainpolo.service;
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.dto.PromotionDTO.PromotionRequestDTO;
 import com.example.datnmainpolo.dto.PromotionDTO.PromotionResponseDTO;
+import com.example.datnmainpolo.dto.PromotionProductDetailDTO.AssignPromotionRequest;
+import com.example.datnmainpolo.dto.PromotionProductDetailDTO.AssignSinglePromotionRequest;
+import com.example.datnmainpolo.dto.PromotionProductDetailDTO.PromotionProductDetailResponse;
+import com.example.datnmainpolo.entity.PromotionProductDetail;
 import com.example.datnmainpolo.enums.PromotionStatus;
 
 import java.time.Instant;
+import java.util.List;
 
 public interface PromotionService {
     PromotionResponseDTO createPromotion(PromotionRequestDTO requestDTO);
@@ -20,4 +25,11 @@ public interface PromotionService {
     void updateExpiredPromotions();
 
     void updateActivePromotions();
+
+
+
+    // phan vao dot
+    void assignPromotionToProducts(AssignPromotionRequest request);
+    void assignPromotionToSingleProductDetail(AssignSinglePromotionRequest request);
+    PaginationResponse<PromotionProductDetailResponse> getPromotionProductsByPromotionId(Integer promotionId,int page, int size);
 }

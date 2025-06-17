@@ -10,5 +10,5 @@ public interface ProductService {
     ProductResponseDTO update(Integer id, ProductRequestDTO requestDTO);
     void softDelete(Integer id);
     ProductResponseDTO getById(Integer id);
-    PaginationResponse<ProductResponseDTO> getAll(int page, int size);
+    PaginationResponse<ProductResponseDTO> getAll(int page, int size, String code, String name, Integer materialId, Integer brandId, Integer categoryId);
 }

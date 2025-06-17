@@ -6,8 +6,6 @@ import "react-toastify/dist/ReactToastify.css";
 import VoucherApi from "../../../Service/AdminDotGiamGiaSevice/VoucherApi";
 import UserApi from "../../../Service/AdminUserService/UserApi";
 
-
-
 const VoucherAdminDetail = () => {
   const { id } = useParams();
   const [voucher, setVoucher] = useState(null);
@@ -26,6 +24,8 @@ const VoucherAdminDetail = () => {
   const [voucherPage, setVoucherPage] = useState(0);
   const [voucherSize, setVoucherSize] = useState(5);
   const [voucherTotalPages, setVoucherTotalPages] = useState(1);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [assignQuantity, setAssignQuantity] = useState(1);
 
   const statusLabels = {
     COMING_SOON: "Sắp ra mắt",
@@ -119,9 +119,21 @@ const VoucherAdminDetail = () => {
     setSelectAll(!selectAll);
   };
 
-  const handleAssignVoucher = async () => {
+  const openAssignModal = () => {
     if (selectedUsers.length === 0) {
       toast.warn("Vui lòng chọn ít nhất một người dùng", {
+        position: "top-right",
+        autoClose: 5000,
+      });
+      return;
+    }
+    setAssignQuantity(1);
+    setIsAssignModalOpen(true);
+  };
+
+  const handleAssignVoucher = async () => {
+    if (assignQuantity <= 0) {
+      toast.warn("Số lượng voucher phải lớn hơn 0", {
         position: "top-right",
         autoClose: 5000,
       });
@@ -131,6 +143,7 @@ const VoucherAdminDetail = () => {
       const request = {
         voucherId: parseInt(id),
         userIds: selectedUsers,
+        quantity: assignQuantity,
       };
       await VoucherApi.assign(request);
       toast.success("Phân voucher thành công!", {
@@ -139,6 +152,8 @@ const VoucherAdminDetail = () => {
       });
       setSelectedUsers([]);
       setSelectAll(false);
+      setIsAssignModalOpen(false);
+      fetchVoucher(); // Cập nhật lại thông tin voucher để hiển thị số lượng mới
     } catch (error) {
       toast.error(error.response?.data?.message || "Lỗi khi phân voucher", {
         position: "top-right",
@@ -159,6 +174,11 @@ const VoucherAdminDetail = () => {
     setUserVouchers([]);
     setVoucherPage(0);
     setVoucherTotalPages(1);
+  };
+
+  const closeAssignModal = () => {
+    setIsAssignModalOpen(false);
+    setAssignQuantity(1);
   };
 
   if (!voucher) {
@@ -260,7 +280,7 @@ const VoucherAdminDetail = () => {
             {selectAll ? "Bỏ chọn tất cả" : "Chọn tất cả"}
           </button>
           <button
-            onClick={handleAssignVoucher}
+            onClick={openAssignModal}
             className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
           >
             Phân Voucher
@@ -365,7 +385,43 @@ const VoucherAdminDetail = () => {
         </select>
       </div>
 
-      {/* Modal User Vouchers */}
+      {/* Assign Voucher Modal */}
+      {isAssignModalOpen && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 transform transition-all duration-300">
+            <h3 className="text-lg font-bold text-indigo-700 mb-4">Phân Voucher</h3>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Số lượng voucher cho mỗi người dùng
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={assignQuantity}
+                onChange={(e) => setAssignQuantity(parseInt(e.target.value) || 1)}
+                className="w-full px-4 py-2 border border-indigo-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Nhập số lượng"
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={closeAssignModal}
+                className="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-400"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleAssignVoucher}
+                className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                Xác nhận
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* User Vouchers Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl p-6 transform transition-all duration-300">
@@ -377,6 +433,7 @@ const VoucherAdminDetail = () => {
                     <th className="px-4 py-3 rounded-tl-lg">#</th>
                     <th className="px-4 py-3">Tên Voucher</th>
                     <th className="px-4 py-3">Trạng thái</th>
+                    <th className="px-4 py-3">Số lượng nhận</th>
                     <th className="px-4 py-3 rounded-tr-lg">Ngày tạo</th>
                   </tr>
                 </thead>
@@ -393,6 +450,7 @@ const VoucherAdminDetail = () => {
                         <td className="px-4 py-3 text-center">{voucherPage * voucherSize + index + 1}</td>
                         <td className="px-4 py-3">{voucher.voucherName}</td>
                         <td className="px-4 py-3">{statusLabels[voucher.voucherStatus] || voucher.voucherStatus}</td>
+                        <td className="px-4 py-3">{voucher.quantity}</td>
                         <td className="px-4 py-3">{new Date(voucher.createdAt).toLocaleString()}</td>
                       </tr>
                     ))
@@ -429,7 +487,7 @@ const VoucherAdminDetail = () => {
                   setVoucherPage(0);
                 }}
               >
-                
+                <option value={5}>5 / trang</option>
                 <option value={10}>10 / trang</option>
                 <option value={20}>20 / trang</option>
               </select>

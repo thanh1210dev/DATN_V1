@@ -11,4 +11,7 @@ public interface ProductDetailService {
     void softDelete(Integer id);
     ProductDetailResponseDTO getById(Integer id);
     PaginationResponse<ProductDetailResponseDTO> getAll(int id,int page, int size);
+
+
+
 }

@@ -1,11 +1,11 @@
 import axiosInstance from '../axiosInstance';
 
 const ProductService = {
-  // Get all products with pagination
-  getAll: async (page, size) => {
+  
+  getAll: async (page, size, code, name, materialId, brandId, categoryId) => {
     try {
       const response = await axiosInstance.get('/products', {
-        params: { page, size },
+        params: { page, size, code, name, materialId, brandId, categoryId },
       });
       return response.data;
     } catch (error) {
