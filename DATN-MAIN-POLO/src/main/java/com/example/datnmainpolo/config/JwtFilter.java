@@ -28,7 +28,14 @@ public class JwtFilter extends OncePerRequestFilter {
 
         String uri = request.getRequestURI();
         // Bỏ qua kiểm tra token cho các endpoint công khai
-        if (uri.startsWith("/login") || uri.startsWith("/oauth2") || uri.startsWith("/api")) {
+        if (
+                uri.startsWith("/login") ||
+                        uri.startsWith("/oauth2") ||
+                        uri.startsWith("/api") ||
+                        uri.startsWith("/v3/api-docs") ||
+                        uri.startsWith("/swagger-ui") ||         // bao phủ index.html, *.js, *.css
+                        uri.equals("/swagger-ui.html")
+        ) {
             chain.doFilter(request, response);
             return;
         }

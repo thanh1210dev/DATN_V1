@@ -38,15 +38,21 @@ public class SecurityConfig {
                 .cors().configurationSource(corsConfigurationSource()).and()
                 .csrf().disable()
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/login/**", "/oauth2/**", "/login/oauth2/**", "/api/**", "/images/**").permitAll()
+                        .requestMatchers("/", "/login/**", "/oauth2/**", "/login/oauth2/**", "/api/**", "/images/**",
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html"
+                        ).permitAll()
                         .anyRequest().authenticated()
                 )
 
-                .oauth2Login(oauth -> oauth
-                        .userInfoEndpoint().userService(customOAuth2UserService)
-                        .and()
-                        .successHandler(oAuth2LoginSuccessHandler)
-                )
+
+//                .oauth2Login(oauth -> oauth
+//                        .userInfoEndpoint().userService(customOAuth2UserService)
+//                        .and()
+//                        .successHandler(oAuth2LoginSuccessHandler)
+//                )
+
                 .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 .and()
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);

@@ -48,7 +48,7 @@ public class ProductDetail {
     private BigDecimal promotionalPrice;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status")
+    @Column(name = "status", length = 50)
     private ProductStatus status;
 
     @Column(name = "created_at")
