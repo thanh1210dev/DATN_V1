@@ -411,9 +411,9 @@ public class BillServiceImpl implements BillService {
                 // 4. Xử lý theo loại thanh toán
                 switch (paymentType) {
                         case CASH:
-                                if (amount == null || amount.compareTo(finalAmount) < 0) {
-                                        throw new RuntimeException("Số tiền thanh toán không đủ");
-                                }
+//                                if (amount == null || amount.compareTo(finalAmount) < 0) {
+//                                        throw new RuntimeException("Số tiền thanh toán không đủ");
+//                                }
                                 return processCashPayment(bill, finalAmount, amount);
                         case BANKING:
                                 return processBankingPayment(bill, finalAmount);

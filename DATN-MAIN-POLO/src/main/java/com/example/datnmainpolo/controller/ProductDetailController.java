@@ -46,4 +46,12 @@ public class ProductDetailController {
             @RequestParam(defaultValue = "5") int size) {
         return ResponseEntity.ok(productDetailService.getAll( id,page, size));
     }
+
+
+    @GetMapping("/all")
+    public ResponseEntity<PaginationResponse<ProductDetailResponseDTO>> getAllPage(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size) {
+        return ResponseEntity.ok(productDetailService.getAllPage( page, size));
+    }
 }

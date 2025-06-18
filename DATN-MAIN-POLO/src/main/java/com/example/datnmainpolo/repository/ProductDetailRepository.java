@@ -32,4 +32,5 @@ public interface ProductDetailRepository extends JpaRepository<ProductDetail,Int
             @Param("colorId") Integer colorId
     );
 
+    Page<ProductDetail> findByDeleted(Boolean deleted,Pageable pageable);
 }

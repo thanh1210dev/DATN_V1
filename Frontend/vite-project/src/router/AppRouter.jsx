@@ -9,6 +9,7 @@ import AdminQuanLySanPham from "./AdminRouter/AdminQuanLySanPham";
 import ClientRouter from "./ClientRouTer/ClientRouter";
 
 
+
 const AppRouter = () => {
   const [isOpen, setIsOpen] = useState(true);
 
@@ -37,6 +38,7 @@ const AppRouter = () => {
                     <Route path="/" element={<div className="text-2xl font-bold text-indigo-700">Trang Quản Lý Admin</div>} />
                     {AdminQuanlyGiamGia}
                     {AdminQuanLySanPham}
+                   
                   </Routes>
                 </main>
               </div>

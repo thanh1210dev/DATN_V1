@@ -4,6 +4,7 @@ import VoucherAdmin from "../../Pages/Admin/VoucherPage/VoucherAdmin";
 import VoucherAdminDetail from "../../Pages/Admin/VoucherPage/VoucherAdminDetail";
 import AccountAdmin from "../../Pages/Admin/UserPage/AccountAdmin";
 import DotGiamGiaDetailAdmin from "../../Pages/Admin/DotGiamGiaPage/DotGiamGiaDetailAdmin";
+import TaiQuayAdmin from "../../Pages/Admin/TaiQuayPage/TaiQuayAdmin";
 
 
 
@@ -14,8 +15,9 @@ const AdminQuanlyGiamGia = [
 
     <Route path="/quan-ly-tai-khoan" element={<AccountAdmin />} />,
 
-    <Route path="/chi-tiet-dot-giam-gia/:id" element={<DotGiamGiaDetailAdmin />} />
+    <Route path="/chi-tiet-dot-giam-gia/:id" element={<DotGiamGiaDetailAdmin />} />,
     
+    <Route path="/ban-hang-tai-quay" element={<TaiQuayAdmin />} />
   ];
   
   export default AdminQuanlyGiamGia;

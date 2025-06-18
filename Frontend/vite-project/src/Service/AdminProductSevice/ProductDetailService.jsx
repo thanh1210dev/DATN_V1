@@ -11,6 +11,17 @@ const ProductDetailService = {
       throw error.response?.data?.message || 'Không thể tải danh sách chi tiết sản phẩm';
     }
   },
+  getAllPage: async ( page, size) => {
+    try {
+      const response = await axiosInstance.get(`/product-details/all`, {
+        params: { page, size },
+      });
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || 'Không thể tải danh sách chi tiết sản phẩm';
+    }
+  },
+
 
   create: async (productDetailData) => {
     try {

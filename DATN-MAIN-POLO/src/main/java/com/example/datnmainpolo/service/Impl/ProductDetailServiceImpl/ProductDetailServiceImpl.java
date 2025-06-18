@@ -166,6 +166,13 @@ public class ProductDetailServiceImpl implements ProductDetailService {
                 false, id, pageable);
         return new PaginationResponse<>(pageData.map(this::toResponse));
     }
+    @Override
+    public PaginationResponse<ProductDetailResponseDTO> getAllPage( int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
+        Page<ProductDetail> pageData = productDetailRepository.findByDeleted(
+                false, pageable);
+        return new PaginationResponse<>(pageData.map(this::toResponse));
+    }
 
     private String generateRandomCode(String providedCode) {
         if (providedCode != null && !providedCode.isEmpty()) {
