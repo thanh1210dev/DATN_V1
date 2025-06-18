@@ -22,7 +22,7 @@ public class BillDetailController {
     public ResponseEntity<PaginationResponse<BillDetailResponseDTO>> getBillDetailsByBillId(
             @PathVariable Integer billId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "5") int size) {
         return ResponseEntity.ok(billDetailService.getBillDetailsByBillId(billId, page, size));
     }
 

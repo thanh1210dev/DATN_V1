@@ -1,6 +1,7 @@
 package com.example.datnmainpolo.service.Impl.PromotionServiceImpl;
 
 
+
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.dto.PromotionDTO.PromotionRequestDTO;
 import com.example.datnmainpolo.dto.PromotionDTO.PromotionResponseDTO;
@@ -38,7 +39,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 public class PromotionServiceImpl implements PromotionService {
@@ -84,7 +84,7 @@ public class PromotionServiceImpl implements PromotionService {
             attempt++;
         } while (attempt < maxAttempts);
 
-        throw new IllegalStateException("Không thể tạo mã khuyến mãi duy nhất sau " + maxAttempts + " lần thử");
+        throw new IllegalStateException("Không thể create mã khuyến mãi duy nhất sau " + maxAttempts + " lần thử");
     }
 
     private PromotionStatus determineStatus(Instant startTime, Instant endTime, PromotionStatus requestedStatus) {
@@ -125,12 +125,52 @@ public class PromotionServiceImpl implements PromotionService {
     }
 
     @Override
+    @Transactional
     public PromotionResponseDTO updatePromotion(Integer id, PromotionRequestDTO requestDTO) {
         validateRequestDTO(requestDTO);
         Promotion promotion = promotionRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy chương trình khuyến mãi"));
+
+        // Determine the new status based on the updated startTime and endTime
+        PromotionStatus newStatus = determineStatus(requestDTO.getStartTime(), requestDTO.getEndTime(), requestDTO.getStatus());
+
+        // If the updated promotion will be COMING_SOON, check for conflicts with ACTIVE promotions
+        if (newStatus == PromotionStatus.COMING_SOON) {
+            // Get all product details associated with this promotion
+            List<PromotionProductDetail> promotionProductDetails = promotionProductDetailRepository.findByPromotionId(id);
+            for (PromotionProductDetail ppd : promotionProductDetails) {
+                Integer productDetailId = ppd.getDetailProduct().getId();
+                // Get all ACTIVE promotions for this product detail
+                List<PromotionProductDetail> activePromotions = promotionProductDetailRepository.findActiveByProductDetailId(productDetailId);
+                for (PromotionProductDetail activePpd : activePromotions) {
+                    Promotion activePromotion = activePpd.getPromotion();
+                    if (activePromotion.getId().equals(id)) {
+                        continue; // Skip the promotion being updated
+                    }
+                    Instant activeStartTime = activePromotion.getStartTime();
+                    Instant activeEndTime = activePromotion.getEndTime();
+                    Instant newStartTime = requestDTO.getStartTime();
+                    Instant newEndTime = requestDTO.getEndTime();
+
+                    // Check if new startTime falls within an ACTIVE promotion's time range
+                    if (newStartTime != null && activeStartTime != null && activeEndTime != null &&
+                            (newStartTime.isAfter(activeStartTime) || newStartTime.equals(activeStartTime)) &&
+                            (newStartTime.isBefore(activeEndTime) || newStartTime.equals(activeEndTime))) {
+                        throw new IllegalStateException("Thời gian bắt đầu của khuyến mãi COMING_SOON trùng với khuyến mãi ACTIVE cho sản phẩm ID " + productDetailId);
+                    }
+
+                    // Check if ACTIVE promotion's endTime falls within the new COMING_SOON promotion's time range
+                    if (newStartTime != null && newEndTime != null && activeEndTime != null &&
+                            (activeEndTime.isAfter(newStartTime) || activeEndTime.equals(newStartTime)) &&
+                            (activeEndTime.isBefore(newEndTime) || activeEndTime.equals(newEndTime))) {
+                        throw new IllegalStateException("Thời gian kết thúc của khuyến mãi ACTIVE trùng với thời gian của khuyến mãi COMING_SOON cho sản phẩm ID " + productDetailId);
+                    }
+                }
+            }
+        }
+
         updateEntityFromRequestDTO(promotion, requestDTO);
-        promotion.setStatus(determineStatus(requestDTO.getStartTime(), requestDTO.getEndTime(), requestDTO.getStatus()));
+        promotion.setStatus(newStatus);
         promotion.setUpdatedAt(Instant.now());
         promotion = promotionRepository.save(promotion);
         return mapToResponseDTO(promotion);
@@ -185,8 +225,11 @@ public class PromotionServiceImpl implements PromotionService {
     @Override
     @Transactional
     public void assignPromotionToProducts(AssignPromotionRequest request) {
-        Promotion promotion = promotionRepository.findByIdAndStatus(request.getPromotionId(), PromotionStatus.ACTIVE)
-                .orElseThrow(() -> new IllegalStateException("Khuyến mãi không tồn tại hoặc không ở trạng thái ACTIVE"));
+        Promotion promotion = promotionRepository.findById(request.getPromotionId())
+                .orElseThrow(() -> new IllegalStateException("Khuyến mãi không tồn tại"));
+        if (!List.of(PromotionStatus.ACTIVE, PromotionStatus.COMING_SOON).contains(promotion.getStatus())) {
+            throw new IllegalStateException("Khuyến mãi phải ở trạng thái ACTIVE hoặc COMING_SOON");
+        }
         List<ProductDetail> productDetails = new ArrayList<>();
         if (request.getProductIds() != null && !request.getProductIds().isEmpty()) {
             List<ProductDetail> detailsByProductIds = productDetailRepository.findByProductIds(request.getProductIds());
@@ -203,20 +246,28 @@ public class PromotionServiceImpl implements PromotionService {
         Instant now = Instant.now();
         for (ProductDetail productDetail : productDetails) {
             List<PromotionProductDetail> existingPromotions = promotionProductDetailRepository.findActiveByProductDetailId(productDetail.getId());
-            if (!existingPromotions.isEmpty()) {
-                throw new IllegalStateException("Chi tiết sản phẩm ID " + productDetail.getId() + " đã có khuyến mãi đang hoạt động");
+            if (promotion.getStatus() == PromotionStatus.ACTIVE) {
+                if (!existingPromotions.isEmpty()) {
+                    throw new IllegalStateException("Chi tiết sản phẩm ID " + productDetail.getId() + " đã có khuyến mãi đang hoạt động");
+                }
+            } else if (promotion.getStatus() == PromotionStatus.COMING_SOON) {
+                for (PromotionProductDetail existing : existingPromotions) {
+                    Promotion existingPromotion = existing.getPromotion();
+                    if (existingPromotion.getEndTime() != null && promotion.getStartTime() != null &&
+                            !promotion.getStartTime().isAfter(existingPromotion.getEndTime())) {
+                        throw new IllegalStateException("Khuyến mãi COMING_SOON có thời gian bắt đầu trùng với khuyến mãi đang hoạt động cho sản phẩm ID " + productDetail.getId());
+                    }
+                }
             }
             BigDecimal price = productDetail.getPrice();
             if (price == null) {
                 throw new IllegalStateException("Giá của chi tiết sản phẩm ID " + productDetail.getId() + " không được để trống");
             }
             BigDecimal discountValue = price.multiply(promotion.getPercentageDiscountValue().divide(BigDecimal.valueOf(100)));
-            BigDecimal maxDiscount = promotion.getMaxDiscountValue();
-            if (discountValue.compareTo(maxDiscount) > 0) {
-                discountValue = maxDiscount;
-            }
             BigDecimal promotionalPrice = price.subtract(discountValue);
-            productDetail.setPromotionalPrice(promotionalPrice);
+            if (promotion.getStatus() == PromotionStatus.ACTIVE) {
+                productDetail.setPromotionalPrice(promotionalPrice);
+            }
             PromotionProductDetail promotionDetail = new PromotionProductDetail();
             promotionDetail.setDetailProduct(productDetail);
             promotionDetail.setPromotion(promotion);
@@ -234,25 +285,36 @@ public class PromotionServiceImpl implements PromotionService {
     @Override
     @Transactional
     public void assignPromotionToSingleProductDetail(AssignSinglePromotionRequest request) {
-        Promotion promotion = promotionRepository.findByIdAndStatus(request.getPromotionId(), PromotionStatus.ACTIVE)
-                .orElseThrow(() -> new IllegalStateException("Khuyến mãi không tồn tại hoặc không ở trạng thái ACTIVE"));
+        Promotion promotion = promotionRepository.findById(request.getPromotionId())
+                .orElseThrow(() -> new IllegalStateException("Khuyến mãi không tồn tại"));
+        if (!List.of(PromotionStatus.ACTIVE, PromotionStatus.COMING_SOON).contains(promotion.getStatus())) {
+            throw new IllegalStateException("Khuyến mãi phải ở trạng thái ACTIVE hoặc COMING_SOON");
+        }
         ProductDetail productDetail = productDetailRepository.findById(request.getProductDetailId())
                 .orElseThrow(() -> new IllegalStateException("Sản phẩm: " + request.getProductDetailId() + " không tồn tại"));
         List<PromotionProductDetail> existingPromotions = promotionProductDetailRepository.findActiveByProductDetailId(productDetail.getId());
-        if (!existingPromotions.isEmpty()) {
-            throw new IllegalStateException("Sản phẩm đã có khuyến mãi đang hoạt động");
+        if (promotion.getStatus() == PromotionStatus.ACTIVE) {
+            if (!existingPromotions.isEmpty()) {
+                throw new IllegalStateException("Sản phẩm đã có khuyến mãi đang hoạt động");
+            }
+        } else if (promotion.getStatus() == PromotionStatus.COMING_SOON) {
+            for (PromotionProductDetail existing : existingPromotions) {
+                Promotion existingPromotion = existing.getPromotion();
+                if (existingPromotion.getEndTime() != null && promotion.getStartTime() != null &&
+                        !promotion.getStartTime().isAfter(existingPromotion.getEndTime())) {
+                    throw new IllegalStateException("Khuyến mãi COMING_SOON có thời gian bắt đầu trùng với khuyến mãi đang hoạt động cho sản phẩm ID " + productDetail.getId());
+                }
+            }
         }
         BigDecimal price = productDetail.getPrice();
         if (price == null) {
             throw new IllegalStateException("Giá của chi tiết sản phẩm ID " + productDetail.getId() + " không được để trống");
         }
         BigDecimal discountValue = price.multiply(promotion.getPercentageDiscountValue().divide(BigDecimal.valueOf(100)));
-        BigDecimal maxDiscount = promotion.getMaxDiscountValue();
-        if (discountValue.compareTo(maxDiscount) > 0) {
-            discountValue = maxDiscount;
-        }
         BigDecimal promotionalPrice = price.subtract(discountValue);
-        productDetail.setPromotionalPrice(promotionalPrice);
+        if (promotion.getStatus() == PromotionStatus.ACTIVE) {
+            productDetail.setPromotionalPrice(promotionalPrice);
+        }
         PromotionProductDetail promotionDetail = new PromotionProductDetail();
         promotionDetail.setDetailProduct(productDetail);
         promotionDetail.setPromotion(promotion);
@@ -294,10 +356,6 @@ public class PromotionServiceImpl implements PromotionService {
         } else {
             throw new IllegalArgumentException("Kiểu giảm giá không hợp lệ");
         }
-        if (requestDTO.getMaxDiscountValue() != null &&
-                requestDTO.getMaxDiscountValue().compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalArgumentException("Giá trị giảm tối đa phải không âm");
-        }
     }
 
     private Promotion mapToEntity(PromotionRequestDTO dto) {
@@ -308,7 +366,6 @@ public class PromotionServiceImpl implements PromotionService {
         promotion.setStartTime(dto.getStartTime());
         promotion.setEndTime(dto.getEndTime());
         promotion.setPercentageDiscountValue(dto.getPercentageDiscountValue());
-        promotion.setMaxDiscountValue(dto.getMaxDiscountValue());
         promotion.setDescription(dto.getDescription());
         return promotion;
     }
@@ -322,7 +379,6 @@ public class PromotionServiceImpl implements PromotionService {
         dto.setStartTime(promotion.getStartTime());
         dto.setEndTime(promotion.getEndTime());
         dto.setPercentageDiscountValue(promotion.getPercentageDiscountValue());
-        dto.setMaxDiscountValue(promotion.getMaxDiscountValue());
         dto.setDescription(promotion.getDescription());
         dto.setStatus(promotion.getStatus());
         dto.setCreatedAt(promotion.getCreatedAt());
@@ -341,7 +397,6 @@ public class PromotionServiceImpl implements PromotionService {
         promotion.setStartTime(dto.getStartTime());
         promotion.setEndTime(dto.getEndTime());
         promotion.setPercentageDiscountValue(dto.getPercentageDiscountValue());
-        promotion.setMaxDiscountValue(dto.getMaxDiscountValue());
         promotion.setDescription(dto.getDescription());
     }
 

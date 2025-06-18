@@ -36,7 +36,7 @@ public class BillController {
             @RequestParam(required = false) String code,
             @RequestParam(required = false) OrderStatus status,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "5") int size) {
         return ResponseEntity.ok(billService.searchBills(code, status, page, size));
     }
 

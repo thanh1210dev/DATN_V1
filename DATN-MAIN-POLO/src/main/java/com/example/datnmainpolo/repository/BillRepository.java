@@ -26,10 +26,12 @@ public interface BillRepository extends JpaRepository<Bill, Integer> {
     Page<Bill> findAllByCustomerIdAndDeletedFalse(Integer customerId, Pageable pageable);
 
     @Query("SELECT b FROM Bill b WHERE " +
-    "(b.code LIKE %:code% OR b.status = :status) " +
-    "AND b.deleted = false")
+            "(:code IS NULL OR b.code LIKE  CONCAT('%', :code, '%')) AND " +
+            "(:status IS NULL OR b.status = :status) AND " +
+            "b.deleted = false")
     Page<Bill> findByCodeOrStatus(
-    @Param("code") String code,
-    @Param("status") OrderStatus status,
-    Pageable pageable);
+            @Param("code") String code,
+            @Param("status") OrderStatus status,
+            Pageable pageable);
+
 }

@@ -30,7 +30,7 @@ const DotGiamGiaAdmin = () => {
     startTime: "",
     endTime: "",
     percentageDiscountValue: "",
-    maxDiscountValue: "",
+   
     description: "",
     status: PromotionStatus.COMING_SOON,
   });
@@ -39,21 +39,18 @@ const DotGiamGiaAdmin = () => {
   const idUser = localStorage.getItem("id");
 
   const statusLabels = {
-    COMING_SOON: "Sắp ra mắt",
-    ACTIVE: "Đang hoạt động",
-    EXPIRED: "Hết hạn",
-    USED_UP: "Hết lượt",
-    INACTIVE: "Không hoạt động",
+    COMING_SOON: <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded text-xs">Sắp ra mắt</span>,
+    ACTIVE: <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">Đang hoạt động</span>,
+    EXPIRED: <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs">Hết hạn</span>,
+    USED_UP: <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs">Hết lượt</span>,
+    INACTIVE: <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded text-xs">Không hoạt động</span>,
   };
 
   const discountTypeLabels = {
     PERCENTAGE: "Giảm theo phần trăm",
   };
-  const navigate = useNavigate();
-  const handleViewDetail = (id) => {
-    navigate(`/admin/chi-tiet-dot-giam-gia/${id}`);
-  };
 
+  const navigate = useNavigate();
   const currentDate = new Date().toISOString().slice(0, 16);
   const MAX_NUMERIC_VALUE = 99999999.99;
 
@@ -75,7 +72,7 @@ const DotGiamGiaAdmin = () => {
           autoClose: 5000,
         });
       }
-      setData(content.filter(item => !item.deleted)); // Lọc bỏ các khuyến mãi đã bị soft delete
+      setData(content.filter(item => !item.deleted));
       setTotalPages(response.data.totalPages);
     } catch (error) {
       toast.error(error.response?.data?.message || "Đã xảy ra lỗi khi tải dữ liệu", {
@@ -103,12 +100,16 @@ const DotGiamGiaAdmin = () => {
       startTime: currentDate,
       endTime: currentDate,
       percentageDiscountValue: "",
-      maxDiscountValue: "",
+   
       description: "",
       status: PromotionStatus.COMING_SOON,
     });
     setFormErrors({});
     setIsFormOpen(true);
+  };
+
+  const handleViewDetail = (id) => {
+    navigate(`/admin/chi-tiet-dot-giam-gia/${id}`);
   };
 
   const handleUpdate = (promotion) => {
@@ -126,7 +127,7 @@ const DotGiamGiaAdmin = () => {
       startTime: promotion.startTime ? new Date(promotion.startTime).toISOString().slice(0, 16) : currentDate,
       endTime: promotion.endTime ? new Date(promotion.endTime).toISOString().slice(0, 16) : currentDate,
       percentageDiscountValue: promotion.percentageDiscountValue ? promotion.percentageDiscountValue.toString() : "",
-      maxDiscountValue: promotion.maxDiscountValue ? promotion.maxDiscountValue.toString() : "",
+      
       description: promotion.description || "",
       status: promotion.status,
     });
@@ -172,7 +173,7 @@ const DotGiamGiaAdmin = () => {
     else if (formData.name.length > 100) errors.name = "Tên khuyến mãi không được vượt quá 100 ký tự";
 
     if (!formData.typePromotion) errors.typePromotion = "Loại giảm giá là bắt buộc";
-    if (!formData.status) errors.status = "Trạng thái là bắt buộc";
+    if (selectedPromotion && !formData.status) errors.status = "Trạng thái là bắt buộc";
     if (!formData.startTime) errors.startTime = "Thời gian bắt đầu là bắt buộc";
     if (!formData.endTime) errors.endTime = "Thời gian kết thúc là bắt buộc";
     if (formData.startTime && formData.endTime && new Date(formData.startTime) >= new Date(formData.endTime)) {
@@ -188,12 +189,7 @@ const DotGiamGiaAdmin = () => {
       errors.percentageDiscountValue = "Phần trăm giảm giá quá lớn";
     }
 
-    const maxDiscount = parseFloat(formData.maxDiscountValue);
-    if (isNaN(maxDiscount) || maxDiscount < 0) {
-      errors.maxDiscountValue = "Giá trị giảm tối đa phải không âm";
-    } else if (maxDiscount > MAX_NUMERIC_VALUE) {
-      errors.maxDiscountValue = "Giá trị giảm tối đa quá lớn";
-    }
+ 
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -218,11 +214,9 @@ const DotGiamGiaAdmin = () => {
         percentageDiscountValue: formData.percentageDiscountValue
           ? parseFloat(formData.percentageDiscountValue).toFixed(2)
           : null,
-        maxDiscountValue: formData.maxDiscountValue
-          ? parseFloat(formData.maxDiscountValue).toFixed(2)
-          : null,
+        
         description: formData.description || null,
-        status: formData.status,
+        status: selectedPromotion ? formData.status : PromotionStatus.COMING_SOON,
         createdByUserId: idUser ? parseInt(idUser) : null,
       };
 
@@ -265,9 +259,7 @@ const DotGiamGiaAdmin = () => {
     setFormErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
-  const formatCurrency = (value) => {
-    return value ? new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(value) : "-";
-  };
+
 
   return (
     <div className="p-4 bg-gray-100 min-h-screen">
@@ -295,7 +287,7 @@ const DotGiamGiaAdmin = () => {
             <option value="">Tất cả trạng thái</option>
             {Object.values(PromotionStatus).map((status) => (
               <option key={status} value={status}>
-                {statusLabels[status]}
+                {statusLabels[status].props.children}
               </option>
             ))}
           </select>
@@ -326,7 +318,7 @@ const DotGiamGiaAdmin = () => {
               <th className="px-2 py-2">Thời gian bắt đầu</th>
               <th className="px-2 py-2">Thời gian kết thúc</th>
               <th className="px-2 py-2">Giảm %</th>
-              <th className="px-2 py-2">Giảm tối đa</th>
+             
               <th className="px-2 py-2">Trạng thái</th>
               <th className="px-2 py-2 rounded-tr-lg">Hành động</th>
             </tr>
@@ -334,7 +326,7 @@ const DotGiamGiaAdmin = () => {
           <tbody>
             {data.length === 0 ? (
               <tr>
-                <td colSpan="8" className="px-2 py-4 text-center text-gray-500 text-xs">
+                <td colSpan="9" className="px-2 py-4 text-center text-gray-500 text-xs">
                   Không có dữ liệu
                 </td>
               </tr>
@@ -350,10 +342,10 @@ const DotGiamGiaAdmin = () => {
                   <td className="px-2 py-2">{new Date(item.startTime).toLocaleString("vi-VN")}</td>
                   <td className="px-2 py-2">{new Date(item.endTime).toLocaleString("vi-VN")}</td>
                   <td className="px-2 py-2">{item.percentageDiscountValue ? `${item.percentageDiscountValue}%` : "-"}</td>
-                  <td className="px-2 py-2">{formatCurrency(item.maxDiscountValue)}</td>
+                
                   <td className="px-2 py-2">{statusLabels[item.status]}</td>
                   <td className="px-2 py-2 text-center flex justify-center gap-1">
-                  <button
+                    <button
                       className="p-1 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500"
                       onClick={() => handleViewDetail(item.id)}
                     >
@@ -408,7 +400,6 @@ const DotGiamGiaAdmin = () => {
             setPage(0);
           }}
         >
-         
           <option value={10}>10 / trang</option>
           <option value={20}>20 / trang</option>
           <option value={50}>50 / trang</option>
@@ -464,20 +455,7 @@ const DotGiamGiaAdmin = () => {
                 />
                 {formErrors.percentageDiscountValue && <p className="text-xs text-red-500 mt-1">{formErrors.percentageDiscountValue}</p>}
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700">Giá trị giảm tối đa (VND)</label>
-                <input
-                  type="number"
-                  name="maxDiscountValue"
-                  value={formData.maxDiscountValue}
-                  onChange={handleInputChange}
-                  className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.maxDiscountValue ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
-                  min="0"
-                  step="0.01"
-                  required
-                />
-                {formErrors.maxDiscountValue && <p className="text-xs text-red-500 mt-1">{formErrors.maxDiscountValue}</p>}
-              </div>
+             
               <div>
                 <label className="block text-xs font-medium text-gray-700">Thời gian bắt đầu</label>
                 <input
@@ -506,42 +484,44 @@ const DotGiamGiaAdmin = () => {
                 <label className="block text-xs font-medium text-gray-700">Mô tả</label>
                 <textarea
                   name="description"
-                  value={formData.description}
+                  value={formData.description || ""}
                   onChange={handleInputChange}
                   className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.description ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
                   rows="4"
                 />
                 {formErrors.description && <p className="text-xs text-red-500 mt-1">{formErrors.description}</p>}
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700">Trạng thái</label>
-                <select
-                  name="status"
-                  value={formData.status}
-                  onChange={handleInputChange}
-                  className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.status ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
-                  required
-                >
-                  <option value="">Chọn trạng thái</option>
-                  {Object.values(PromotionStatus).map((status) => (
-                    <option key={status} value={status}>
-                      {statusLabels[status]}
-                    </option>
-                  ))}
-                </select>
-                {formErrors.status && <p className="text-xs text-red-500 mt-1">{formErrors.status}</p>}
-              </div>
+              {selectedPromotion && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Trạng thái</label>
+                  <select
+                    name="status"
+                    value={formData.status}
+                    onChange={handleInputChange}
+                    className={`mt-1 block w-full rounded-lg border border-gray-300 shadow-sm px-4 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition-colors ${formErrors.status ? 'border-red-500' : 'border-indigo-300 focus:ring-indigo-500'}`}
+                    required
+                  >
+                    <option value="">Chọn trạng thái</option>
+                    {Object.keys(statusLabels).map((status) => (
+                      <option key={status} value={status}>
+                        {statusLabels[status].props.children}
+                      </option>
+                    ))}
+                  </select>
+                  {formErrors.status && <p className="text-xs text-red-500 mt-1">{formErrors.status}</p>}
+                </div>
+              )}
               <div className="col-span-2 flex justify-end gap-2 mt-3">
                 <button
                   type="button"
                   onClick={() => setIsFormOpen(false)}
-                  className="px-3 py-1.5 bg-gray-300 text-gray-700 text-sm rounded-md hover:bg-gray-400"
+                  className="px-3 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300 focus:outline-none transition-colors"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="px-3 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
                 >
                   Lưu
                 </button>
@@ -554,7 +534,7 @@ const DotGiamGiaAdmin = () => {
       {/* Delete Confirmation Modal */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm transform transition-all duration-300">
+          <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm">
             <h3 className="text-lg font-semibold text-gray-800 mb-3">Xác nhận xóa</h3>
             <p className="text-sm text-gray-600 mb-4">
               Bạn có chắc chắn muốn xóa chương trình khuyến mãi này không?
@@ -562,13 +542,13 @@ const DotGiamGiaAdmin = () => {
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setIsDeleteModalOpen(false)}
-                className="px-3 py-1.5 bg-gray-300 text-gray-700 text-sm rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                className="px-3 py-2 bg-gray-200 text-gray-700 text-sm rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
               >
                 Hủy
               </button>
               <button
                 onClick={handleDeleteConfirm}
-                className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="px-3 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
               >
                 Xóa
               </button>

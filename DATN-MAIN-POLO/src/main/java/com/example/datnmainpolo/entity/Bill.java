@@ -1,5 +1,6 @@
 package com.example.datnmainpolo.entity;
 
+import com.example.datnmainpolo.enums.BillType;
 import com.example.datnmainpolo.enums.OrderStatus;
 import com.example.datnmainpolo.enums.PaymentType;
 import jakarta.persistence.*;
@@ -61,7 +62,9 @@ public class Bill {
     @Column(name = "type", length = 100) //online , cash
     private PaymentType type;
 
-
+    @Column(name = "bill_type")
+    @Enumerated(EnumType.STRING)
+    private BillType billType; //ONLINE, OFLINE
 
     @Column(name = "money_ship", precision = 10, scale = 2)      // tien ship
     private BigDecimal moneyShip;
@@ -72,8 +75,15 @@ public class Bill {
     @Column(name = "reduction_amount", precision = 10, scale = 2)   // so tien giam gia
     private BigDecimal reductionAmount;
 
-    @Column(name = "deposit", precision = 10, scale = 2)         // so tien dat coc
-    private BigDecimal deposit;
+    @Column(name = "final_amount", precision = 10, scale = 2)
+    private BigDecimal finalAmount;
+
+    @Size(max = 100)
+    @Column(name = "voucher_code", length = 100)
+    private String voucherCode;
+    @Size(max = 100)
+    @Column(name = "voucher_name", length = 100)
+    private String voucherName;
 
 
     @ManyToOne(fetch = FetchType.LAZY)

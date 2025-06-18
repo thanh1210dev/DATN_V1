@@ -6,11 +6,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
 public interface ProductDetailRepository extends JpaRepository<ProductDetail,Integer> {
-    Page<ProductDetail> findByDeletedAndProduct_Id(Boolean deleted, int id,Pageable pageable);
+
 
 
 
@@ -20,4 +21,16 @@ public interface ProductDetailRepository extends JpaRepository<ProductDetail,Int
     @Query("SELECT pd FROM ProductDetail pd WHERE pd.id IN :productDetailIds AND pd.deleted = false")
     List<ProductDetail> findByIds(List<Integer> productDetailIds);
 
+
+    Page<ProductDetail> findByDeletedAndProduct_Id(boolean deleted, Integer productId, Pageable pageable);
+
+    @Query("SELECT COUNT(pd) > 0 FROM ProductDetail pd " +
+            "WHERE pd.product.id = :productId AND pd.size.id = :sizeId AND pd.color.id = :colorId AND pd.deleted = false")
+    boolean existsByProductIdAndSizeIdAndColorId(
+            @Param("productId") Integer productId,
+            @Param("sizeId") Integer sizeId,
+            @Param("colorId") Integer colorId
+    );
+
+    Page<ProductDetail> findByDeleted(Boolean deleted,Pageable pageable);
 }

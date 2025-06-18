@@ -27,11 +27,13 @@ const ProductDetail = () => {
   const [formData, setFormData] = useState({
     productId: parseInt(id),
     imageIds: [],
-    sizeId: null,
-    colorId: null,
+    sizeIds: [],
+    colorIds: [],
+    code: '',
     quantity: 0,
     price: '',
-    status: 'AVAILABLE',
+    promotionalPrice: '',
+    status: '',
   });
   const [images, setImages] = useState([]);
   const [selectedImages, setSelectedImages] = useState([]);
@@ -40,45 +42,71 @@ const ProductDetail = () => {
   const [colors, setColors] = useState([]);
   const [newImages, setNewImages] = useState([]);
 
-  // Map status enum to Vietnamese
+  // Map status enum to Vietnamese with color classes
   const statusToVietnamese = (status) => {
     switch (status) {
       case 'AVAILABLE':
-        return 'Còn hàng';
+        return <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">Còn hàng</span>;
       case 'OUT_OF_STOCK':
-        return 'Hết hàng';
+        return <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs">Hết hàng</span>;
       case 'DISCONTINUED':
-        return 'Ngừng bán';
+        return <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded text-xs">Ngừng bán</span>;
       default:
-        return status;
+        return <span className="text-gray-500">-</span>;
     }
+  };
+
+  // Format date to Vietnamese format
+  const formatDate = (date) => {
+    if (!date) return '-';
+    return new Date(date).toLocaleString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  };
+
+  // Generate random code
+  const generateRandomCode = () => {
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 5; i++) {
+      result += characters.charAt(Math.floor(Math.random() * characters.length));
+    }
+    return result;
   };
 
   // Fetch product by ID
   const fetchProduct = async () => {
     try {
-      const data = await ProductService.getById(id);
+      if (!id || isNaN(parseInt(id))) {
+        toast.error('ID sản phẩm không hợp lệ');
+        navigate('/admin/quan-ly-san-pham/danh-sach');
+        return;
+      }
+      const data = await ProductService.getById(parseInt(id));
       if (!data) {
         toast.error('Sản phẩm không tồn tại');
-        navigate('/quan-ly-san-pham/danh-sach');
+        navigate('/admin/quan-ly-san-pham/danh-sach');
       } else {
         setProduct(data);
       }
     } catch (error) {
-      console.error('Error fetching product:', error);
-      toast.error(error.response?.data?.message || 'Không thể tải thông tin sản phẩm');
+      toast.error(error);
     }
   };
 
   // Fetch product details
   const fetchProductDetails = async () => {
     try {
-      const data = await ProductDetailService.getAll(id, page, size);
+      const data = await ProductDetailService.getAll(parseInt(id), page, size);
       setProductDetails(data.content || []);
       setTotalPages(data.totalPages || 1);
     } catch (error) {
-      console.error('Error fetching product details:', error);
-      toast.error(error.response?.data?.message || 'Không thể tải chi tiết sản phẩm');
+      toast.error(error);
     }
   };
 
@@ -94,8 +122,7 @@ const ProductDetail = () => {
       setSizes(sizeData.content.map(item => ({ value: item.id, label: item.name })) || []);
       setColors(colorData.content.map(item => ({ value: item.id, label: item.name, code: item.code })) || []);
     } catch (error) {
-      console.error('Error fetching form data:', error);
-      toast.error(error.response?.data?.message || 'Không thể tải dữ liệu cho form');
+      toast.error('Không thể tải dữ liệu cho form');
     }
   };
 
@@ -146,9 +173,12 @@ const ProductDetail = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // Handle combobox changes
-  const handleSelectChange = (selectedOption, { name }) => {
-    setFormData(prev => ({ ...prev, [name]: selectedOption ? selectedOption.value : null }));
+  // Handle combobox changes for multi-select
+  const handleSelectChange = (selectedOptions, { name }) => {
+    setFormData(prev => ({
+      ...prev,
+      [name]: selectedOptions ? selectedOptions.map(option => option.value) : [],
+    }));
   };
 
   // Handle add new product detail
@@ -158,10 +188,12 @@ const ProductDetail = () => {
     setFormData({
       productId: parseInt(id),
       imageIds: [],
-      sizeId: null,
-      colorId: null,
+      sizeIds: [],
+      colorIds: [],
+      code: '',
       quantity: 0,
       price: '',
+      promotionalPrice: '',
       status: 'AVAILABLE',
     });
     setSelectedImages([]);
@@ -180,18 +212,19 @@ const ProductDetail = () => {
       setFormData({
         productId: data.productId,
         imageIds: imageIds,
-        sizeId: data.sizeId,
-        colorId: data.colorId,
+        sizeIds: [data.sizeId],
+        colorIds: [data.colorId],
+        code: data.code,
         quantity: data.quantity,
         price: data.price || '',
+        promotionalPrice: data.promotionalPrice || '',
         status: data.status || 'AVAILABLE',
       });
       setSelectedImages(imageIds);
       setTempSelectedImages(imageIds);
       setNewImages([]);
     } catch (error) {
-      console.error('Error fetching product detail:', error);
-      toast.error(error.response?.data?.message || 'Không thể tải chi tiết sản phẩm');
+      toast.error(error);
     }
   };
 
@@ -206,6 +239,19 @@ const ProductDetail = () => {
       toast.error('Vui lòng chọn ít nhất một hình ảnh');
       return;
     }
+    if (formData.sizeIds.length === 0) {
+      toast.error('Vui lòng chọn ít nhất một kích thước');
+      return;
+    }
+    if (formData.colorIds.length === 0) {
+      toast.error('Vui lòng chọn ít nhất một màu sắc');
+      return;
+    }
+    if (isEditing && !formData.status) {
+      toast.error('Vui lòng chọn trạng thái');
+      return;
+    }
+
     try {
       let finalImageIds = [...formData.imageIds];
       if (newImages.length > 0) {
@@ -217,15 +263,21 @@ const ProductDetail = () => {
       const payload = {
         productId: formData.productId,
         imageIds: finalImageIds,
-        sizeId: formData.sizeId,
-        colorId: formData.colorId,
+        sizeIds: formData.sizeIds,
+        colorIds: formData.colorIds,
+        code: generateRandomCode(),
         quantity: parseInt(formData.quantity),
         price: parseFloat(formData.price),
-        status: formData.status,
+        promotionalPrice: null,
+        status: isEditing ? formData.status : 'AVAILABLE',
       };
 
       if (isEditing) {
-        await ProductDetailService.update(editingId, payload);
+        await ProductDetailService.update(editingId, {
+          ...payload,
+          sizeIds: [formData.sizeIds[0]],
+          colorIds: [formData.colorIds[0]],
+        });
         toast.success('Cập nhật chi tiết sản phẩm thành công!');
       } else {
         await ProductDetailService.create(payload);
@@ -234,8 +286,7 @@ const ProductDetail = () => {
       setIsModalOpen(false);
       fetchProductDetails();
     } catch (error) {
-      console.error('Error submitting form:', error);
-      toast.error(error.response?.data?.message || 'Lỗi khi lưu chi tiết sản phẩm');
+      toast.error(error);
     }
   };
 
@@ -252,8 +303,7 @@ const ProductDetail = () => {
       setIsDeleteModalOpen(false);
       fetchProductDetails();
     } catch (error) {
-      console.error('Error deleting product detail:', error);
-      toast.error(error.response?.data?.message || 'Lỗi khi xóa chi tiết sản phẩm');
+      toast.error(error);
     }
   };
 
@@ -264,7 +314,7 @@ const ProductDetail = () => {
 
   // Navigate back to ProductAdmin
   const handleBack = () => {
-    navigate('/quan-ly-san-pham/danh-sach');
+    navigate('/admin/quan-ly-san-pham/danh-sach');
   };
 
   if (!product) {
@@ -313,6 +363,14 @@ const ProductDetail = () => {
             <p className="text-sm text-gray-600">Mô tả</p>
             <p className="text-sm font-medium text-gray-800">{product.description || '-'}</p>
           </div>
+          <div>
+            <p className="text-sm text-gray-600">Giá thấp nhất</p>
+            <p className="text-sm font-medium text-gray-800">{product.minPrice ? product.minPrice.toLocaleString('vi-VN') + ' VND' : '-'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">Giá cao nhất</p>
+            <p className="text-sm font-medium text-gray-800">{product.maxPrice ? product.maxPrice.toLocaleString('vi-VN') + ' VND' : '-'}</p>
+          </div>
         </div>
       </div>
 
@@ -328,24 +386,28 @@ const ProductDetail = () => {
         </button>
       </div>
 
-      <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+      <div className="bg-white shadow-lg rounded-lg overflow-x-auto">
         <table className="w-full text-sm text-left text-gray-700">
           <thead className="text-xs font-semibold uppercase bg-indigo-50 text-indigo-700">
             <tr>
               <th className="px-6 py-3 w-16 rounded-tl-lg">#</th>
+              <th className="px-6 py-3 w-32">Mã sản phẩm</th>
+              <th className="px-6 py-3">Tên sản phẩm</th>
               <th className="px-6 py-3 w-32">Kích thước</th>
               <th className="px-6 py-3 w-32">Màu sắc</th>
               <th className="px-6 py-3">Hình ảnh</th>
               <th className="px-6 py-3 w-24">Số lượng</th>
               <th className="px-6 py-3 w-32">Giá</th>
+              <th className="px-6 py-3 w-32">Giá khuyến mãi</th>
               <th className="px-6 py-3 w-32">Trạng thái</th>
+              <th className="px-6 py-3 w-40">Ngày tạo</th>
               <th className="px-6 py-3 w-32 rounded-tr-lg">Hành động</th>
             </tr>
           </thead>
           <tbody>
             {productDetails.length === 0 ? (
               <tr>
-                <td colSpan="8" className="px-6 py-4 text-center text-gray-500 text-sm">
+                <td colSpan="12" className="px-6 py-4 text-center text-gray-500 text-sm">
                   Không có dữ liệu
                 </td>
               </tr>
@@ -356,13 +418,15 @@ const ProductDetail = () => {
                   className="border-b hover:bg-indigo-50 transition-colors"
                 >
                   <td className="px-6 py-3 text-center">{page * size + index + 1}</td>
-                  <td className="px-6 py-3">{item.sizeName}</td>
+                  <td className="px-6 py-3">{item.code || '-'}</td>
+                  <td className="px-6 py-3">{item.productName || '-'}</td>
+                  <td className="px-6 py-3">{item.sizeName || '-'}</td>
                   <td className="px-6 py-3 flex items-center gap-2">
                     <div
                       className="w-4 h-4 rounded-full border border-gray-300"
                       style={{ backgroundColor: item.colorCode }}
                     />
-                    {item.colorName}
+                    {item.colorName || '-'}
                   </td>
                   <td className="px-6 py-3">
                     <div className="flex gap-2">
@@ -377,9 +441,11 @@ const ProductDetail = () => {
                       ))}
                     </div>
                   </td>
-                  <td className="px-6 py-3">{item.quantity}</td>
-                  <td className="px-6 py-3">{item.price.toLocaleString('vi-VN')} VND</td>
+                  <td className="px-6 py-3">{item.quantity || 0}</td>
+                  <td className="px-6 py-3">{item.price ? item.price.toLocaleString('vi-VN') + ' VND' : '-'}</td>
+                  <td className="px-6 py-3">{item.promotionalPrice ? item.promotionalPrice.toLocaleString('vi-VN') + ' VND' : '0'}</td>
                   <td className="px-6 py-3">{statusToVietnamese(item.status)}</td>
+                  <td className="px-6 py-3">{formatDate(item.createdAt)}</td>
                   <td className="px-6 py-3 text-center flex justify-center gap-2">
                     <button
                       onClick={() => handleUpdate(item)}
@@ -445,6 +511,34 @@ const ProductDetail = () => {
               {isEditing ? 'Cập nhật chi tiết sản phẩm' : 'Thêm chi tiết sản phẩm mới'}
             </h3>
             <form onSubmit={handleSubmit}>
+              {isEditing && (
+                <>
+                  <div className="mb-5">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Mã chi tiết</label>
+                    <input
+                      type="text"
+                      name="code"
+                      value={formData.code}
+                      onChange={handleInputChange}
+                      className="block w-full rounded-lg border border-gray-300 shadow-sm px-4 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition-colors"
+                      maxLength={5}
+                      required
+                    />
+                  </div>
+                  <div className="mb-5">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Giá khuyến mãi (VND)</label>
+                    <input
+                      type="number"
+                      name="promotionalPrice"
+                      value={formData.promotionalPrice}
+                      onChange={handleInputChange}
+                      className="block w-full rounded-lg border border-gray-300 shadow-sm px-4 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition-colors"
+                      min="0.01"
+                      step="0.01"
+                    />
+                  </div>
+                </>
+              )}
               <div className="mb-5">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Hình ảnh</label>
                 <div className="flex gap-2 mb-2">
@@ -488,12 +582,13 @@ const ProductDetail = () => {
               <div className="mb-5">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Kích thước</label>
                 <Select
-                  name="sizeId"
-                  value={sizes.find(option => option.value === formData.sizeId) || null}
-                  onChange={(selectedOption) => handleSelectChange(selectedOption, { name: 'sizeId' })}
+                  name="sizeIds"
+                  value={sizes.filter(option => formData.sizeIds.includes(option.value))}
+                  onChange={(selectedOptions) => handleSelectChange(selectedOptions, { name: 'sizeIds' })}
                   options={sizes}
                   placeholder="Chọn kích thước"
                   isSearchable
+                  isMulti={!isEditing}
                   className="text-sm"
                   required
                 />
@@ -501,12 +596,13 @@ const ProductDetail = () => {
               <div className="mb-5">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Màu sắc</label>
                 <Select
-                  name="colorId"
-                  value={colors.find(option => option.value === formData.colorId) || null}
-                  onChange={(selectedOption) => handleSelectChange(selectedOption, { name: 'colorId' })}
+                  name="colorIds"
+                  value={colors.filter(option => formData.colorIds.includes(option.value))}
+                  onChange={(selectedOptions) => handleSelectChange(selectedOptions, { name: 'colorIds' })}
                   options={colors}
                   placeholder="Chọn màu sắc"
                   isSearchable
+                  isMulti={!isEditing}
                   className="text-sm"
                   getOptionLabel={(option) => (
                     <div className="flex items-center">
@@ -545,20 +641,23 @@ const ProductDetail = () => {
                   step="0.01"
                 />
               </div>
-              <div className="mb-5">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
-                <select
-                  name="status"
-                  value={formData.status}
-                  onChange={handleInputChange}
-                  className="block w-full rounded-lg border border-gray-300 shadow-sm px-4 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition-colors"
-                  required
-                >
-                  <option value="AVAILABLE">Còn hàng</option>
-                  <option value="OUT_OF_STOCK">Hết hàng</option>
-                  <option value="DISCONTINUED">Ngừng bán</option>
-                </select>
-              </div>
+              {isEditing && (
+                <div className="mb-5">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
+                  <select
+                    name="status"
+                    value={formData.status}
+                    onChange={handleInputChange}
+                    className="block w-full rounded-lg border border-gray-300 shadow-sm px-4 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition-colors"
+                    required
+                  >
+                    <option value="">Chọn trạng thái</option>
+                    <option value="AVAILABLE">Còn hàng</option>
+                    <option value="OUT_OF_STOCK">Hết hàng</option>
+                    <option value="DISCONTINUED">Ngừng bán</option>
+                  </select>
+                </div>
+              )}
               <div className="flex justify-end gap-3">
                 <button
                   type="button"
@@ -581,7 +680,7 @@ const ProductDetail = () => {
 
       {isImageModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-8 w-full max-w-3xl shadow-xl overflow-y-auto max-h-[80vh] transition-all duration-300">
+          <div className="bg-white rounded-xl p-8 w-full max-w-3xl shadow-xl overflow-y-auto max-h-[80vh]">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">Chọn hình ảnh</h3>
             <div className="grid grid-cols-4 gap-4">
               {images.map((image) => (
@@ -595,7 +694,7 @@ const ProductDetail = () => {
                   <img
                     src={`http://localhost:8080${image.url}`}
                     alt={`Image ${image.id}`}
-                    className="w-full h-48 object-cover rounded-lg shadow-md transition-transform duration-300 group-hover:scale-105"
+                    className="w-full h-48 object-cover rounded-lg shadow-md"
                     onError={() => console.error(`Failed to load image: http://localhost:8080${image.url}`)}
                   />
                 </div>
@@ -630,7 +729,7 @@ const ProductDetail = () => {
 
       {isDeleteModalOpen && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm transform transition-all duration-300">
+          <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm">
             <h3 className="text-lg font-semibold text-gray-800 mb-3">Xác nhận xóa</h3>
             <p className="text-sm text-gray-600 mb-4">
               Bạn có chắc chắn muốn xóa chi tiết sản phẩm này không?
@@ -657,3 +756,4 @@ const ProductDetail = () => {
 };
 
 export default ProductDetail;
+

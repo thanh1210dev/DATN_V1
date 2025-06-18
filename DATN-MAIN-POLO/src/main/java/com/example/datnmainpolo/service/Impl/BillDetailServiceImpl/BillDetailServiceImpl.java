@@ -88,6 +88,7 @@ public class BillDetailServiceImpl implements BillDetailService {
                                         .multiply(BigDecimal.valueOf(savedBillDetail.getQuantity()))
                                 : savedBillDetail.getPrice()
                                         .multiply(BigDecimal.valueOf(savedBillDetail.getQuantity())))
+                
                 .status(savedBillDetail.getStatus())
                 .createdAt(savedBillDetail.getCreatedAt())
                 .updatedAt(savedBillDetail.getUpdatedAt())

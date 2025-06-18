@@ -21,7 +21,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -77,9 +79,12 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public PaginationResponse<ProductResponseDTO> getAll(int page, int size, String code, String name, Integer materialId, Integer brandId, Integer categoryId) {
+    public PaginationResponse<ProductResponseDTO> getAll(int page, int size, String code, String name, Integer materialId, Integer brandId, Integer categoryId, BigDecimal minPrice, BigDecimal maxPrice) {
+        System.out.println("Debug - Params: page=" + page + ", size=" + size + ", code=" + code + ", name=" + name +
+                ", materialId=" + materialId + ", brandId=" + brandId + ", categoryId=" + categoryId +
+                ", minPrice=" + minPrice + ", maxPrice=" + maxPrice);
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
-        Page<Product> pageData = productRepository.findAllByFilters(code, name, materialId, brandId, categoryId, pageable);
+        Page<Product> pageData = productRepository.findAllByFilters(code, name, materialId, brandId, categoryId, minPrice, maxPrice, pageable);
         return new PaginationResponse<>(pageData.map(this::toResponse));
     }
 
@@ -108,12 +113,17 @@ public class ProductServiceImpl implements ProductService {
         response.setBrandName(entity.getBrand().getName());
         response.setCategoryId(entity.getCategory().getId());
         response.setCategoryName(entity.getCategory().getName());
-
         response.setCode(entity.getCode());
         response.setName(entity.getName());
         response.setDescription(entity.getDescription());
         response.setCreatedAt(entity.getCreatedAt());
         response.setUpdatedAt(entity.getUpdatedAt());
+
+        // Lấy minPrice và maxPrice từ ProductDetail
+        Map<String, BigDecimal> priceRange = productRepository.findMinMaxPriceByProductId(entity.getId());
+        response.setMinPrice(priceRange.get("minPrice"));
+        response.setMaxPrice(priceRange.get("maxPrice"));
+
         return response;
     }
 }

@@ -26,6 +26,10 @@ public class CustomerInformation {
     @Column(name = "name", length = 100)
     private String name;
 
+    @Size(max = 20)
+    @Column(name = "phone_number", length = 20)
+    private String phoneNumber;
+
     @Size(max = 100)
     @Column(name = "address", length = 100)
     private String address;

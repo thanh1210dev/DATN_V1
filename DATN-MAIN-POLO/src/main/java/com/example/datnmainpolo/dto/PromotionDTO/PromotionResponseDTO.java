@@ -20,7 +20,7 @@ public class PromotionResponseDTO {
     private Instant endTime;
 
     private BigDecimal percentageDiscountValue;
-    private BigDecimal maxDiscountValue;
+//    private BigDecimal maxDiscountValue;
 
     private String description;
     private PromotionStatus status;

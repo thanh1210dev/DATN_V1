@@ -1,7 +1,6 @@
 import axiosInstance from '../axiosInstance';
 
 const ProductDetailService = {
-  // Get all product details for a product with pagination
   getAll: async (productId, page, size) => {
     try {
       const response = await axiosInstance.get(`/product-details/all/${productId}`, {
@@ -12,8 +11,18 @@ const ProductDetailService = {
       throw error.response?.data?.message || 'Không thể tải danh sách chi tiết sản phẩm';
     }
   },
+  getAllPage: async ( page, size) => {
+    try {
+      const response = await axiosInstance.get(`/product-details/all`, {
+        params: { page, size },
+      });
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || 'Không thể tải danh sách chi tiết sản phẩm';
+    }
+  },
 
-  // Create a new product detail
+
   create: async (productDetailData) => {
     try {
       const response = await axiosInstance.post('/product-details', productDetailData);
@@ -23,7 +32,6 @@ const ProductDetailService = {
     }
   },
 
-  // Update a product detail
   update: async (id, productDetailData) => {
     try {
       const response = await axiosInstance.put(`/product-details/${id}`, productDetailData);
@@ -33,7 +41,6 @@ const ProductDetailService = {
     }
   },
 
-  // Delete a product detail
   delete: async (id) => {
     try {
       await axiosInstance.delete(`/product-details/${id}`);
@@ -42,7 +49,6 @@ const ProductDetailService = {
     }
   },
 
-  // Get product detail by ID
   getById: async (id) => {
     try {
       const response = await axiosInstance.get(`/product-details/${id}`);

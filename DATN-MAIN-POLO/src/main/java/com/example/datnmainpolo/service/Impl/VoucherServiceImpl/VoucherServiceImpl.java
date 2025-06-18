@@ -191,7 +191,7 @@ public class VoucherServiceImpl implements VoucherService {
             throw new IllegalArgumentException("Thời gian bắt đầu phải trước thời gian kết thúc");
         }
 
-        if (VoucherType.PERCENT.equals(requestDTO.getType())) {
+        if (VoucherType.PERCENTAGE.equals(requestDTO.getType())) {
             if (requestDTO.getPercentageDiscountValue() == null ||
                     requestDTO.getPercentageDiscountValue().compareTo(BigDecimal.ZERO) <= 0 ||
                     requestDTO.getPercentageDiscountValue().compareTo(new BigDecimal("100")) > 0) {
