@@ -18,7 +18,7 @@ import org.springframework.data.domain.Pageable;
 @Repository
 public interface PromotionRepository extends JpaRepository<Promotion, Integer> {
     @Query("SELECT p FROM Promotion p WHERE " +
-            "(:code IS NULL OR p.code LIKE %:code%) " +
+            "(:code IS NULL OR p.code LIKE CONCAT('%', :code, '%')) " +
             "AND (:startTime IS NULL OR p.startTime >= :startTime) " +
             "AND (:endTime IS NULL OR p.endTime <= :endTime) " +
             "AND (:status IS NULL OR p.status = :status) " +
@@ -29,6 +29,8 @@ public interface PromotionRepository extends JpaRepository<Promotion, Integer> {
             @Param("endTime") Instant endTime,
             @Param("status") PromotionStatus status,
             Pageable pageable);
+
+
 
     Optional<Promotion> findByIdAndDeletedFalse(Integer id);
 

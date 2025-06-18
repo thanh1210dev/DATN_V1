@@ -329,7 +329,7 @@ public class BillServiceImpl implements BillService {
 
                 // 7. Tính số tiền giảm
                 BigDecimal reductionAmount;
-                if (voucher.getType() == VoucherType.PERCENT) {
+                if (voucher.getType() == VoucherType.PERCENTAGE) {
                         // Giảm theo phần trăm
                         if (voucher.getPercentageDiscountValue() == null) {
                                 throw new RuntimeException("Voucher không có giá trị giảm giá phần trăm");

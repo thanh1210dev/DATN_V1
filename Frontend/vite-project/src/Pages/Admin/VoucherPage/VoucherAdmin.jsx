@@ -3,19 +3,17 @@ import { HiOutlineSearch, HiOutlinePlus, HiOutlinePencilAlt, HiOutlineTrash } fr
 import { BsSendDashFill } from "react-icons/bs";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-// import VoucherApi from "../../../Service/AdminDotGiamGiaSevice/VoucherApi";
 import { PromotionStatus } from "../DotGiamGiaPage/PromotionStatus";
 import { useNavigate } from "react-router-dom";
 import VoucherApi from "../../../Service/AdminDotGiamGiaSevice/VoucherApi";
 import { VoucherType } from "./VoucherEnums";
-// import VoucherApi from "../../../Service/AdminDotGiamGiaSevice/VoucherApi";
 
 const VoucherAdmin = () => {
   const [data, setData] = useState([]);
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
-  const [searchName, setSearchName] = useState(""); // Thay searchCode thành searchName
+  const [searchName, setSearchName] = useState("");
   const [searchStartTime, setSearchStartTime] = useState("");
   const [searchEndTime, setSearchEndTime] = useState("");
   const [searchStatus, setSearchStatus] = useState("");
@@ -39,11 +37,11 @@ const VoucherAdmin = () => {
   const [formErrors, setFormErrors] = useState({});
 
   const statusLabels = {
-    COMING_SOON: "Sắp ra mắt",
-    ACTIVE: "Đang hoạt động",
-    EXPIRED: "Hết hạn",
-    USED_UP: "Hết lượt",
-    INACTIVE: "Không hoạt động",
+    COMING_SOON: <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded text-xs">Sắp ra mắt</span>,
+    ACTIVE: <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">Đang hoạt động</span>,
+    EXPIRED: <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs">Hết hạn</span>,
+    USED_UP: <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs">Hết lượt</span>,
+    INACTIVE: <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded text-xs">Không hoạt động</span>,
   };
 
   const typeLabels = {
@@ -63,7 +61,7 @@ const VoucherAdmin = () => {
   const fetchData = async () => {
     try {
       const params = {
-        name: searchName || undefined, // Thay code thành name
+        name: searchName || undefined,
         startTime: searchStartTime ? new Date(searchStartTime).toISOString() : undefined,
         endTime: searchEndTime ? new Date(searchEndTime).toISOString() : undefined,
         status: searchStatus || undefined,
@@ -95,8 +93,8 @@ const VoucherAdmin = () => {
       type: "",
       startTime: currentDate,
       endTime: currentDate,
+      status: "ACTIVE", // Default status for new voucher
       quantity: "",
-      status: "",
       fixedDiscountValue: "",
       percentageDiscountValue: "",
       maxDiscountValue: "",
@@ -124,7 +122,7 @@ const VoucherAdmin = () => {
         ? new Date(voucher.endTime).toISOString().slice(0, 16)
         : currentDate,
       quantity: voucher.quantity?.toString() || "",
-      status: voucher.status || "",
+      status: voucher.status || "ACTIVE",
       fixedDiscountValue: voucher.fixedDiscountValue?.toString() || "",
       percentageDiscountValue: voucher.percentageDiscountValue?.toString() || "",
       maxDiscountValue: voucher.maxDiscountValue?.toString() || "",
@@ -161,7 +159,7 @@ const VoucherAdmin = () => {
 
     if (!formData.name) errors.name = "Tên voucher là bắt buộc";
     if (!formData.type) errors.type = "Loại giảm giá là bắt buộc";
-    if (!formData.status) errors.status = "Trạng thái là bắt buộc";
+    if (selectedVoucher && !formData.status) errors.status = "Trạng thái là bắt buộc";
     if (!formData.startTime) errors.startTime = "Thời gian bắt đầu là bắt buộc";
     if (!formData.endTime) errors.endTime = "Thời gian kết thúc là bắt buộc";
     if (formData.startTime && formData.endTime && new Date(formData.startTime) >= new Date(formData.endTime)) {
@@ -231,7 +229,7 @@ const VoucherAdmin = () => {
         startTime: new Date(formData.startTime).toISOString(),
         endTime: new Date(formData.endTime).toISOString(),
         quantity: formData.quantity ? parseInt(formData.quantity) : null,
-        status: formData.status,
+        status: selectedVoucher ? formData.status : "ACTIVE",
         fixedDiscountValue: formData.fixedDiscountValue ? Number(parseFloat(formData.fixedDiscountValue).toFixed(2)) : null,
         percentageDiscountValue: formData.percentageDiscountValue ? Number(parseFloat(formData.percentageDiscountValue).toFixed(2)) : null,
         maxDiscountValue: formData.maxDiscountValue ? Number(parseFloat(formData.maxDiscountValue).toFixed(2)) : null,
@@ -312,7 +310,7 @@ const VoucherAdmin = () => {
             <option value="">Tất cả trạng thái</option>
             {Object.values(PromotionStatus).map((status) => (
               <option key={status} value={status}>
-                {statusLabels[status]}
+                {statusLabels[status].props.children}
               </option>
             ))}
           </select>
@@ -354,7 +352,7 @@ const VoucherAdmin = () => {
           <tbody>
             {data.length === 0 ? (
               <tr>
-                <td colSpan="11" className="px-2 py-4 text-center text-gray-500 text-xs">
+                <td colSpan="12" className="px-2 py-4 text-center text-gray-500 text-xs">
                   Không có dữ liệu
                 </td>
               </tr>
@@ -567,24 +565,26 @@ const VoucherAdmin = () => {
                 />
                 {formErrors.quantity && <p className="text-xs text-red-500 mt-1">{formErrors.quantity}</p>}
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700">Trạng thái</label>
-                <select
-                  name="status"
-                  value={formData.status}
-                  onChange={handleInputChange}
-                  className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.status ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
-                  required
-                >
-                  <option value="">Chọn trạng thái</option>
-                  {Object.values(PromotionStatus).map((status) => (
-                    <option key={status} value={status}>
-                      {statusLabels[status]}
-                    </option>
-                  ))}
-                </select>
-                {formErrors.status && <p className="text-xs text-red-500 mt-1">{formErrors.status}</p>}
-              </div>
+              {selectedVoucher && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-700">Trạng thái</label>
+                  <select
+                    name="status"
+                    value={formData.status}
+                    onChange={handleInputChange}
+                    className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.status ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
+                    required
+                  >
+                    <option value="">Chọn trạng thái</option>
+                    {Object.values(PromotionStatus).map((status) => (
+                      <option key={status} value={status}>
+                        {statusLabels[status].props.children}
+                      </option>
+                    ))}
+                  </select>
+                  {formErrors.status && <p className="text-xs text-red-500 mt-1">{formErrors.status}</p>}
+                </div>
+              )}
               <div className="col-span-2 flex justify-end gap-2 mt-3">
                 <button
                   type="button"

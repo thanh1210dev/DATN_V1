@@ -17,7 +17,7 @@ import java.util.Optional;
 @Repository
 public interface VoucherRepository extends JpaRepository<Voucher, Integer> {
     @Query("SELECT v FROM Voucher v WHERE " +
-            "(:code IS NULL OR v.code LIKE %:code%) " +
+            "(:code IS NULL OR v.code LIKE CONCAT('%', :code, '%')) " +
             "AND (:startTime IS NULL OR v.startTime >= :startTime) " +
             "AND (:endTime IS NULL OR v.endTime <= :endTime) " +
             "AND (:status IS NULL OR v.status = :status) " +
@@ -28,6 +28,7 @@ public interface VoucherRepository extends JpaRepository<Voucher, Integer> {
             @Param("endTime") Instant endTime,
             @Param("status") PromotionStatus status,
             Pageable pageable);
+
 
     Optional<Voucher> findByIdAndDeletedFalse(Integer id);
 

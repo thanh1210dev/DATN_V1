@@ -47,15 +47,8 @@ public class Promotion {
     @Column(name = "end_time")
     private Instant endTime;
 
-
-
     @Column(name = "percentage_discount_value", precision = 5, scale = 2)
     private BigDecimal percentageDiscountValue; // Giá trị giảm theo phần trăm (0-100)
-
-    @Column(name = "max_discount_value", precision = 10, scale = 2)
-    private BigDecimal maxDiscountValue; // Giá trị giảm tối đa
-
-
 
     @Lob
     @Column(name = "description", columnDefinition = "NVARCHAR(MAX)")

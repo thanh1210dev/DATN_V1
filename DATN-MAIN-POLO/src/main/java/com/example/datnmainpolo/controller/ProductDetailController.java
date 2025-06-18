@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/product-details")
 @RequiredArgsConstructor
@@ -17,7 +19,7 @@ public class ProductDetailController {
     private final ProductDetailService productDetailService;
 
     @PostMapping
-    public ResponseEntity<ProductDetailResponseDTO> create(@Valid @RequestBody ProductDetailRequestDTO requestDTO) {
+    public ResponseEntity<List<ProductDetailResponseDTO> > create(@Valid @RequestBody ProductDetailRequestDTO requestDTO) {
         return ResponseEntity.ok(productDetailService.create(requestDTO));
     }
 

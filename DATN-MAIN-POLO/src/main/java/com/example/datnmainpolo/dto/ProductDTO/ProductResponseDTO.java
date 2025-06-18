@@ -1,8 +1,10 @@
 package com.example.datnmainpolo.dto.ProductDTO;
 
+
 import lombok.Getter;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 @Getter
@@ -18,6 +20,8 @@ public class ProductResponseDTO {
     private String code;
     private String name;
     private String description;
+    private BigDecimal minPrice;
+    private BigDecimal maxPrice;
     private Instant createdAt;
     private Instant updatedAt;
 }

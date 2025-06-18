@@ -14,6 +14,7 @@ public class ProductDetailResponseDTO {
     private Integer productId;
     private String productName;
     private String productCode;
+    private String code;
     private List<ImageDTO> images;
     private Integer sizeId;
     private String sizeName;

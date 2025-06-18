@@ -33,8 +33,8 @@ public class PromotionRequestDTO {
     @DecimalMax(value = "100.00", message = "Phần trăm giảm giá không được vượt quá 100%")
     private BigDecimal percentageDiscountValue; // Giá trị giảm theo phần trăm
 
-    @PositiveOrZero(message = "Giá trị giảm tối đa phải không âm")
-    private BigDecimal maxDiscountValue; // Giá trị giảm tối đa
+//    @PositiveOrZero(message = "Giá trị giảm tối đa phải không âm")
+//    private BigDecimal maxDiscountValue; // Giá trị giảm tối đa
 
 
 

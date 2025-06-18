@@ -1,5 +1,6 @@
 package com.example.datnmainpolo.entity;
 
+
 import com.example.datnmainpolo.enums.ProductStatus;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
@@ -37,6 +38,9 @@ public class ProductDetail {
     @JoinColumn(name = "color_id")
     private Color color;
 
+
+    @Column(name = "code")
+    private String code;
 
     @Column(name = "quantity")
     private Integer quantity;

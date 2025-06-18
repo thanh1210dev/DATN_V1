@@ -1,6 +1,7 @@
 package com.example.datnmainpolo.controller;
 
 
+
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.dto.ProductDTO.ProductRequestDTO;
 import com.example.datnmainpolo.dto.ProductDTO.ProductResponseDTO;
@@ -9,6 +10,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.math.BigDecimal;
 
 @RestController
 @RequestMapping("/api/products")
@@ -45,7 +48,9 @@ public class ProductController {
             @RequestParam(required = false) String name,
             @RequestParam(required = false) Integer materialId,
             @RequestParam(required = false) Integer brandId,
-            @RequestParam(required = false) Integer categoryId) {
-        return ResponseEntity.ok(productService.getAll(page, size, code, name, materialId, brandId, categoryId));
+            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice) {
+        return ResponseEntity.ok(productService.getAll(page, size, code, name, materialId, brandId, categoryId, minPrice, maxPrice));
     }
 }

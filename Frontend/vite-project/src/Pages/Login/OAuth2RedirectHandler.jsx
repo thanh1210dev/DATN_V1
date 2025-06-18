@@ -28,7 +28,7 @@ function OAuth2RedirectHandler() {
       switch (role) {
         case "Staff":
         case "ADMIN":
-          navigate("/dashboard");
+          navigate("/admin/dashboard");
           break;
         case "CLIENT":
           navigate("/");
