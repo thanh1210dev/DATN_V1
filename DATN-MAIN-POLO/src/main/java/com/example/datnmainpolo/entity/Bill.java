@@ -81,6 +81,7 @@ public class Bill {
     @Size(max = 100)
     @Column(name = "voucher_code", length = 100)
     private String voucherCode;
+
     @Size(max = 100)
     @Column(name = "voucher_name", length = 100)
     private String voucherName;
