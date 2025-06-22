@@ -7,6 +7,7 @@ import Header from "../component/Header";
 import AdminQuanlyGiamGia from "./AdminRouter/AdminQuanlyGiamGia";
 import AdminQuanLySanPham from "./AdminRouter/AdminQuanLySanPham";
 import ClientRouter from "./ClientRouTer/ClientRouter";
+import AdminQuanLyThongKe from "./AdminRouter/AdminQuanLyThongKe";
 
 
 
@@ -38,6 +39,7 @@ const AppRouter = () => {
                     <Route path="/" element={<div className="text-2xl font-bold text-indigo-700">Trang Quản Lý Admin</div>} />
                     {AdminQuanlyGiamGia}
                     {AdminQuanLySanPham}
+                    {AdminQuanLyThongKe}
                    
                   </Routes>
                 </main>

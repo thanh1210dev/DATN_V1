@@ -1,8 +1,8 @@
 package com.example.datnmainpolo.dto.VoucherDTO;
-// package com.example.datnmainpolo.dto.VoucherDTO;
 
 import com.example.datnmainpolo.enums.PromotionStatus;
 import com.example.datnmainpolo.enums.VoucherType;
+import com.example.datnmainpolo.enums.VoucherTypeUser;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -36,18 +36,21 @@ public class VoucherRequestDTO {
     private PromotionStatus status;
 
     @PositiveOrZero(message = "Giá trị giảm cố định phải không âm")
-    private BigDecimal fixedDiscountValue; // Giá trị giảm cố định
+    private BigDecimal fixedDiscountValue;
 
     @DecimalMin(value = "0.00", message = "Phần trăm giảm giá phải ít nhất là 0%")
     @DecimalMax(value = "100.00", message = "Phần trăm giảm giá không được vượt quá 100%")
-    private BigDecimal percentageDiscountValue; // Giá trị giảm theo phần trăm
+    private BigDecimal percentageDiscountValue;
 
     @PositiveOrZero(message = "Giá trị giảm tối đa phải không âm")
-    private BigDecimal maxDiscountValue; // Giá trị giảm tối đa
+    private BigDecimal maxDiscountValue;
 
-    @PositiveOrZero(message = "Giá trị đơn hàng tối thiểu phải không âm") // New validation
-    private BigDecimal minOrderValue; // Giá trị đơn hàng tối thiểu
+    @PositiveOrZero(message = "Giá trị đơn hàng tối thiểu phải không âm")
+    private BigDecimal minOrderValue;
 
     @NotNull(message = "ID người tạo là bắt buộc")
     private Integer createdByUserId;
+
+    @NotNull(message = "Loại người dùng là bắt buộc")
+    private VoucherTypeUser typeUser; // New field
 }

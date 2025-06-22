@@ -7,23 +7,31 @@ import ProductInfo from "./ProductInfo";
 import ProductService from "../../../Service/AdminProductSevice/ProductService";
 import ProductDetailService from "../../../Service/AdminProductSevice/ProductDetailService";
 
-
 const ProductDetail = () => {
   const { id } = useParams();
   const [product, setProduct] = useState(null);
-  const [productDetails, setProductDetails] = useState([]);
+  const [sizes, setSizes] = useState([]);
+  const [colors, setColors] = useState([]);
+  const [selectedSizeId, setSelectedSizeId] = useState("");
+  const [selectedColorId, setSelectedColorId] = useState("");
   const [selectedDetail, setSelectedDetail] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [productResponse, detailsResponse] = await Promise.all([
+        const [productResponse, sizesResponse, detailsResponse] = await Promise.all([
           ProductService.getById(id),
-          ProductDetailService.getAll(id, 0, 10),
+          ProductDetailService.getAvailableSizes(id),
+          ProductDetailService.getAll(id, 0, 1),
         ]);
         setProduct(productResponse);
-        setProductDetails(detailsResponse.content || []);
-        setSelectedDetail(detailsResponse.content[0] || null);
+        setSizes(sizesResponse);
+        const firstDetail = detailsResponse.content[0];
+        if (firstDetail) {
+          setSelectedDetail(firstDetail);
+          setSelectedSizeId(firstDetail.sizeId);
+          setSelectedColorId(firstDetail.colorId);
+        }
       } catch (error) {
         toast.error(error, { position: "top-right", autoClose: 3000 });
       }
@@ -31,21 +39,65 @@ const ProductDetail = () => {
     fetchData();
   }, [id]);
 
-  if (!product || !selectedDetail) {
-    return <div className="p-6 text-center text-gray-500">Đang tải...</div>;
+  useEffect(() => {
+    if (selectedSizeId) {
+      const fetchColors = async () => {
+        try {
+          const colorsResponse = await ProductDetailService.getAvailableColors(id, selectedSizeId);
+          setColors(colorsResponse);
+          if (!colorsResponse.some(color => color.id === selectedColorId)) {
+            setSelectedColorId("");
+            setSelectedDetail(null);
+          }
+        } catch (error) {
+          toast.error(error, { position: "top-right", autoClose: 3000 });
+        }
+      };
+      fetchColors();
+    } else {
+      setColors([]);
+      setSelectedColorId("");
+      setSelectedDetail(null);
+    }
+  }, [selectedSizeId, id, selectedColorId]);
+
+  useEffect(() => {
+    if (selectedSizeId && selectedColorId) {
+      const fetchProductDetail = async () => {
+        try {
+          const detailResponse = await ProductDetailService.getProductDetailBySizeAndColor(id, selectedSizeId, selectedColorId);
+          setSelectedDetail(detailResponse);
+        } catch (error) {
+          toast.error(error, { position: "top-right", autoClose: 3000 });
+        }
+      };
+      fetchProductDetail();
+    }
+  }, [selectedSizeId, selectedColorId, id]);
+
+  if (!product) {
+    return (
+      <div className="p-4 sm:p-6 text-center text-gray-500 bg-white min-h-screen flex items-center justify-center w-full">
+        Đang tải...
+      </div>
+    );
   }
 
   return (
-    <div className="p-6 bg-gray-100 min-h-screen">
+    <div className="p-4 sm:p-6 bg-white min-h-screen w-full">
       <ToastContainer />
-      <div className="max-w-7xl mx-auto bg-white shadow-lg rounded-xl p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <ProductImageGallery images={selectedDetail.images} />
+      <div className="bg-white shadow-xl rounded-2xl p-6 sm:p-8 w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+          <ProductImageGallery images={selectedDetail?.images || []} />
           <ProductInfo
             product={product}
             productDetail={selectedDetail}
-            productDetails={productDetails}
-            setSelectedDetail={setSelectedDetail}
+            sizes={sizes}
+            colors={colors}
+            selectedSizeId={selectedSizeId}
+            setSelectedSizeId={setSelectedSizeId}
+            selectedColorId={selectedColorId}
+            setSelectedColorId={setSelectedColorId}
           />
         </div>
       </div>

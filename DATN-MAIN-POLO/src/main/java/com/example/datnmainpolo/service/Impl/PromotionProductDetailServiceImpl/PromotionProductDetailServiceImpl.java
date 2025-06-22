@@ -2,6 +2,7 @@ package com.example.datnmainpolo.service.Impl.PromotionProductDetailServiceImpl;
 
 
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
+import com.example.datnmainpolo.dto.ProductDetailDTO.ProductDetailResponseDTO;
 import com.example.datnmainpolo.dto.PromotionProductDetailDTO.PromotionProductDetailRequestDTO;
 import com.example.datnmainpolo.dto.PromotionProductDetailDTO.PromotionProductDetailResponseDTO;
 import com.example.datnmainpolo.entity.ProductDetail;
@@ -23,11 +24,14 @@ import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
+
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Set;
 
 @Service
-public class PromotionProductDetailServiceImpl implements PromotionProductDetailService {
+public class PromotionProductDetailServiceImpl implements PromotionProductDetailService
+{
 
     @Autowired
     private PromotionProductDetailRepository promotionProductDetailRepository;
@@ -55,6 +59,9 @@ public class PromotionProductDetailServiceImpl implements PromotionProductDetail
 
         return new PaginationResponse<>(pageData.map(this::mapToResponseDTO));
     }
+
+
+
 
     @Override
     public PromotionProductDetailResponseDTO createPromotionProductDetail(PromotionProductDetailRequestDTO requestDTO) {

@@ -22,6 +22,8 @@ const DotGiamGiaAdmin = () => {
   const [searchStatus, setSearchStatus] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [pendingPayload, setPendingPayload] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [selectedPromotion, setSelectedPromotion] = useState(null);
   const [formData, setFormData] = useState({
@@ -30,7 +32,6 @@ const DotGiamGiaAdmin = () => {
     startTime: "",
     endTime: "",
     percentageDiscountValue: "",
-   
     description: "",
     status: PromotionStatus.COMING_SOON,
   });
@@ -100,7 +101,6 @@ const DotGiamGiaAdmin = () => {
       startTime: currentDate,
       endTime: currentDate,
       percentageDiscountValue: "",
-   
       description: "",
       status: PromotionStatus.COMING_SOON,
     });
@@ -127,7 +127,6 @@ const DotGiamGiaAdmin = () => {
       startTime: promotion.startTime ? new Date(promotion.startTime).toISOString().slice(0, 16) : currentDate,
       endTime: promotion.endTime ? new Date(promotion.endTime).toISOString().slice(0, 16) : currentDate,
       percentageDiscountValue: promotion.percentageDiscountValue ? promotion.percentageDiscountValue.toString() : "",
-      
       description: promotion.description || "",
       status: promotion.status,
     });
@@ -189,13 +188,11 @@ const DotGiamGiaAdmin = () => {
       errors.percentageDiscountValue = "Phần trăm giảm giá quá lớn";
     }
 
- 
-
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     if (!validateForm()) {
       toast.error("Vui lòng kiểm tra các trường dữ liệu", {
@@ -205,38 +202,45 @@ const DotGiamGiaAdmin = () => {
       return;
     }
 
-    try {
-      const payload = {
-        name: formData.name,
-        typePromotion: formData.typePromotion,
-        startTime: formData.startTime ? new Date(formData.startTime).toISOString() : null,
-        endTime: formData.endTime ? new Date(formData.endTime).toISOString() : null,
-        percentageDiscountValue: formData.percentageDiscountValue
-          ? parseFloat(formData.percentageDiscountValue).toFixed(2)
-          : null,
-        
-        description: formData.description || null,
-        status: selectedPromotion ? formData.status : PromotionStatus.COMING_SOON,
-        createdByUserId: idUser ? parseInt(idUser) : null,
-      };
+    const payload = {
+      name: formData.name,
+      typePromotion: formData.typePromotion,
+      startTime: formData.startTime ? new Date(formData.startTime).toISOString() : null,
+      endTime: formData.endTime ? new Date(formData.endTime).toISOString() : null,
+      percentageDiscountValue: formData.percentageDiscountValue ? Number(parseFloat(formData.percentageDiscountValue).toFixed(2)) : null,
+      description: formData.description || null,
+      createdByUserId: idUser ? parseInt(idUser) : null,
+    };
 
+    if (selectedPromotion) {
+      payload.status = formData.status;
+    }
+
+    setPendingPayload(payload);
+    setIsConfirmModalOpen(true);
+  };
+
+  const handleConfirmSubmit = async () => {
+    try {
       if (selectedPromotion) {
         if (!selectedPromotion.id) {
           throw new Error("ID khuyến mãi không hợp lệ");
         }
-        await DotGiamGiaApi.update(selectedPromotion.id, payload);
+        await DotGiamGiaApi.update(selectedPromotion.id, pendingPayload);
         toast.success("Cập nhật thành công!", {
           position: "top-right",
           autoClose: 3000,
         });
       } else {
-        await DotGiamGiaApi.create(payload);
+        await DotGiamGiaApi.create(pendingPayload);
         toast.success("Thêm mới thành công!", {
           position: "top-right",
           autoClose: 3000,
         });
       }
       setIsFormOpen(false);
+      setIsConfirmModalOpen(false);
+      setPendingPayload(null);
       fetchData();
     } catch (error) {
       let errorMessage = error.response?.data?.message || error.message || "Đã xảy ra lỗi khi lưu";
@@ -247,6 +251,8 @@ const DotGiamGiaAdmin = () => {
         position: "top-right",
         autoClose: 5000,
       });
+      setIsConfirmModalOpen(false);
+      setPendingPayload(null);
     }
   };
 
@@ -258,8 +264,6 @@ const DotGiamGiaAdmin = () => {
     }));
     setFormErrors((prev) => ({ ...prev, [name]: "" }));
   };
-
-
 
   return (
     <div className="p-4 bg-gray-100 min-h-screen">
@@ -318,7 +322,6 @@ const DotGiamGiaAdmin = () => {
               <th className="px-2 py-2">Thời gian bắt đầu</th>
               <th className="px-2 py-2">Thời gian kết thúc</th>
               <th className="px-2 py-2">Giảm %</th>
-             
               <th className="px-2 py-2">Trạng thái</th>
               <th className="px-2 py-2 rounded-tr-lg">Hành động</th>
             </tr>
@@ -326,7 +329,7 @@ const DotGiamGiaAdmin = () => {
           <tbody>
             {data.length === 0 ? (
               <tr>
-                <td colSpan="9" className="px-2 py-4 text-center text-gray-500 text-xs">
+                <td colSpan="8" className="px-2 py-4 text-center text-gray-500 text-xs">
                   Không có dữ liệu
                 </td>
               </tr>
@@ -342,7 +345,6 @@ const DotGiamGiaAdmin = () => {
                   <td className="px-2 py-2">{new Date(item.startTime).toLocaleString("vi-VN")}</td>
                   <td className="px-2 py-2">{new Date(item.endTime).toLocaleString("vi-VN")}</td>
                   <td className="px-2 py-2">{item.percentageDiscountValue ? `${item.percentageDiscountValue}%` : "-"}</td>
-                
                   <td className="px-2 py-2">{statusLabels[item.status]}</td>
                   <td className="px-2 py-2 text-center flex justify-center gap-1">
                     <button
@@ -407,155 +409,177 @@ const DotGiamGiaAdmin = () => {
       </div>
 
       {/* Form Modal */}
-      {isFormOpen && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-5 rounded-lg shadow-lg w-full max-w-lg">
-            <h2 className="text-lg font-semibold text-indigo-700 mb-3">
-              {selectedPromotion ? "Cập nhật" : "Thêm mới"} Đợt Giảm Giá
-            </h2>
-            <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-3">
+      <div className={`fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 transition-opacity duration-300 ${isFormOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        <div className="bg-white p-5 rounded-lg shadow-lg w-full max-w-lg transform transition-all duration-300">
+          <h2 className="text-lg font-semibold text-indigo-700 mb-3">
+            {selectedPromotion ? "Cập nhật" : "Thêm mới"} Đợt Giảm Giá
+          </h2>
+          <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700">Tên</label>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
+                className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.name ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
+                required
+              />
+              {formErrors.name && <p className="text-xs text-red-500 mt-1">{formErrors.name}</p>}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700">Loại giảm giá</label>
+              <select
+                name="typePromotion"
+                value={formData.typePromotion}
+                onChange={handleInputChange}
+                className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.typePromotion ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
+                required
+              >
+                <option value="">Chọn loại giảm giá</option>
+                <option value={DiscountType.PERCENTAGE}>{discountTypeLabels[DiscountType.PERCENTAGE]}</option>
+              </select>
+              {formErrors.typePromotion && <p className="text-xs text-red-500 mt-1">{formErrors.typePromotion}</p>}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700">Phần trăm giảm (%)</label>
+              <input
+                type="number"
+                name="percentageDiscountValue"
+                value={formData.percentageDiscountValue}
+                onChange={handleInputChange}
+                className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.percentageDiscountValue ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
+                min="0"
+                max="100"
+                step="0.01"
+                required
+              />
+              {formErrors.percentageDiscountValue && <p className="text-xs text-red-500 mt-1">{formErrors.percentageDiscountValue}</p>}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700">Thời gian bắt đầu</label>
+              <input
+                type="datetime-local"
+                name="startTime"
+                value={formData.startTime}
+                onChange={handleInputChange}
+                className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.startTime ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
+                required
+              />
+              {formErrors.startTime && <p className="text-xs text-red-500 mt-1">{formErrors.startTime}</p>}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700">Thời gian kết thúc</label>
+              <input
+                type="datetime-local"
+                name="endTime"
+                value={formData.endTime}
+                onChange={handleInputChange}
+                className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.endTime ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
+                required
+              />
+              {formErrors.endTime && <p className="text-xs text-red-500 mt-1">{formErrors.endTime}</p>}
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-700">Mô tả</label>
+              <textarea
+                name="description"
+                value={formData.description}
+                onChange={handleInputChange}
+                className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.description ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
+                rows="4"
+              />
+              {formErrors.description && <p className="text-xs text-red-500 mt-1">{formErrors.description}</p>}
+            </div>
+            {selectedPromotion && (
               <div>
-                <label className="block text-xs font-medium text-gray-700">Tên</label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.name ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
-                  required
-                />
-                {formErrors.name && <p className="text-xs text-red-500 mt-1">{formErrors.name}</p>}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700">Loại giảm giá</label>
+                <label className="block text-xs font-medium text-gray-700">Trạng thái</label>
                 <select
-                  name="typePromotion"
-                  value={formData.typePromotion}
+                  name="status"
+                  value={formData.status}
                   onChange={handleInputChange}
-                  className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.typePromotion ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
+                  className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.status ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
                   required
                 >
-                  <option value="">Chọn loại giảm giá</option>
-                  <option value={DiscountType.PERCENTAGE}>{discountTypeLabels[DiscountType.PERCENTAGE]}</option>
+                  <option value="">Chọn trạng thái</option>
+                  {Object.values(PromotionStatus).map((status) => (
+                    <option key={status} value={status}>
+                      {statusLabels[status].props.children}
+                    </option>
+                  ))}
                 </select>
-                {formErrors.typePromotion && <p className="text-xs text-red-500 mt-1">{formErrors.typePromotion}</p>}
+                {formErrors.status && <p className="text-xs text-red-500 mt-1">{formErrors.status}</p>}
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700">Phần trăm giảm (%)</label>
-                <input
-                  type="number"
-                  name="percentageDiscountValue"
-                  value={formData.percentageDiscountValue}
-                  onChange={handleInputChange}
-                  className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.percentageDiscountValue ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  required
-                />
-                {formErrors.percentageDiscountValue && <p className="text-xs text-red-500 mt-1">{formErrors.percentageDiscountValue}</p>}
-              </div>
-             
-              <div>
-                <label className="block text-xs font-medium text-gray-700">Thời gian bắt đầu</label>
-                <input
-                  type="datetime-local"
-                  name="startTime"
-                  value={formData.startTime}
-                  onChange={handleInputChange}
-                  className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.startTime ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
-                  required
-                />
-                {formErrors.startTime && <p className="text-xs text-red-500 mt-1">{formErrors.startTime}</p>}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700">Thời gian kết thúc</label>
-                <input
-                  type="datetime-local"
-                  name="endTime"
-                  value={formData.endTime}
-                  onChange={handleInputChange}
-                  className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.endTime ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
-                  required
-                />
-                {formErrors.endTime && <p className="text-xs text-red-500 mt-1">{formErrors.endTime}</p>}
-              </div>
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-gray-700">Mô tả</label>
-                <textarea
-                  name="description"
-                  value={formData.description || ""}
-                  onChange={handleInputChange}
-                  className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.description ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
-                  rows="4"
-                />
-                {formErrors.description && <p className="text-xs text-red-500 mt-1">{formErrors.description}</p>}
-              </div>
-              {selectedPromotion && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Trạng thái</label>
-                  <select
-                    name="status"
-                    value={formData.status}
-                    onChange={handleInputChange}
-                    className={`mt-1 block w-full rounded-lg border border-gray-300 shadow-sm px-4 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition-colors ${formErrors.status ? 'border-red-500' : 'border-indigo-300 focus:ring-indigo-500'}`}
-                    required
-                  >
-                    <option value="">Chọn trạng thái</option>
-                    {Object.keys(statusLabels).map((status) => (
-                      <option key={status} value={status}>
-                        {statusLabels[status].props.children}
-                      </option>
-                    ))}
-                  </select>
-                  {formErrors.status && <p className="text-xs text-red-500 mt-1">{formErrors.status}</p>}
-                </div>
-              )}
-              <div className="col-span-2 flex justify-end gap-2 mt-3">
-                <button
-                  type="button"
-                  onClick={() => setIsFormOpen(false)}
-                  className="px-3 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300 focus:outline-none transition-colors"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="px-3 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
-                >
-                  Lưu
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {isDeleteModalOpen && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm">
-            <h3 className="text-lg font-semibold text-gray-800 mb-3">Xác nhận xóa</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Bạn có chắc chắn muốn xóa chương trình khuyến mãi này không?
-            </p>
-            <div className="flex justify-end gap-2">
+            )}
+            <div className="col-span-2 flex justify-end gap-2 mt-3">
               <button
-                onClick={() => setIsDeleteModalOpen(false)}
-                className="px-3 py-2 bg-gray-200 text-gray-700 text-sm rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
+                type="button"
+                onClick={() => setIsFormOpen(false)}
+                className="px-3 py-1.5 bg-gray-300 text-gray-700 text-sm rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
               >
                 Hủy
               </button>
               <button
-                onClick={handleDeleteConfirm}
-                className="px-3 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
+                type="submit"
+                className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                Xóa
+                Lưu
               </button>
             </div>
+          </form>
+        </div>
+      </div>
+
+      {/* Add/Update Confirmation Modal */}
+      <div className={`fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 transition-opacity duration-300 ${isConfirmModalOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm transform transition-all duration-300">
+          <h3 className="text-lg font-semibold text-gray-800 mb-3">Xác nhận</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Bạn có muốn {selectedPromotion ? "cập nhật" : "thêm mới"} chương trình khuyến mãi này không?
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => {
+                setIsConfirmModalOpen(false);
+                setPendingPayload(null);
+              }}
+              className="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
+            >
+              Hủy
+            </button>
+            <button
+              onClick={handleConfirmSubmit}
+              className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              Xác nhận
+            </button>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* Delete Confirmation Modal */}
+      <div className={`fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 transition-opacity duration-300 ${isDeleteModalOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm transform transition-all duration-300">
+          <h3 className="text-lg font-semibold text-gray-800 mb-3">Xác nhận xóa</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Bạn có chắc chắn muốn xóa chương trình khuyến mãi này không?
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setIsDeleteModalOpen(false)}
+              className="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
+            >
+              Hủy
+            </button>
+            <button
+              onClick={handleDeleteConfirm}
+              className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+            >
+              Xóa
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

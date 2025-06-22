@@ -2,6 +2,7 @@ package com.example.datnmainpolo.dto.VoucherDTO;
 
 import com.example.datnmainpolo.enums.PromotionStatus;
 import com.example.datnmainpolo.enums.VoucherType;
+import com.example.datnmainpolo.enums.VoucherTypeUser;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -22,9 +23,10 @@ public class VoucherResponseDTO {
     private BigDecimal fixedDiscountValue;
     private BigDecimal percentageDiscountValue;
     private BigDecimal maxDiscountValue;
-    private BigDecimal minOrderValue; // New field
+    private BigDecimal minOrderValue;
     private Integer createdByUserId;
     private Instant createdAt;
     private Instant updatedAt;
     private Boolean deleted;
+    private VoucherTypeUser typeUser; // New field
 }
