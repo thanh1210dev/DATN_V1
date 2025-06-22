@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
@@ -19,15 +20,19 @@ import org.springframework.data.domain.Pageable;
 public interface PromotionRepository extends JpaRepository<Promotion, Integer> {
     @Query("SELECT p FROM Promotion p WHERE " +
             "(:code IS NULL OR p.code LIKE CONCAT('%', :code, '%')) " +
+            "AND (:name IS NULL OR p.name LIKE CONCAT('%', :name, '%')) " +
             "AND (:startTime IS NULL OR p.startTime >= :startTime) " +
             "AND (:endTime IS NULL OR p.endTime <= :endTime) " +
             "AND (:status IS NULL OR p.status = :status) " +
+            "AND (:percentageDiscountValue IS NULL OR p.percentageDiscountValue = :percentageDiscountValue) " +
             "AND p.deleted = false")
-    Page<Promotion> findByCodeAndStartTimeAndEndTimeAndStatus(
+    Page<Promotion> findByCodeAndNameAndStartTimeAndEndTimeAndStatusAndPrice(
             @Param("code") String code,
+            @Param("name") String name,
             @Param("startTime") Instant startTime,
             @Param("endTime") Instant endTime,
             @Param("status") PromotionStatus status,
+            @Param("percentageDiscountValue") BigDecimal percentageDiscountValue,
             Pageable pageable);
 
 

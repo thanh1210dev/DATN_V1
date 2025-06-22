@@ -8,6 +8,7 @@ import com.example.datnmainpolo.entity.UserEntity;
 import com.example.datnmainpolo.entity.Voucher;
 import com.example.datnmainpolo.enums.PromotionStatus;
 import com.example.datnmainpolo.enums.VoucherType;
+import com.example.datnmainpolo.enums.VoucherTypeUser;
 import com.example.datnmainpolo.repository.UserRepository;
 import com.example.datnmainpolo.repository.VoucherRepository;
 import com.example.datnmainpolo.service.VoucherService;
@@ -83,15 +84,17 @@ public class VoucherServiceImpl implements VoucherService {
         } else if (requestedStatus == PromotionStatus.USED_UP || requestedStatus == PromotionStatus.INACTIVE) {
             return requestedStatus;
         }
-        return PromotionStatus.ACTIVE; // Default if no other conditions apply
+        return PromotionStatus.ACTIVE;
     }
 
     @Override
-    public PaginationResponse<VoucherResponseDTO> findByCodeAndStartTimeAndEndTimeAndStatus(
-            String code, Instant startTime, Instant endTime, PromotionStatus status, int page, int size) {
+    public PaginationResponse<VoucherResponseDTO> findByCodeAndNameAndStartTimeAndEndTimeAndStatusAndPriceAndTypeUser(
+            String code, String name, Instant startTime, Instant endTime, PromotionStatus status,
+            BigDecimal percentageDiscountValue, BigDecimal fixedDiscountValue, BigDecimal maxDiscountValue,
+            VoucherTypeUser typeUser, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
-        Page<Voucher> pageData = voucherRepository.findByCodeAndStartTimeAndEndTimeAndStatus(
-                code, startTime, endTime, status, pageable);
+        Page<Voucher> pageData = voucherRepository.findByCodeAndNameAndStartTimeAndEndTimeAndStatusAndPriceAndTypeUser(
+                code, name, startTime, endTime, status, percentageDiscountValue, fixedDiscountValue, maxDiscountValue, typeUser, pageable);
         return new PaginationResponse<>(pageData.map(this::mapToResponseDTO));
     }
 
@@ -101,7 +104,6 @@ public class VoucherServiceImpl implements VoucherService {
         validateRequestDTO(requestDTO);
 
         String newCode = generateUniqueCode(requestDTO.getCode());
-
 
         Voucher voucher = mapToEntity(requestDTO);
         voucher.setCode(newCode);
@@ -122,7 +124,6 @@ public class VoucherServiceImpl implements VoucherService {
     @Transactional
     public VoucherResponseDTO updateVoucher(Integer id, VoucherRequestDTO requestDTO) {
         validateRequestDTO(requestDTO);
-
 
         Voucher voucher = voucherRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy voucher"));
@@ -222,9 +223,13 @@ public class VoucherServiceImpl implements VoucherService {
         if (requestDTO.getQuantity() != null && requestDTO.getQuantity() < 0) {
             throw new IllegalArgumentException("Số lượng voucher phải không âm");
         }
+
+        // Additional validation for PRIVATE vouchers (placeholder)
+        if (VoucherTypeUser.PRIVATE.equals(requestDTO.getTypeUser())) {
+            // Future implementation: Validate if the voucher is assigned to specific users
+            // For now, just ensure typeUser is valid (handled by @NotNull)
+        }
     }
-
-
 
     private Voucher mapToEntity(VoucherRequestDTO dto) {
         Voucher voucher = new Voucher();
@@ -238,6 +243,7 @@ public class VoucherServiceImpl implements VoucherService {
         voucher.setPercentageDiscountValue(dto.getPercentageDiscountValue());
         voucher.setMaxDiscountValue(dto.getMaxDiscountValue());
         voucher.setMinOrderValue(dto.getMinOrderValue());
+        voucher.setTypeUser(dto.getTypeUser()); // New field
         return voucher;
     }
 
@@ -258,6 +264,7 @@ public class VoucherServiceImpl implements VoucherService {
         dto.setCreatedAt(voucher.getCreatedAt());
         dto.setUpdatedAt(voucher.getUpdatedAt());
         dto.setDeleted(voucher.getDeleted());
+        dto.setTypeUser(voucher.getTypeUser()); // New field
         if (voucher.getCreatedByUser() != null) {
             dto.setCreatedByUserId(voucher.getCreatedByUser().getId());
         }
@@ -275,6 +282,7 @@ public class VoucherServiceImpl implements VoucherService {
         voucher.setPercentageDiscountValue(dto.getPercentageDiscountValue());
         voucher.setMaxDiscountValue(dto.getMaxDiscountValue());
         voucher.setMinOrderValue(dto.getMinOrderValue());
+        voucher.setTypeUser(dto.getTypeUser()); // New field
         UserEntity user = userEntityRepository.findById(dto.getCreatedByUserId())
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy người dùng"));
         voucher.setCreatedByUser(user);

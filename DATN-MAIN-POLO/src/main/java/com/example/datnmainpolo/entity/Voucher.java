@@ -4,6 +4,7 @@ package com.example.datnmainpolo.entity;
 
 import com.example.datnmainpolo.enums.PromotionStatus;
 import com.example.datnmainpolo.enums.VoucherType;
+import com.example.datnmainpolo.enums.VoucherTypeUser;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -73,6 +74,11 @@ public class Voucher {
 
     @Column(name = "updated_at")
     private Instant updatedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type_user")
+    private VoucherTypeUser typeUser;
+
 
 
 

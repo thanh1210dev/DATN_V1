@@ -11,9 +11,9 @@ const ClientLayout = () => {
   };
 
   return (
-    <div className="min-h-screen bg-purple-50 flex flex-col font-sans">
-      <nav className="bg-white shadow-lg sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-white flex flex-col font-sans">
+      <nav className="bg-white shadow-lg sticky top-0 z-50 w-full">
+        <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <h1 className="text-3xl font-extrabold text-purple-700 tracking-tight transition-transform duration-300 hover:scale-105">
               Polo Viet
@@ -139,11 +139,11 @@ const ClientLayout = () => {
           </div>
         </div>
       </nav>
-      <main className="flex-1">
+      <main className="flex-1 w-full">
         <Outlet />
       </main>
-      <footer className="bg-purple-900 text-white py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <footer className="bg-purple-900 text-white py-12 w-full">
+        <div className="px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
               <h2 className="text-2xl font-bold text-purple-200 mb-4">Polo Viet</h2>
@@ -253,7 +253,7 @@ const ClientLayout = () => {
                 </li>
               </ul>
             </div>
-    </div>
+          </div>
           <div className="mt-10 pt-6 border-t border-purple-700 text-center">
             <p className="text-sm text-purple-100">© 2025 Polo Viet. Tất cả quyền được bảo lưu.</p>
           </div>
