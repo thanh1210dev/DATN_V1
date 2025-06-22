@@ -1,6 +1,5 @@
 package com.example.datnmainpolo.service.Impl.ProductDetailServiceImpl;
 
-
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.dto.ProductDetailDTO.ProductDetailRequestDTO;
 import com.example.datnmainpolo.dto.ProductDetailDTO.ProductDetailResponseDTO;
@@ -19,6 +18,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -51,22 +51,19 @@ public class ProductDetailServiceImpl implements ProductDetailService {
 
         List<ProductDetailResponseDTO> responses = new ArrayList<>();
 
-        // Tạo bản ghi cho từng tổ hợp sizeId và colorId
         for (Integer sizeId : requestDTO.getSizeIds()) {
             for (Integer colorId : requestDTO.getColorIds()) {
-                // Kiểm tra trùng lặp
                 if (productDetailRepository.existsByProductIdAndSizeIdAndColorId(
                         requestDTO.getProductId(), sizeId, colorId)) {
                     throw new IllegalStateException("Chi tiết sản phẩm với productId: " + requestDTO.getProductId() +
                             ", sizeId: " + sizeId + ", colorId: " + colorId + " đã tồn tại");
                 }
 
-                // Tạo mã duy nhất cho từng tổ hợp
                 String code = generateUniqueCode(requestDTO.getCode(), sizeId, colorId);
 
                 ProductDetail entity = new ProductDetail();
                 entity.setProduct(product);
-                entity.setImages(new ArrayList<>(images)); // Sao chép danh sách ảnh
+                entity.setImages(new ArrayList<>(images));
                 entity.setSize(sizeRepository.findById(sizeId)
                         .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy kích thước với ID: " + sizeId)));
                 entity.setColor(colorRepository.findById(colorId)
@@ -88,8 +85,6 @@ public class ProductDetailServiceImpl implements ProductDetailService {
 
     private String generateUniqueCode(String baseCode, Integer sizeId, Integer colorId) {
         if (baseCode != null && !baseCode.isEmpty()) {
-            // Sử dụng baseCode và thêm sizeId/colorId để đảm bảo duy nhất
-            // Giới hạn tổng chiều dài mã là 5 ký tự
             String suffix = "-" + sizeId + colorId;
             int maxBaseLength = 5 - suffix.length();
             if (maxBaseLength < 1) {
@@ -98,17 +93,13 @@ public class ProductDetailServiceImpl implements ProductDetailService {
             baseCode = baseCode.length() > maxBaseLength ? baseCode.substring(0, maxBaseLength) : baseCode;
             return baseCode + suffix;
         } else {
-            // Tạo mã ngẫu nhiên 5 ký tự
-            String characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
             StringBuilder result = new StringBuilder();
-            Random random = new Random();
             for (int i = 0; i < 5; i++) {
-                result.append(characters.charAt(random.nextInt(characters.length())));
+                result.append(CHARACTERS.charAt(RANDOM.nextInt(CHARACTERS.length())));
             }
             return result.toString();
         }
     }
-
 
     @Override
     @Transactional
@@ -119,9 +110,8 @@ public class ProductDetailServiceImpl implements ProductDetailService {
             throw new IllegalStateException("Chi tiết sản phẩm đã bị xóa");
         }
 
-        // Kiểm tra trùng lặp nếu sizeId hoặc colorId thay đổi
-        Integer sizeId = requestDTO.getSizeIds().get(0); // Chỉ lấy size đầu tiên cho update
-        Integer colorId = requestDTO.getColorIds().get(0); // Chỉ lấy color đầu tiên cho update
+        Integer sizeId = requestDTO.getSizeIds().get(0);
+        Integer colorId = requestDTO.getColorIds().get(0);
         if (!entity.getSize().getId().equals(sizeId) || !entity.getColor().getId().equals(colorId)) {
             if (productDetailRepository.existsByProductIdAndSizeIdAndColorId(
                     requestDTO.getProductId(), sizeId, colorId)) {
@@ -157,8 +147,6 @@ public class ProductDetailServiceImpl implements ProductDetailService {
         return toResponse(entity);
     }
 
-
-
     @Override
     public PaginationResponse<ProductDetailResponseDTO> getAll(Integer id, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
@@ -166,12 +154,55 @@ public class ProductDetailServiceImpl implements ProductDetailService {
                 false, id, pageable);
         return new PaginationResponse<>(pageData.map(this::toResponse));
     }
+
     @Override
-    public PaginationResponse<ProductDetailResponseDTO> getAllPage( int page, int size) {
+    public PaginationResponse<ProductDetailResponseDTO> getAllPage(int page, int size, String code, String name, BigDecimal price, Integer sizeId, Integer colorId) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
-        Page<ProductDetail> pageData = productDetailRepository.findByDeleted(
-                false, pageable);
+        Page<ProductDetail> pageData = productDetailRepository.findByFilters(
+                code != null && !code.trim().isEmpty() ? code : null,
+                name != null && !name.trim().isEmpty() ? name : null,
+                price,
+                sizeId,
+                colorId,
+                pageable
+        );
         return new PaginationResponse<>(pageData.map(this::toResponse));
+    }
+
+    @Override
+    public PaginationResponse<ProductDetailResponseDTO> getAllWithZeroPromotionalPrice(
+            String code, String name, BigDecimal price, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
+
+        Page<ProductDetail> pageData = productDetailRepository.findByFilters(
+                code != null && !code.trim().isEmpty() ? code : null,
+                name != null && !name.trim().isEmpty() ? name : null,
+                price,
+                null,
+                null,
+                pageable
+        );
+        return new PaginationResponse<>(pageData.map(this::toResponse));
+    }
+
+    @Override
+    public List<com.example.datnmainpolo.entity.Size> getAvailableSizes(Integer productId) {
+        return productDetailRepository.findAvailableSizesByProductId(productId);
+    }
+
+    @Override
+    public List<com.example.datnmainpolo.entity.Color> getAvailableColors(Integer productId, Integer sizeId) {
+        return productDetailRepository.findAvailableColorsByProductIdAndSizeId(productId, sizeId);
+    }
+
+    @Override
+    public ProductDetailResponseDTO getProductDetailBySizeAndColor(Integer productId, Integer sizeId, Integer colorId) {
+        ProductDetail entity = productDetailRepository.findByProductIdAndSizeIdAndColorId(productId, sizeId, colorId);
+        if (entity == null || entity.getDeleted()) {
+            throw new EntityNotFoundException("Không tìm thấy chi tiết sản phẩm với productId: " + productId +
+                    ", sizeId: " + sizeId + ", colorId: " + colorId);
+        }
+        return toResponse(entity);
     }
 
     private String generateRandomCode(String providedCode) {

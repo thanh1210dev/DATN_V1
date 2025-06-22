@@ -1,7 +1,6 @@
 import axiosInstance from "../axiosInstance";
 
 const VoucherApi = {
-  
   searchVouchers: (params) =>
     axiosInstance.get("/vouchers/search", { params }),
 
@@ -11,7 +10,7 @@ const VoucherApi = {
   assign: (request) =>
     axiosInstance.post("/account-vouchers/assign", request),
 
-  UserVoucher: (userId,page = 0, size = 5) =>
+  UserVoucher: (userId, page = 0, size = 5) =>
     axiosInstance.get(`/account-vouchers/user/${userId}?page=${page}&size=${size}`),
 
   updateVoucher: (id, data) =>
@@ -22,9 +21,6 @@ const VoucherApi = {
 
   deleteVoucher: (id) =>
     axiosInstance.delete(`/vouchers/${id}`),
-
-
- 
 };
 
 export default VoucherApi;

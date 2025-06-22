@@ -40,7 +40,7 @@ public class PromotionRequestDTO {
 
     private String description;
 
-    @NotNull(message = "Trạng thái là bắt buộc")
+
     private PromotionStatus status;
 
 

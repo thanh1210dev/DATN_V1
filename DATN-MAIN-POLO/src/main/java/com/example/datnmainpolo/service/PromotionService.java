@@ -10,6 +10,7 @@ import com.example.datnmainpolo.dto.PromotionProductDetailDTO.PromotionProductDe
 import com.example.datnmainpolo.entity.PromotionProductDetail;
 import com.example.datnmainpolo.enums.PromotionStatus;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
@@ -17,8 +18,9 @@ public interface PromotionService {
     PromotionResponseDTO createPromotion(PromotionRequestDTO requestDTO);
     PromotionResponseDTO updatePromotion(Integer id, PromotionRequestDTO requestDTO);
     PromotionResponseDTO getPromotionById(Integer id);
-    PaginationResponse<PromotionResponseDTO> findByCodeAndStartTimeAndEndTimeAndStatus(
-            String code, Instant startTime, Instant endTime, PromotionStatus status, int page, int size);
+    PaginationResponse<PromotionResponseDTO> findByCodeAndNameAndStartTimeAndEndTimeAndStatusAndPrice(
+            String code, String name, Instant startTime, Instant endTime, PromotionStatus status,
+            BigDecimal percentageDiscountValue, int page, int size);
 
     void softDeletePromotion(Integer id);
 

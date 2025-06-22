@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
@@ -24,14 +25,18 @@ public class PromotionController {
     @Autowired
     private PromotionService promotionService;
     @GetMapping("/search")
-    public PaginationResponse<PromotionResponseDTO> findByCodeAndStartTimeAndEndTimeAndStatus(
+    public ResponseEntity<PaginationResponse<PromotionResponseDTO>> searchPromotions(
             @RequestParam(required = false) String code,
+            @RequestParam(required = false) String name,
             @RequestParam(required = false) Instant startTime,
             @RequestParam(required = false) Instant endTime,
             @RequestParam(required = false) PromotionStatus status,
+            @RequestParam(required = false) BigDecimal percentageDiscountValue,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "5") int size) {
-        return promotionService.findByCodeAndStartTimeAndEndTimeAndStatus(code, startTime, endTime, status, page, size);
+        PaginationResponse<PromotionResponseDTO> response = promotionService.findByCodeAndNameAndStartTimeAndEndTimeAndStatusAndPrice(
+                code, name, startTime, endTime, status, percentageDiscountValue, page, size);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping

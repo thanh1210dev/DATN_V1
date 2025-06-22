@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { HiOutlinePlus, HiOutlinePencilAlt, HiOutlineTrash, HiOutlineEye } from 'react-icons/hi';
 import { ToastContainer, toast } from 'react-toastify';
@@ -15,6 +16,8 @@ const ProductAdmin = () => {
   const [size, setSize] = useState(5);
   const [totalPages, setTotalPages] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [pendingPayload, setPendingPayload] = useState(null);
   const [formData, setFormData] = useState({
     code: '',
     name: '',
@@ -141,20 +144,57 @@ const ProductAdmin = () => {
     navigate(`/admin/detail-product/${id}`);
   };
 
+  const validateForm = () => {
+    if (!formData.name) {
+      toast.error('Tên sản phẩm là bắt buộc');
+      return false;
+    }
+    if (formData.name.length > 100) {
+      toast.error('Tên sản phẩm không được vượt quá 100 ký tự');
+      return false;
+    }
+    if (!formData.materialId) {
+      toast.error('Vui lòng chọn chất liệu');
+      return false;
+    }
+    if (!formData.brandId) {
+      toast.error('Vui lòng chọn thương hiệu');
+      return false;
+    }
+    if (!formData.categoryId) {
+      toast.error('Vui lòng chọn danh mục');
+      return false;
+    }
+    return true;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!validateForm()) {
+      return;
+    }
+    const payload = { ...formData };
+    setPendingPayload(payload);
+    setIsConfirmModalOpen(true);
+  };
+
+  const handleConfirmSubmit = async () => {
     try {
       if (isEditing) {
-        await ProductService.update(editingId, formData);
+        await ProductService.update(editingId, pendingPayload);
         toast.success('Cập nhật sản phẩm thành công!');
       } else {
-        await ProductService.create(formData);
+        await ProductService.create(pendingPayload);
         toast.success('Thêm sản phẩm thành công!');
       }
       setIsModalOpen(false);
+      setIsConfirmModalOpen(false);
+      setPendingPayload(null);
       fetchProducts();
     } catch (error) {
       toast.error(error.message || 'Có lỗi xảy ra');
+      setIsConfirmModalOpen(false);
+      setPendingPayload(null);
     }
   };
 
@@ -178,7 +218,9 @@ const ProductAdmin = () => {
   const closeModal = () => {
     setIsModalOpen(false);
     setIsDeleteModalOpen(false);
+    setIsConfirmModalOpen(false);
     setDeleteId(null);
+    setPendingPayload(null);
   };
 
   return (
@@ -571,10 +613,36 @@ const ProductAdmin = () => {
           </div>
         )}
 
+        {/* Add/Update Confirmation Modal */}
+        {isConfirmModalOpen && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 transition-opacity duration-300">
+            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm transform transition-all duration-300">
+              <h3 className="text-lg font-semibold text-gray-800 mb-3">Xác Nhận</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Bạn có muốn {isEditing ? 'cập nhật' : 'thêm mới'} sản phẩm này không?
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={closeModal}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-400 focus:outline-none transition-all duration-200"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={handleConfirmSubmit}
+                  className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white text-sm font-medium rounded-lg hover:from-indigo-700 hover:to-indigo-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200"
+                >
+                  Xác Nhận
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Delete Confirmation Modal */}
         {isDeleteModalOpen && (
           <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 transition-opacity duration-300">
-            <div className="bg-white p-6 rounded-lg shadow-2xl w-full max-w-sm transform transition-all duration-300 scale-100">
+            <div className="bg-white p-6 rounded-lg shadow-2xl w-full max-w-sm transform transition-all duration-300">
               <h3 className="text-lg font-bold text-gray-800 mb-3">Xác Nhận Xóa</h3>
               <p className="text-sm text-gray-600 mb-4">
                 Bạn có chắc chắn muốn xóa sản phẩm này không?

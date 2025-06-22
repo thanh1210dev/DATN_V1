@@ -1,6 +1,7 @@
 package com.example.datnmainpolo.dto.PromotionDTO;
 
 
+import com.example.datnmainpolo.dto.ProductDetailDTO.ProductDetailResponseDTO;
 import com.example.datnmainpolo.enums.DiscountType;
 import com.example.datnmainpolo.enums.PromotionStatus;
 import lombok.Getter;
@@ -8,6 +9,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 @Getter
 @Setter
@@ -28,4 +30,7 @@ public class PromotionResponseDTO {
     private Instant createdAt;
     private Instant updatedAt;
     private Boolean deleted;
+
+
+
 }
