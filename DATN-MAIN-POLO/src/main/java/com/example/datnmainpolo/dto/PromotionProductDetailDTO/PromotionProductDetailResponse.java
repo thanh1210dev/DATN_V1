@@ -7,6 +7,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 @Getter
 @Setter
@@ -24,4 +25,18 @@ public class PromotionProductDetailResponse {
     private BigDecimal priceAfterPromotion;
     private Instant startTime;
     private Instant endTime;
+
+    private String productDeTailCode;
+    private String productDeTailSize;
+    private String productDeTailColor;
+    private String colorName;
+    private List<ImageDTO> images;
+
+
+    @Getter
+    @Setter
+    public static class ImageDTO {
+        private Integer id;
+        private String url;
+    }
 }

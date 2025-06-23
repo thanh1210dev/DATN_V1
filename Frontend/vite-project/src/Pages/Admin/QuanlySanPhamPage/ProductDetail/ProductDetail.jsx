@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { HiOutlinePlus, HiOutlinePencilAlt, HiOutlineTrash, HiOutlineArrowLeft } from 'react-icons/hi';
+import { HiOutlinePlus, HiOutlinePencilAlt, HiOutlineTrash, HiOutlineArrowLeft, HiChevronLeft, HiChevronRight } from 'react-icons/hi';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Select from 'react-select';
@@ -21,9 +21,14 @@ const ProductDetail = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [isImageViewModalOpen, setIsImageViewModalOpen] = useState(false);
+  const [pendingPayload, setPendingPayload] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [selectedImagesForView, setSelectedImagesForView] = useState([]);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [formData, setFormData] = useState({
     productId: parseInt(id),
     imageIds: [],
@@ -33,14 +38,14 @@ const ProductDetail = () => {
     quantity: 0,
     price: '',
     promotionalPrice: '',
-    status: '',
+    status: 'AVAILABLE',
   });
   const [images, setImages] = useState([]);
   const [selectedImages, setSelectedImages] = useState([]);
   const [tempSelectedImages, setTempSelectedImages] = useState([]);
+  const [newImages, setNewImages] = useState([]);
   const [sizes, setSizes] = useState([]);
   const [colors, setColors] = useState([]);
-  const [newImages, setNewImages] = useState([]);
 
   // Map status enum to Vietnamese with color classes
   const statusToVietnamese = (status) => {
@@ -95,7 +100,7 @@ const ProductDetail = () => {
         setProduct(data);
       }
     } catch (error) {
-      toast.error(error);
+      toast.error(error.message || 'Không thể tải sản phẩm');
     }
   };
 
@@ -106,7 +111,7 @@ const ProductDetail = () => {
       setProductDetails(data.content || []);
       setTotalPages(data.totalPages || 1);
     } catch (error) {
-      toast.error(error);
+      toast.error(error.message || 'Không thể tải chi tiết sản phẩm');
     }
   };
 
@@ -167,6 +172,29 @@ const ProductDetail = () => {
     setTempSelectedImages([]);
   };
 
+  // Handle opening image view modal
+  const openImageViewModal = (images) => {
+    setSelectedImagesForView(images);
+    setCurrentImageIndex(0);
+    setIsImageViewModalOpen(true);
+  };
+
+  // Handle closing image view modal
+  const closeImageViewModal = () => {
+    setIsImageViewModalOpen(false);
+    setSelectedImagesForView([]);
+    setCurrentImageIndex(0);
+  };
+
+  // Handle navigating images in view modal
+  const prevImage = () => {
+    setCurrentImageIndex(prev => (prev === 0 ? selectedImagesForView.length - 1 : prev - 1));
+  };
+
+  const nextImage = () => {
+    setCurrentImageIndex(prev => (prev === selectedImagesForView.length - 1 ? 0 : prev + 1));
+  };
+
   // Handle form input changes
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -224,69 +252,91 @@ const ProductDetail = () => {
       setTempSelectedImages(imageIds);
       setNewImages([]);
     } catch (error) {
-      toast.error(error);
+      toast.error(error.message || 'Không thể tải chi tiết sản phẩm');
     }
   };
 
   // Handle form submission
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const validateForm = () => {
     if (!formData.price || isNaN(parseFloat(formData.price))) {
       toast.error('Giá phải là một số hợp lệ');
-      return;
+      return false;
     }
     if (formData.imageIds.length === 0 && newImages.length === 0) {
       toast.error('Vui lòng chọn ít nhất một hình ảnh');
-      return;
+      return false;
     }
     if (formData.sizeIds.length === 0) {
       toast.error('Vui lòng chọn ít nhất một kích thước');
-      return;
+      return false;
     }
     if (formData.colorIds.length === 0) {
       toast.error('Vui lòng chọn ít nhất một màu sắc');
-      return;
+      return false;
     }
     if (isEditing && !formData.status) {
       toast.error('Vui lòng chọn trạng thái');
+      return false;
+    }
+    return true;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) {
       return;
     }
 
+    const payload = {
+      productId: formData.productId,
+      imageIds: [...formData.imageIds],
+      sizeIds: isEditing ? [formData.sizeIds[0]] : formData.sizeIds,
+      colorIds: isEditing ? [formData.colorIds[0]] : formData.colorIds,
+      code: isEditing ? formData.code : generateRandomCode(),
+      quantity: parseInt(formData.quantity),
+      price: parseFloat(formData.price),
+      promotionalPrice: formData.promotionalPrice ? parseFloat(formData.promotionalPrice) : null,
+      status: isEditing ? formData.status : 'AVAILABLE',
+    };
+
+    if (newImages.length > 0) {
+      payload.newImages = newImages;
+    }
+
+    setPendingPayload(payload);
+    setIsConfirmModalOpen(true);
+  };
+
+  const handleConfirmSubmit = async () => {
     try {
-      let finalImageIds = [...formData.imageIds];
-      if (newImages.length > 0) {
-        const uploadResponse = await ImageService.Upload(newImages);
+      let finalImageIds = [...pendingPayload.imageIds];
+      if (pendingPayload.newImages && pendingPayload.newImages.length > 0) {
+        const uploadResponse = await ImageService.Upload(pendingPayload.newImages);
         const newImageIds = uploadResponse.data.map(img => img.id);
         finalImageIds = [...finalImageIds, ...newImageIds];
       }
 
-      const payload = {
-        productId: formData.productId,
+      const finalPayload = {
+        ...pendingPayload,
         imageIds: finalImageIds,
-        sizeIds: formData.sizeIds,
-        colorIds: formData.colorIds,
-        code: generateRandomCode(),
-        quantity: parseInt(formData.quantity),
-        price: parseFloat(formData.price),
-        promotionalPrice: null,
-        status: isEditing ? formData.status : 'AVAILABLE',
+        newImages: undefined,
       };
 
       if (isEditing) {
-        await ProductDetailService.update(editingId, {
-          ...payload,
-          sizeIds: [formData.sizeIds[0]],
-          colorIds: [formData.colorIds[0]],
-        });
+        await ProductDetailService.update(editingId, finalPayload);
         toast.success('Cập nhật chi tiết sản phẩm thành công!');
       } else {
-        await ProductDetailService.create(payload);
+        await ProductDetailService.create(finalPayload);
         toast.success('Thêm chi tiết sản phẩm thành công!');
       }
       setIsModalOpen(false);
+      setIsConfirmModalOpen(false);
+      setPendingPayload(null);
       fetchProductDetails();
     } catch (error) {
-      toast.error(error);
+      toast.error(error.message || 'Có lỗi xảy ra');
+      setIsConfirmModalOpen(false);
+      setPendingPayload(null);
     }
   };
 
@@ -301,15 +351,24 @@ const ProductDetail = () => {
       await ProductDetailService.delete(deleteId);
       toast.success('Xóa chi tiết sản phẩm thành công!');
       setIsDeleteModalOpen(false);
+      setDeleteId(null);
       fetchProductDetails();
     } catch (error) {
-      toast.error(error);
+      toast.error(error.message || 'Không thể xóa chi tiết sản phẩm');
     }
   };
 
   // Close modal
   const closeModal = () => {
     setIsModalOpen(false);
+    setIsImageModalOpen(false);
+    setIsDeleteModalOpen(false);
+    setIsConfirmModalOpen(false);
+    setIsImageViewModalOpen(false);
+    setDeleteId(null);
+    setPendingPayload(null);
+    setSelectedImagesForView([]);
+    setCurrentImageIndex(0);
   };
 
   // Navigate back to ProductAdmin
@@ -323,6 +382,30 @@ const ProductDetail = () => {
 
   return (
     <div className="p-6">
+      <style>
+        {`
+          .image-carousel {
+            position: relative;
+            overflow: hidden;
+            width: 48px;
+            height: 48px;
+            cursor: pointer;
+          }
+          .image-carousel-inner {
+            display: flex;
+            position: absolute;
+            top: 0;
+            left: 0;
+          }
+          .image-carousel img {
+            width: 48px;
+            height: 48px;
+            object-fit: cover;
+            border-radius: 6px;
+            flex-shrink: 0;
+          }
+        `}
+      </style>
       <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} newestOnTop closeOnClick pauseOnHover theme="light" />
       <div className="flex items-center gap-4 mb-6">
         <button
@@ -395,7 +478,7 @@ const ProductDetail = () => {
               <th className="px-6 py-3">Tên sản phẩm</th>
               <th className="px-6 py-3 w-32">Kích thước</th>
               <th className="px-6 py-3 w-32">Màu sắc</th>
-              <th className="px-6 py-3">Hình ảnh</th>
+              <th className="px-6 py-3 w-32">Hình ảnh</th>
               <th className="px-6 py-3 w-24">Số lượng</th>
               <th className="px-6 py-3 w-32">Giá</th>
               <th className="px-6 py-3 w-32">Giá khuyến mãi</th>
@@ -407,7 +490,7 @@ const ProductDetail = () => {
           <tbody>
             {productDetails.length === 0 ? (
               <tr>
-                <td colSpan="12" className="px-6 py-4 text-center text-gray-500 text-sm">
+                <td colSpan="12" className="px-6 py-3 text-center text-gray-500 text-sm">
                   Không có dữ liệu
                 </td>
               </tr>
@@ -429,17 +512,44 @@ const ProductDetail = () => {
                     {item.colorName || '-'}
                   </td>
                   <td className="px-6 py-3">
-                    <div className="flex gap-2">
-                      {item.images && item.images.map(img => (
-                        <img
-                          key={img.id}
-                          src={`http://localhost:8080${img.url}`}
-                          alt={`Image ${img.id}`}
-                          className="w-12 h-12 object-cover rounded-md"
-                          onError={() => console.error(`Failed to load image: http://localhost:8080${img.url}`)}
-                        />
-                      ))}
+                    <div
+                      className="image-carousel"
+                      onClick={() => item.images && item.images.length > 0 && openImageViewModal(item.images)}
+                    >
+                      {item.images && item.images.length > 0 ? (
+                        <div
+                          className="image-carousel-inner"
+                          style={{
+                            width: `${item.images.length * 48}px`,
+                            animation: item.images.length > 1 ? `slide-${item.id} 10s infinite` : 'none',
+                          }}
+                        >
+                          {item.images.map(img => (
+                            <img
+                              key={img.id}
+                              src={`http://localhost:8080${img.url}`}
+                              alt={`Image ${img.id}`}
+                              className="w-12 h-12 object-cover rounded-md"
+                              onError={() => console.error(`Failed to load image: http://localhost:8080${img.url}`)}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-gray-500">-</span>
+                      )}
                     </div>
+                    {item.images && item.images.length > 1 && (
+                      <style>
+                        {`
+                          @keyframes slide-${item.id} {
+                            ${Array.from({ length: item.images.length }, (_, i) => `
+                              ${(i * 100) / item.images.length}% { transform: translateX(-${i * 48}px); }
+                              ${((i + 1) * 100) / item.images.length}% { transform: translateX(-${i * 48}px); }
+                            `).join('')}
+                          }
+                        `}
+                      </style>
+                    )}
                   </td>
                   <td className="px-6 py-3">{item.quantity || 0}</td>
                   <td className="px-6 py-3">{item.price ? item.price.toLocaleString('vi-VN') + ' VND' : '-'}</td>
@@ -504,6 +614,7 @@ const ProductDetail = () => {
         </select>
       </div>
 
+      {/* Add/Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-8 w-full max-w-2xl shadow-xl overflow-y-auto max-h-[90vh]">
@@ -678,6 +789,7 @@ const ProductDetail = () => {
         </div>
       )}
 
+      {/* Image Selection Modal */}
       {isImageModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-8 w-full max-w-3xl shadow-xl overflow-y-auto max-h-[80vh]">
@@ -727,23 +839,98 @@ const ProductDetail = () => {
         </div>
       )}
 
+      {/* Image View Modal */}
+      {isImageViewModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-3xl shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Xem hình ảnh</h3>
+            {selectedImagesForView.length > 0 ? (
+              <div className="relative">
+                <img
+                  src={`http://localhost:8080${selectedImagesForView[currentImageIndex].url}`}
+                  alt={`Image ${selectedImagesForView[currentImageIndex].id}`}
+                  className="w-full h-96 object-contain rounded-lg"
+                  onError={() => console.error(`Failed to load image: http://localhost:8080${selectedImagesForView[currentImageIndex].url}`)}
+                />
+                {selectedImagesForView.length > 1 && (
+                  <>
+                    <button
+                      onClick={prevImage}
+                      className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white rounded-full p-2 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+                    >
+                      <HiChevronLeft size={24} />
+                    </button>
+                    <button
+                      onClick={nextImage}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white rounded-full p-2 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+                    >
+                      <HiChevronRight size={24} />
+                    </button>
+                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-sm px-3 py-1 rounded-full">
+                      {currentImageIndex + 1} / {selectedImagesForView.length}
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-600 text-center">Không có hình ảnh để hiển thị</p>
+            )}
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={closeImageViewModal}
+                className="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-400 focus:outline-none transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Update Confirmation Modal */}
+      {isConfirmModalOpen && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 transition-opacity duration-300">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm transform transition-all duration-300">
+            <h3 className="text-lg font-semibold text-gray-800 mb-3">Xác Nhận</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Bạn có muốn {isEditing ? 'cập nhật' : 'thêm mới'} chi tiết sản phẩm này không?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={closeModal}
+                className="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-400 focus:outline-none transition-all duration-200"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleConfirmSubmit}
+                className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white text-sm font-medium rounded-lg hover:from-indigo-700 hover:to-indigo-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200"
+              >
+                Xác Nhận
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
             <h3 className="text-lg font-semibold text-gray-800 mb-3">Xác nhận xóa</h3>
             <p className="text-sm text-gray-600 mb-4">
               Bạn có chắc chắn muốn xóa chi tiết sản phẩm này không?
             </p>
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => setIsDeleteModalOpen(false)}
-                className="px-3 py-1.5 bg-gray-300 text-gray-700 text-sm rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                onClick={closeModal}
+                className="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
               >
                 Hủy
               </button>
               <button
                 onClick={handleDeleteConfirm}
-                className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
               >
                 Xóa
               </button>
@@ -756,4 +943,3 @@ const ProductDetail = () => {
 };
 
 export default ProductDetail;
-

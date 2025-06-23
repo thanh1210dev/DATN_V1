@@ -6,7 +6,7 @@ import "react-toastify/dist/ReactToastify.css";
 import { PromotionStatus } from "../DotGiamGiaPage/PromotionStatus";
 import { useNavigate } from "react-router-dom";
 import VoucherApi from "../../../Service/AdminDotGiamGiaSevice/VoucherApi";
-import { VoucherType } from "./VoucherEnums";
+import { VoucherType, VoucherTypeUser } from "./VoucherEnums";
 
 const VoucherAdmin = () => {
   const [data, setData] = useState([]);
@@ -17,8 +17,11 @@ const VoucherAdmin = () => {
   const [searchStartTime, setSearchStartTime] = useState("");
   const [searchEndTime, setSearchEndTime] = useState("");
   const [searchStatus, setSearchStatus] = useState("");
+  const [searchTypeUser, setSearchTypeUser] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [pendingPayload, setPendingPayload] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [selectedVoucher, setSelectedVoucher] = useState(null);
   const [formData, setFormData] = useState({
@@ -33,6 +36,7 @@ const VoucherAdmin = () => {
     maxDiscountValue: "",
     minOrderValue: "",
     createdByUserId: localStorage.getItem("id") || "",
+    typeUser: VoucherTypeUser.PUBLIC,
   });
   const [formErrors, setFormErrors] = useState({});
 
@@ -49,6 +53,11 @@ const VoucherAdmin = () => {
     PERCENTAGE: "Giảm phần trăm",
   };
 
+  const typeUserLabels = {
+    PUBLIC: "Công khai",
+    PRIVATE: "Riêng tư",
+  };
+
   const currentDate = new Date().toISOString().slice(0, 16);
   const MAX_NUMERIC_VALUE = 99999999.99;
 
@@ -56,7 +65,7 @@ const VoucherAdmin = () => {
 
   useEffect(() => {
     fetchData();
-  }, [page, size, searchName, searchStartTime, searchEndTime, searchStatus]);
+  }, [page, size, searchName, searchStartTime, searchEndTime, searchStatus, searchTypeUser]);
 
   const fetchData = async () => {
     try {
@@ -65,6 +74,7 @@ const VoucherAdmin = () => {
         startTime: searchStartTime ? new Date(searchStartTime).toISOString() : undefined,
         endTime: searchEndTime ? new Date(searchEndTime).toISOString() : undefined,
         status: searchStatus || undefined,
+        typeUser: searchTypeUser || undefined,
         page,
         size,
       };
@@ -93,13 +103,14 @@ const VoucherAdmin = () => {
       type: "",
       startTime: currentDate,
       endTime: currentDate,
-      status: "ACTIVE", // Default status for new voucher
+      status: "ACTIVE",
       quantity: "",
       fixedDiscountValue: "",
       percentageDiscountValue: "",
       maxDiscountValue: "",
       minOrderValue: "",
       createdByUserId: localStorage.getItem("id") || "",
+      typeUser: VoucherTypeUser.PUBLIC,
     });
     setFormErrors({});
     setIsFormOpen(true);
@@ -128,6 +139,7 @@ const VoucherAdmin = () => {
       maxDiscountValue: voucher.maxDiscountValue?.toString() || "",
       minOrderValue: voucher.minOrderValue?.toString() || "",
       createdByUserId: localStorage.getItem("id") || "",
+      typeUser: voucher.typeUser || VoucherTypeUser.PUBLIC,
     });
     setFormErrors({});
     setIsFormOpen(true);
@@ -159,6 +171,7 @@ const VoucherAdmin = () => {
 
     if (!formData.name) errors.name = "Tên voucher là bắt buộc";
     if (!formData.type) errors.type = "Loại giảm giá là bắt buộc";
+    if (!formData.typeUser) errors.typeUser = "Loại người dùng là bắt buộc";
     if (selectedVoucher && !formData.status) errors.status = "Trạng thái là bắt buộc";
     if (!formData.startTime) errors.startTime = "Thời gian bắt đầu là bắt buộc";
     if (!formData.endTime) errors.endTime = "Thời gian kết thúc là bắt buộc";
@@ -222,29 +235,37 @@ const VoucherAdmin = () => {
       return;
     }
 
-    try {
-      const payload = {
-        name: formData.name,
-        type: formData.type,
-        startTime: new Date(formData.startTime).toISOString(),
-        endTime: new Date(formData.endTime).toISOString(),
-        quantity: formData.quantity ? parseInt(formData.quantity) : null,
-        status: selectedVoucher ? formData.status : "ACTIVE",
-        fixedDiscountValue: formData.fixedDiscountValue ? Number(parseFloat(formData.fixedDiscountValue).toFixed(2)) : null,
-        percentageDiscountValue: formData.percentageDiscountValue ? Number(parseFloat(formData.percentageDiscountValue).toFixed(2)) : null,
-        maxDiscountValue: formData.maxDiscountValue ? Number(parseFloat(formData.maxDiscountValue).toFixed(2)) : null,
-        minOrderValue: formData.minOrderValue ? Number(parseFloat(formData.minOrderValue).toFixed(2)) : null,
-        createdByUserId: formData.createdByUserId ? parseInt(formData.createdByUserId) : null,
-      };
+    const payload = {
+      name: formData.name,
+      type: formData.type,
+      startTime: new Date(formData.startTime).toISOString(),
+      endTime: new Date(formData.endTime).toISOString(),
+      quantity: formData.quantity ? parseInt(formData.quantity) : null,
+      status: selectedVoucher ? formData.status : "ACTIVE",
+      fixedDiscountValue: formData.fixedDiscountValue ? Number(parseFloat(formData.fixedDiscountValue).toFixed(2)) : null,
+      percentageDiscountValue: formData.percentageDiscountValue ? Number(parseFloat(formData.percentageDiscountValue).toFixed(2)) : null,
+      maxDiscountValue: formData.maxDiscountValue ? Number(parseFloat(formData.maxDiscountValue).toFixed(2)) : null,
+      minOrderValue: formData.minOrderValue ? Number(parseFloat(formData.minOrderValue).toFixed(2)) : null,
+      createdByUserId: formData.createdByUserId ? parseInt(formData.createdByUserId) : null,
+      typeUser: formData.typeUser,
+    };
 
+    setPendingPayload(payload);
+    setIsConfirmModalOpen(true);
+  };
+
+  const handleConfirmSubmit = async () => {
+    try {
       if (selectedVoucher) {
-        await VoucherApi.updateVoucher(selectedVoucher.id, payload);
+        await VoucherApi.updateVoucher(selectedVoucher.id, pendingPayload);
         toast.success("Cập nhật voucher thành công!", { position: "top-right", autoClose: 3000 });
       } else {
-        await VoucherApi.createVoucher(payload);
+        await VoucherApi.createVoucher(pendingPayload);
         toast.success("Thêm voucher thành công!", { position: "top-right", autoClose: 3000 });
       }
       setIsFormOpen(false);
+      setIsConfirmModalOpen(false);
+      setPendingPayload(null);
       fetchData();
     } catch (error) {
       let errorMessage = "Đã xảy ra lỗi khi lưu voucher";
@@ -254,6 +275,8 @@ const VoucherAdmin = () => {
         errorMessage = Object.values(error.response.data.errors).join("; ");
       }
       toast.error(errorMessage, { position: "top-right", autoClose: 5000 });
+      setIsConfirmModalOpen(false);
+      setPendingPayload(null);
     }
   };
 
@@ -275,37 +298,37 @@ const VoucherAdmin = () => {
   };
 
   return (
-    <div className="p-4 bg-gray-100 min-h-screen">
+    <div className="p-6 bg-gray-100 min-h-screen">
       <ToastContainer />
       {/* Search and Filter */}
-      <div className="flex justify-between items-center mb-4">
-        <form onSubmit={handleSearch} className="flex items-center gap-2">
+      <div className="flex justify-between items-center mb-6">
+        <form onSubmit={handleSearch} className="flex items-center gap-3">
           <div className="relative">
             <input
               type="text"
               value={searchName}
               onChange={(e) => setSearchName(e.target.value)}
               placeholder="Tìm kiếm bằng tên..."
-              className="pl-8 pr-3 py-1.5 border border-indigo-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
             />
-            <HiOutlineSearch className="absolute left-2 top-2 text-indigo-500" size={16} />
+            <HiOutlineSearch className="absolute left-3 top-2.5 text-gray-500" size={18} />
           </div>
           <input
             type="datetime-local"
             value={searchStartTime}
             onChange={(e) => setSearchStartTime(e.target.value)}
-            className="px-2 py-1.5 border border-indigo-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
           />
           <input
             type="datetime-local"
             value={searchEndTime}
             onChange={(e) => setSearchEndTime(e.target.value)}
-            className="px-2 py-1.5 border border-indigo-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
           />
           <select
             value={searchStatus}
             onChange={(e) => setSearchStatus(e.target.value)}
-            className="px-2 py-1.5 border border-indigo-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
           >
             <option value="">Tất cả trạng thái</option>
             {Object.values(PromotionStatus).map((status) => (
@@ -314,18 +337,30 @@ const VoucherAdmin = () => {
               </option>
             ))}
           </select>
+          <select
+            value={searchTypeUser}
+            onChange={(e) => setSearchTypeUser(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
+          >
+            <option value="">Tất cả loại người dùng</option>
+            {Object.values(VoucherTypeUser).map((typeUser) => (
+              <option key={typeUser} value={typeUser}>
+                {typeUserLabels[typeUser]}
+              </option>
+            ))}
+          </select>
           <button
             type="submit"
-            className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
           >
             Tìm kiếm
           </button>
         </form>
         <button
           onClick={handleAdd}
-          className="flex items-center px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
         >
-          <HiOutlinePlus className="mr-1" size={16} />
+          <HiOutlinePlus className="mr-2" size={18} />
           Thêm mới
         </button>
       </div>
@@ -339,6 +374,7 @@ const VoucherAdmin = () => {
               <th className="px-2 py-2">Mã</th>
               <th className="px-2 py-2">Tên</th>
               <th className="px-2 py-2">Loại</th>
+              <th className="px-2 py-2">Loại người dùng</th>
               <th className="px-2 py-2">Thời gian bắt đầu</th>
               <th className="px-2 py-2">Thời gian kết thúc</th>
               <th className="px-2 py-2">Số lượng</th>
@@ -352,7 +388,7 @@ const VoucherAdmin = () => {
           <tbody>
             {data.length === 0 ? (
               <tr>
-                <td colSpan="12" className="px-2 py-4 text-center text-gray-500 text-xs">
+                <td colSpan="13" className="px-2 py-4 text-center text-gray-500 text-xs">
                   Không có dữ liệu
                 </td>
               </tr>
@@ -363,6 +399,7 @@ const VoucherAdmin = () => {
                   <td className="px-2 py-2">{item.code}</td>
                   <td className="px-2 py-2">{item.name}</td>
                   <td className="px-2 py-2">{typeLabels[item.type] || item.type}</td>
+                  <td className="px-2 py-2">{typeUserLabels[item.typeUser] || item.typeUser}</td>
                   <td className="px-2 py-2">{new Date(item.startTime).toLocaleString()}</td>
                   <td className="px-2 py-2">{new Date(item.endTime).toLocaleString()}</td>
                   <td className="px-2 py-2">{item.quantity || "-"}</td>
@@ -408,7 +445,7 @@ const VoucherAdmin = () => {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setPage((prev) => Math.max(prev - 1, 0))}
-            className="inline-flex items-center px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={page === 0}
           >
             ← Trước
@@ -418,7 +455,7 @@ const VoucherAdmin = () => {
           </span>
           <button
             onClick={() => setPage((prev) => Math.min(prev + 1, totalPages - 1))}
-            className="inline-flex items-center px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={page + 1 >= totalPages}
           >
             Tiếp →
@@ -440,198 +477,244 @@ const VoucherAdmin = () => {
       </div>
 
       {/* Form Modal */}
-      {isFormOpen && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-5 rounded-lg shadow-lg w-full max-w-lg">
-            <h2 className="text-lg font-semibold text-indigo-700 mb-3">
-              {selectedVoucher ? "Cập nhật" : "Thêm mới"} Voucher
-            </h2>
-            <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-3">
+      <div className={`fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 transition-opacity duration-300 ${isFormOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-2xl transform transition-all duration-300 scale-100">
+          <h2 className="text-xl font-bold text-indigo-700 mb-6">
+            {selectedVoucher ? "Cập nhật Voucher" : "Thêm mới Voucher"}
+          </h2>
+          <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Tên voucher</label>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
+                className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${formErrors.name ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-indigo-500"}`}
+                required
+              />
+              {formErrors.name && <p className="text-xs text-red-500 mt-1">{formErrors.name}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Loại giảm giá</label>
+              <select
+                name="type"
+                value={formData.type}
+                onChange={handleInputChange}
+                className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${formErrors.type ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-indigo-500"}`}
+                required
+              >
+                <option value="">Chọn loại</option>
+                {Object.values(VoucherType).map((type) => (
+                  <option key={type} value={type}>
+                    {typeLabels[type]}
+                  </option>
+                ))}
+              </select>
+              {formErrors.type && <p className="text-xs text-red-500 mt-1">{formErrors.type}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Loại người dùng</label>
+              <select
+                name="typeUser"
+                value={formData.typeUser}
+                onChange={handleInputChange}
+                className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${formErrors.typeUser ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-indigo-500"}`}
+                required
+              >
+                <option value="">Chọn loại người dùng</option>
+                {Object.values(VoucherTypeUser).map((typeUser) => (
+                  <option key={typeUser} value={typeUser}>
+                    {typeUserLabels[typeUser]}
+                  </option>
+                ))}
+              </select>
+              {formErrors.typeUser && <p className="text-xs text-red-500 mt-1">{formErrors.typeUser}</p>}
+              {formData.typeUser === VoucherTypeUser.PRIVATE && (
+                <p className="text-xs text-gray-500 mt-1">Lưu ý: Voucher riêng tư chỉ áp dụng cho người dùng được chỉ định.</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {formData.type === VoucherType.PERCENTAGE ? "Phần trăm giảm (%)" : "Giá trị giảm (VND)"}
+              </label>
+              <input
+                type="number"
+                name={formData.type === VoucherType.PERCENTAGE ? "percentageDiscountValue" : "fixedDiscountValue"}
+                value={
+                  formData.type === VoucherType.PERCENTAGE
+                    ? formData.percentageDiscountValue
+                    : formData.fixedDiscountValue
+                }
+                onChange={handleInputChange}
+                className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${formErrors.fixedDiscountValue || formErrors.percentageDiscountValue ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-indigo-500"}`}
+                min="0"
+                step="0.01"
+                required={!!formData.type}
+                disabled={!formData.type}
+              />
+              {(formErrors.fixedDiscountValue || formErrors.percentageDiscountValue) && (
+                <p className="text-xs text-red-500 mt-1">{formErrors.fixedDiscountValue || formErrors.percentageDiscountValue}</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Giá trị giảm tối đa (VND)</label>
+              <input
+                type="number"
+                name="maxDiscountValue"
+                value={formData.maxDiscountValue}
+                onChange={handleInputChange}
+                className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${formErrors.maxDiscountValue ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-indigo-500"}`}
+                min="0"
+                step="0.01"
+                required={formData.type === VoucherType.PERCENTAGE}
+                disabled={formData.type !== VoucherType.PERCENTAGE}
+              />
+              {formErrors.maxDiscountValue && <p className="text-xs text-red-500 mt-1">{formErrors.maxDiscountValue}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Giá trị đơn hàng tối thiểu (VND)</label>
+              <input
+                type="number"
+                name="minOrderValue"
+                value={formData.minOrderValue}
+                onChange={handleInputChange}
+                className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${formErrors.minOrderValue ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-indigo-500"}`}
+                min="0"
+                step="0.01"
+                required
+              />
+              {formErrors.minOrderValue && <p className="text-xs text-red-500 mt-1">{formErrors.minOrderValue}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Thời gian bắt đầu</label>
+              <input
+                type="datetime-local"
+                name="startTime"
+                value={formData.startTime}
+                onChange={handleInputChange}
+                className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${formErrors.startTime ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-indigo-500"}`}
+                required
+              />
+              {formErrors.startTime && <p className="text-xs text-red-500 mt-1">{formErrors.startTime}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Thời gian kết thúc</label>
+              <input
+                type="datetime-local"
+                name="endTime"
+                value={formData.endTime}
+                onChange={handleInputChange}
+                className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${formErrors.endTime ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-indigo-500"}`}
+                required
+              />
+              {formErrors.endTime && <p className="text-xs text-red-500 mt-1">{formErrors.endTime}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Số lượng</label>
+              <input
+                type="number"
+                name="quantity"
+                value={formData.quantity}
+                onChange={handleInputChange}
+                className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${formErrors.quantity ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-indigo-500"}`}
+                min="0"
+              />
+              {formErrors.quantity && <p className="text-xs text-red-500 mt-1">{formErrors.quantity}</p>}
+            </div>
+            {selectedVoucher && (
               <div>
-                <label className="block text-xs font-medium text-gray-700">Tên voucher</label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.name ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
-                  required
-                />
-                {formErrors.name && <p className="text-xs text-red-500 mt-1">{formErrors.name}</p>}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700">Loại giảm giá</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
                 <select
-                  name="type"
-                  value={formData.type}
+                  name="status"
+                  value={formData.status}
                   onChange={handleInputChange}
-                  className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.type ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
+                  className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${formErrors.status ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-indigo-500"}`}
                   required
                 >
-                  <option value="">Chọn loại</option>
-                  {Object.values(VoucherType).map((type) => (
-                    <option key={type} value={type}>
-                      {typeLabels[type]}
+                  <option value="">Chọn trạng thái</option>
+                  {Object.values(PromotionStatus).map((status) => (
+                    <option key={status} value={status}>
+                      {statusLabels[status].props.children}
                     </option>
                   ))}
                 </select>
-                {formErrors.type && <p className="text-xs text-red-500 mt-1">{formErrors.type}</p>}
+                {formErrors.status && <p className="text-xs text-red-500 mt-1">{formErrors.status}</p>}
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700">
-                  {formData.type === VoucherType.PERCENTAGE ? "Phần trăm giảm (%)" : "Giá trị giảm (VND)"}
-                </label>
-                <input
-                  type="number"
-                  name={formData.type === VoucherType.PERCENTAGE ? "percentageDiscountValue" : "fixedDiscountValue"}
-                  value={
-                    formData.type === VoucherType.PERCENTAGE
-                      ? formData.percentageDiscountValue
-                      : formData.fixedDiscountValue
-                  }
-                  onChange={handleInputChange}
-                  className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.fixedDiscountValue || formErrors.percentageDiscountValue ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
-                  min="0"
-                  step="0.01"
-                  required={!!formData.type}
-                  disabled={!formData.type}
-                />
-                {(formErrors.fixedDiscountValue || formErrors.percentageDiscountValue) && (
-                  <p className="text-xs text-red-500 mt-1">{formErrors.fixedDiscountValue || formErrors.percentageDiscountValue}</p>
-                )}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700">Giá trị giảm tối đa (VND)</label>
-                <input
-                  type="number"
-                  name="maxDiscountValue"
-                  value={formData.maxDiscountValue}
-                  onChange={handleInputChange}
-                  className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.maxDiscountValue ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
-                  min="0"
-                  step="0.01"
-                  required={formData.type === VoucherType.PERCENTAGE}
-                  disabled={formData.type !== VoucherType.PERCENTAGE}
-                />
-                {formErrors.maxDiscountValue && <p className="text-xs text-red-500 mt-1">{formErrors.maxDiscountValue}</p>}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700">Giá trị đơn hàng tối thiểu (VND)</label>
-                <input
-                  type="number"
-                  name="minOrderValue"
-                  value={formData.minOrderValue}
-                  onChange={handleInputChange}
-                  className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.minOrderValue ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
-                  min="0"
-                  step="0.01"
-                  required
-                />
-                {formErrors.minOrderValue && <p className="text-xs text-red-500 mt-1">{formErrors.minOrderValue}</p>}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700">Thời gian bắt đầu</label>
-                <input
-                  type="datetime-local"
-                  name="startTime"
-                  value={formData.startTime}
-                  onChange={handleInputChange}
-                  className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.startTime ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
-                  required
-                />
-                {formErrors.startTime && <p className="text-xs text-red-500 mt-1">{formErrors.startTime}</p>}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700">Thời gian kết thúc</label>
-                <input
-                  type="datetime-local"
-                  name="endTime"
-                  value={formData.endTime}
-                  onChange={handleInputChange}
-                  className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.endTime ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
-                  required
-                />
-                {formErrors.endTime && <p className="text-xs text-red-500 mt-1">{formErrors.endTime}</p>}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700">Số lượng</label>
-                <input
-                  type="number"
-                  name="quantity"
-                  value={formData.quantity}
-                  onChange={handleInputChange}
-                  className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.quantity ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
-                  min="0"
-                />
-                {formErrors.quantity && <p className="text-xs text-red-500 mt-1">{formErrors.quantity}</p>}
-              </div>
-              {selectedVoucher && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-700">Trạng thái</label>
-                  <select
-                    name="status"
-                    value={formData.status}
-                    onChange={handleInputChange}
-                    className={`mt-1 p-1.5 w-full border rounded-md text-sm focus:outline-none focus:ring-2 ${formErrors.status ? "border-red-500" : "border-indigo-300 focus:ring-indigo-500"}`}
-                    required
-                  >
-                    <option value="">Chọn trạng thái</option>
-                    {Object.values(PromotionStatus).map((status) => (
-                      <option key={status} value={status}>
-                        {statusLabels[status].props.children}
-                      </option>
-                    ))}
-                  </select>
-                  {formErrors.status && <p className="text-xs text-red-500 mt-1">{formErrors.status}</p>}
-                </div>
-              )}
-              <div className="col-span-2 flex justify-end gap-2 mt-3">
-                <button
-                  type="button"
-                  onClick={() => setIsFormOpen(false)}
-                  className="px-3 py-1.5 bg-gray-300 text-gray-700 text-sm rounded-md hover:bg-gray-400"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  Lưu
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {isDeleteModalOpen && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm transform transition-all duration-300">
-            <h3 className="text-lg font-semibold text-gray-800 mb-3">Xác nhận xóa</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Bạn có chắc chắn muốn xóa voucher này không?
-            </p>
-            <div className="flex justify-end gap-2">
+            )}
+            <div className="col-span-2 flex justify-end gap-3 mt-6">
               <button
-                onClick={() => setIsDeleteModalOpen(false)}
-                className="px-3 py-1.5 bg-gray-300 text-gray-700 text-sm rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                type="button"
+                onClick={() => setIsFormOpen(false)}
+                className="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
               >
                 Hủy
               </button>
               <button
-                onClick={handleDeleteConfirm}
-                className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                type="submit"
+                className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                Xóa
+                Lưu
               </button>
             </div>
+          </form>
+        </div>
+      </div>
+
+      {/* Confirmation Modal */}
+      <div className={`fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 transition-opacity duration-300 ${isConfirmModalOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm transform transition-all duration-300">
+          <h3 className="text-lg font-semibold text-gray-800 mb-3">Xác nhận</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Bạn có muốn {selectedVoucher ? "cập nhật" : "thêm mới"} voucher này không?
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => {
+                setIsConfirmModalOpen(false);
+                setPendingPayload(null);
+              }}
+              className="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
+            >
+              Hủy
+            </button>
+            <button
+              onClick={handleConfirmSubmit}
+              className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              Xác nhận
+            </button>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* Delete Confirmation Modal */}
+      <div className={`fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 transition-opacity duration-300 ${isDeleteModalOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm transform transition-all duration-300">
+          <h3 className="text-lg font-semibold text-gray-800 mb-3">Xác nhận xóa</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Bạn có chắc chắn muốn xóa voucher này không?
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setIsDeleteModalOpen(false)}
+              className="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
+            >
+              Hủy
+            </button>
+            <button
+              onClick={handleDeleteConfirm}
+              className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+            >
+              Xóa
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
 
 export default VoucherAdmin;
+
+
