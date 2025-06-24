@@ -24,4 +24,5 @@ public interface BillService {
     PaymentResponseDTO processPayment(Integer billId, PaymentType paymentType, BigDecimal amount);
 
     BillResponseDTO confirmBankingPayment(Integer billId);
+    String generateInvoice(Integer billId);
 }

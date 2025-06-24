@@ -27,7 +27,7 @@ public interface VoucherRepository extends JpaRepository<Voucher, Integer> {
             "AND (:percentageDiscountValue IS NULL OR v.percentageDiscountValue = :percentageDiscountValue) " +
             "AND (:fixedDiscountValue IS NULL OR v.fixedDiscountValue = :fixedDiscountValue) " +
             "AND (:maxDiscountValue IS NULL OR v.maxDiscountValue = :maxDiscountValue) " +
-            "AND (:typeUser IS NULL OR v.typeUser = :typeUser) " + // New condition
+            "AND (:typeUser IS NULL OR v.typeUser = :typeUser) " +
             "AND v.deleted = false")
     Page<Voucher> findByCodeAndNameAndStartTimeAndEndTimeAndStatusAndPriceAndTypeUser(
             @Param("code") String code,
@@ -38,23 +38,31 @@ public interface VoucherRepository extends JpaRepository<Voucher, Integer> {
             @Param("percentageDiscountValue") BigDecimal percentageDiscountValue,
             @Param("fixedDiscountValue") BigDecimal fixedDiscountValue,
             @Param("maxDiscountValue") BigDecimal maxDiscountValue,
-            @Param("typeUser") VoucherTypeUser typeUser, // New parameter
+            @Param("typeUser") VoucherTypeUser typeUser,
             Pageable pageable);
 
     Optional<Voucher> findByIdAndDeletedFalse(Integer id);
 
-    Optional<Voucher> findByCodeAndDeletedFalse(String code);
-
-    @Query("SELECT v FROM Voucher v WHERE v.status = com.example.datnmainpolo.enums.PromotionStatus.COMING_SOON AND v.startTime <= :currentTime AND v.deleted = false")
+    @Query("SELECT v FROM Voucher v WHERE v.status = com.example.datnmainpolo.enums.PromotionStatus.COMING_SOON " +
+            "AND v.startTime <= :currentTime AND v.deleted = false")
     List<Voucher> findVouchersToActivate(@Param("currentTime") Instant currentTime);
 
-    @Query("SELECT v FROM Voucher v WHERE v.status IN (com.example.datnmainpolo.enums.PromotionStatus.ACTIVE, com.example.datnmainpolo.enums.PromotionStatus.COMING_SOON) AND v.endTime < :currentTime AND v.deleted = false")
+    @Query("SELECT v FROM Voucher v WHERE v.status IN (com.example.datnmainpolo.enums.PromotionStatus.ACTIVE, " +
+            "com.example.datnmainpolo.enums.PromotionStatus.COMING_SOON) AND v.endTime < :currentTime AND v.deleted = false")
     List<Voucher> findVouchersToExpire(@Param("currentTime") Instant currentTime);
 
     List<Voucher> findByEndTimeBeforeAndStatusNot(Instant endTimeBefore, PromotionStatus status);
 
     List<Voucher> findByStatusInAndDeletedFalse(Collection<PromotionStatus> statuses);
 
-    // New method to find vouchers by typeUser
+    // Enforce uniqueness by adding stricter conditions
+    @Query("SELECT v FROM Voucher v WHERE v.code = :code AND v.deleted = false " +
+            "AND v.typeUser = com.example.datnmainpolo.enums.VoucherTypeUser.PUBLIC " +
+            "AND v.status = com.example.datnmainpolo.enums.PromotionStatus.ACTIVE")
+    Optional<Voucher> findByCodeAndDeletedFalse(@Param("code") String code);
+
+    @Query("SELECT v FROM Voucher v WHERE v.typeUser = :typeUser AND v.status = :status AND v.deleted = false")
+    List<Voucher> findByTypeUserAndStatusAndDeletedFalse(VoucherTypeUser typeUser, PromotionStatus status);
+
     List<Voucher> findByTypeUserAndDeletedFalse(VoucherTypeUser typeUser);
 }

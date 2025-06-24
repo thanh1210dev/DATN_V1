@@ -10,6 +10,7 @@ import lombok.AllArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 @Getter
 @Setter
@@ -24,6 +25,7 @@ public class BillDetailResponseDTO {
     private String billCode;
 
     private Integer productDetailId;
+    private String productDetailCode;
 
     private String productName;
 
@@ -31,7 +33,7 @@ public class BillDetailResponseDTO {
 
     private String productSize;
 
-    private String productImage;
+    private List<ImageDTO> productImage;
 
     private BigDecimal price;
 
@@ -50,4 +52,13 @@ public class BillDetailResponseDTO {
     private String createdBy;
 
     private String updatedBy;
+
+    @Getter
+    @Setter
+    @Builder
+    public static class ImageDTO {
+        private Integer id;
+        private String url;
+    }
+
 }

@@ -66,17 +66,18 @@ public class Bill {
     @Enumerated(EnumType.STRING)
     private BillType billType; //ONLINE, OFLINE
 
-    @Column(name = "money_ship", precision = 10, scale = 2)      // tien ship
-    private BigDecimal moneyShip;
+    @Column(name = "total_money", nullable = false)
+    private BigDecimal totalMoney = BigDecimal.ZERO;
 
-    @Column(name = "total_money", precision = 10, scale = 2)    // tong tien
-    private BigDecimal totalMoney;
+    @Column(name = "reduction_amount", nullable = false)
+    private BigDecimal reductionAmount = BigDecimal.ZERO;
 
-    @Column(name = "reduction_amount", precision = 10, scale = 2)   // so tien giam gia
-    private BigDecimal reductionAmount;
+    @Column(name = "money_ship", nullable = false)
+    private BigDecimal moneyShip = BigDecimal.ZERO;
 
-    @Column(name = "final_amount", precision = 10, scale = 2)
-    private BigDecimal finalAmount;
+    @Column(name = "final_amount", nullable = false)
+    private BigDecimal finalAmount = BigDecimal.ZERO;
+    // ... getters and setters ...
 
     @Size(max = 100)
     @Column(name = "voucher_code", length = 100)
