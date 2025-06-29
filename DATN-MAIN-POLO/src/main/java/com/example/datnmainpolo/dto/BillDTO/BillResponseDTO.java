@@ -1,6 +1,7 @@
 package com.example.datnmainpolo.dto.BillDTO;
 
 
+import com.example.datnmainpolo.enums.BillType;
 import com.example.datnmainpolo.enums.OrderStatus;
 import com.example.datnmainpolo.enums.PaymentType;
 import com.example.datnmainpolo.enums.VoucherType; // Import VoucherType
@@ -22,6 +23,8 @@ public class BillResponseDTO {
     private String customerName;
     private String phoneNumber;
     private String address;
+
+    private BillType billType; // add new
 
     private BigDecimal totalMoney;
     private BigDecimal reductionAmount;
@@ -50,3 +53,5 @@ public class BillResponseDTO {
     private VoucherType voucherType; // PERCENTAGE or FIXED
 
 }
+
+

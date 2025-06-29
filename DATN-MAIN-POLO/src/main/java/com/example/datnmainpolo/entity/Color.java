@@ -27,7 +27,7 @@ public class Color {
     private String code;
 
     @Size(max = 100)
-    @Column(name = "name", length = 100)
+    @Column(name = "name", columnDefinition = "NVARCHAR(255)")
     private String name;
 
     @Column(name = "created_at")

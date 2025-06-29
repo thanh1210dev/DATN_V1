@@ -61,7 +61,7 @@ public class UserServiceImpl implements UserService {
         user.setCreatedAt(Instant.now());
         user.setUpdatedAt(Instant.now());
         user.setDeleted(false);
-        user.setPurchaseCount(0);
+        user.setLoyaltyPoints(0);
 
         user = userRepository.save(user);
         return mapToResponseDTO(user);
@@ -127,7 +127,7 @@ public class UserServiceImpl implements UserService {
         user.setEmail(dto.getEmail());
         user.setPassword(dto.getPassword());
         user.setAvatar(dto.getAvatar());
-        user.setPurchaseCount(0);
+        user.setLoyaltyPoints(0);
         return user;
     }
 
@@ -141,7 +141,7 @@ public class UserServiceImpl implements UserService {
         dto.setPhoneNumber(user.getPhoneNumber());
         dto.setEmail(user.getEmail());
         dto.setAvatar(user.getAvatar());
-        dto.setPurchaseCount(user.getPurchaseCount());
+        dto.setLoyaltyPoints(user.getLoyaltyPoints());
         dto.setCreatedAt(user.getCreatedAt());
         dto.setUpdatedAt(user.getUpdatedAt());
         dto.setDeleted(user.getDeleted());
@@ -166,7 +166,7 @@ public class UserServiceImpl implements UserService {
     public void incrementPurchaseCount(Integer userId) {
         UserEntity user = userRepository.findByIdAndDeletedFalse(userId)
                 .orElseThrow(() -> new EntityNotFoundException("Người dùng không tồn tại"));
-        user.setPurchaseCount(user.getPurchaseCount() + 1);
+        user.setLoyaltyPoints(user.getLoyaltyPoints() + 1);
         user.setUpdatedAt(Instant.now());
         userRepository.save(user);
     }

@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Optional;
 
 @Repository
@@ -28,5 +30,22 @@ public interface BillRepository extends JpaRepository<Bill, Integer> {
     Page<Bill> findByCodeOrStatus(
             @Param("code") String code,
             @Param("status") OrderStatus status,
+            Pageable pageable);
+
+    @Query("SELECT b FROM Bill b WHERE " +
+            "(:code IS NULL OR b.code LIKE  CONCAT('%', :code, '%')) " +
+            "AND (:status IS NULL OR b.status = :status) " +
+            "AND (:startDate IS NULL OR b.createdAt >= :startDate) " +
+            "AND (:endDate IS NULL OR b.createdAt <= :endDate) " +
+            "AND (:minPrice IS NULL OR b.finalAmount >= :minPrice) " +
+            "AND (:maxPrice IS NULL OR b.finalAmount <= :maxPrice) " +
+            "AND b.deleted = false")
+    Page<Bill> findByAdvancedCriteria(
+            @Param("code") String code,
+            @Param("status") OrderStatus status,
+            @Param("startDate") Instant startDate,
+            @Param("endDate") Instant endDate,
+            @Param("minPrice") BigDecimal minPrice,
+            @Param("maxPrice") BigDecimal maxPrice,
             Pageable pageable);
 }

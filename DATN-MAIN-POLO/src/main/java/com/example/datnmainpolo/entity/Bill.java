@@ -31,7 +31,7 @@ public class Bill {
 
 
     @Size(max = 100)
-    @Column(name = "customer_name", length = 100)
+    @Column(name = "customer_name", columnDefinition = "NVARCHAR(255)")
     private String customerName;
 
     @Size(max = 20)
@@ -39,7 +39,7 @@ public class Bill {
     private String phoneNumber;
 
     @Size(max = 100)
-    @Column(name = "address", length = 100)
+    @Column(name = "address", columnDefinition = "NVARCHAR(255)")
     private String address;
 
 
@@ -65,6 +65,12 @@ public class Bill {
     @Column(name = "bill_type")
     @Enumerated(EnumType.STRING)
     private BillType billType; //ONLINE, OFLINE
+
+
+
+
+
+
 
     @Column(name = "total_money", nullable = false)
     private BigDecimal totalMoney = BigDecimal.ZERO;

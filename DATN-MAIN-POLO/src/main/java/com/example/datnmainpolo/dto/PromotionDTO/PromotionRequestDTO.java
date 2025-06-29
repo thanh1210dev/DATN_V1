@@ -39,6 +39,8 @@ public class PromotionRequestDTO {
 
 
     private String description;
+    private Long createdByUserId;
+
 
 
     private PromotionStatus status;

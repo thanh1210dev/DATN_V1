@@ -1,6 +1,7 @@
 package com.example.datnmainpolo.entity;
 
 import com.example.datnmainpolo.enums.BillDetailStatus;
+import com.example.datnmainpolo.enums.OrderStatus;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -36,6 +37,11 @@ public class BillDetail {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 50)
     private BillDetailStatus status;
+
+
+    @Column(name = "order-type")
+    @Enumerated(EnumType.STRING)
+    private OrderStatus typeOrder;
 
     @Column(name = "promotional_price", precision = 10, scale = 2)
     private BigDecimal promotionalPrice;

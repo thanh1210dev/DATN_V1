@@ -25,6 +25,19 @@ const TaiQuayAdmin = () => {
   const [showBankingInfo, setShowBankingInfo] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [bankingDetails, setBankingDetails] = useState(null);
+  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
+  const [provinces, setProvinces] = useState([]);
+  const [districts, setDistricts] = useState([]);
+  const [wards, setWards] = useState([]);
+  const [deliveryForm, setDeliveryForm] = useState({
+    customerName: '',
+    phoneNumber: '',
+    addressDetail: '',
+    provinceId: null,
+    districtId: null,
+    wardCode: null,
+    desiredDate: '',
+  });
   const [pagination, setPagination] = useState({
     bills: { page: 0, size: 5, totalPages: 1 },
     productDetails: { page: 0, size: 10, totalPages: 1 },
@@ -52,6 +65,50 @@ const TaiQuayAdmin = () => {
     }, 300),
     []
   );
+
+  // Fetch provinces
+  const fetchProvinces = async () => {
+    try {
+      const response = await axiosInstance.get('/ghn-address/provinces');
+      setProvinces(response.data.data || []);
+    } catch (error) {
+      toast.error('Không thể tải danh sách tỉnh');
+    }
+  };
+
+  // Fetch districts based on provinceId
+  const fetchDistricts = async (provinceId) => {
+    if (!provinceId) {
+      setDistricts([]);
+      setWards([]);
+      return;
+    }
+    try {
+      const response = await axiosInstance.get('/ghn-address/districts', {
+        params: { provinceId },
+      });
+      setDistricts(response.data.data || []);
+      setWards([]);
+    } catch (error) {
+      toast.error('Không thể tải danh sách huyện');
+    }
+  };
+
+  // Fetch wards based on districtId
+  const fetchWards = async (districtId) => {
+    if (!districtId) {
+      setWards([]);
+      return;
+    }
+    try {
+      const response = await axiosInstance.get('/ghn-address/wards', {
+        params: { districtId },
+      });
+      setWards(response.data.data || []);
+    } catch (error) {
+      toast.error('Không thể tải danh sách xã/phường');
+    }
+  };
 
   // Fetch bills
   const fetchBills = async () => {
@@ -92,6 +149,7 @@ const TaiQuayAdmin = () => {
         filters.minPrice ? parseFloat(filters.minPrice) : null,
         filters.maxPrice ? parseFloat(filters.maxPrice) : null
       );
+      // Tạo hóa
       setProductDetails(response.content);
       setPagination((prev) => ({
         ...prev,
@@ -180,12 +238,65 @@ const TaiQuayAdmin = () => {
       setVoucherCode(response.data.voucherCode || '');
       await fetchAppliedVoucher(response.data.voucherCode);
       toast.success('Tạo hóa đơn thành công');
+      fetchBills();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Không thể tạo hóa đơn');
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Create delivery bill
+ // In TaiQuayAdmin.js
+const createDeliveryBill = async () => {
+  if (!selectedBill) {
+      toast.error('Vui lòng chọn hóa đơn');
+      return;
+  }
+  if (!deliveryForm.customerName || !deliveryForm.phoneNumber || !deliveryForm.addressDetail) {
+      toast.error('Vui lòng nhập đầy đủ thông tin khách hàng');
+      return;
+  }
+  if (!deliveryForm.provinceId || !deliveryForm.districtId || !deliveryForm.wardCode) {
+      toast.error('Vui lòng chọn đầy đủ tỉnh, huyện, xã');
+      return;
+  }
+  try {
+      setIsLoading(true);
+      const formattedDesiredDate = deliveryForm.desiredDate 
+          ? `${deliveryForm.desiredDate}T00:00:00Z` 
+          : null;
+      const response = await axiosInstance.post('/bills/delivery-sale', {
+          billId: selectedBill.id,
+          customerName: deliveryForm.customerName,
+          phoneNumber: deliveryForm.phoneNumber,
+          addressDetail: deliveryForm.addressDetail,
+          provinceId: deliveryForm.provinceId,
+          districtId: deliveryForm.districtId,
+          wardCode: deliveryForm.wardCode,
+          desiredDate: formattedDesiredDate,
+      });
+      setSelectedBill(response.data);
+      setShowDeliveryModal(false);
+      setDeliveryForm({
+          customerName: '',
+          phoneNumber: '',
+          addressDetail: '',
+          provinceId: null,
+          districtId: null,
+          wardCode: null,
+          desiredDate: '',
+      });
+      setDistricts([]);
+      setWards([]);
+      await fetchBills();
+      toast.success('Cập nhật thông tin giao hàng thành công');
+  } catch (error) {
+      toast.error(error.response?.data?.message || 'Không thể cập nhật thông tin giao hàng');
+  } finally {
+      setIsLoading(false);
+  }
+};
 
   // Add product to bill with quantity
   const addProductToBill = async (productDetailId, quantity = 1) => {
@@ -422,6 +533,24 @@ const TaiQuayAdmin = () => {
     debouncedHandleFilterChange(name, value);
   };
 
+  // Handle delivery form change
+  const handleDeliveryFormChange = (e) => {
+    const { name, value } = e.target;
+    setDeliveryForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // Handle address selection
+  const handleAddressChange = (field, value) => {
+    setDeliveryForm((prev) => ({ ...prev, [field]: value }));
+    if (field === 'provinceId') {
+      setDeliveryForm((prev) => ({ ...prev, districtId: null, wardCode: null }));
+      fetchDistricts(value);
+    } else if (field === 'districtId') {
+      setDeliveryForm((prev) => ({ ...prev, wardCode: null }));
+      fetchWards(value);
+    }
+  };
+
   // Handle quantity change for modal
   const handleQuantityChange = (productDetailId, value) => {
     const quantity = Math.max(1, parseInt(value) || 1);
@@ -454,6 +583,7 @@ const TaiQuayAdmin = () => {
   // Initial fetch
   useEffect(() => {
     fetchBills();
+    fetchProvinces();
   }, [pagination.bills.page]);
 
   useEffect(() => {
@@ -493,6 +623,8 @@ const TaiQuayAdmin = () => {
         handlePaginationChange={handlePaginationChange}
       />
       <CartAndPayment
+
+      
         selectedBill={selectedBill}
         billDetails={billDetails}
         productDetails={productDetails}
@@ -534,9 +666,26 @@ const TaiQuayAdmin = () => {
         appliedVoucher={appliedVoucher}
         setAppliedVoucher={setAppliedVoucher}
         setSelectedBill={setSelectedBill}
+        showDeliveryModal={showDeliveryModal}
+        setShowDeliveryModal={setShowDeliveryModal}
+        provinces={provinces}
+        districts={districts}
+        wards={wards}
+        deliveryForm={deliveryForm}
+        handleDeliveryFormChange={handleDeliveryFormChange}
+        handleAddressChange={handleAddressChange}
+        createDeliveryBill={createDeliveryBill}
       />
     </div>
   );
 };
 
 export default TaiQuayAdmin;
+
+
+
+
+
+
+
+// createDeliveryBill

@@ -30,7 +30,7 @@ public class Notification {
     private UserEntity userEntity;
 
     @Size(max = 50)
-    @Column(name = "content", length = 50)
+    @Column(name = "content", columnDefinition = "NVARCHAR(255)")
     private String content;
 
     @Size(max = 50)

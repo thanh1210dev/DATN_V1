@@ -37,7 +37,7 @@ const ProductDetail = () => {
     code: '',
     quantity: 0,
     price: '',
-    promotionalPrice: '',
+ 
     status: 'AVAILABLE',
   });
   const [images, setImages] = useState([]);
@@ -221,7 +221,7 @@ const ProductDetail = () => {
       code: '',
       quantity: 0,
       price: '',
-      promotionalPrice: '',
+     
       status: 'AVAILABLE',
     });
     setSelectedImages([]);
@@ -245,7 +245,7 @@ const ProductDetail = () => {
         code: data.code,
         quantity: data.quantity,
         price: data.price || '',
-        promotionalPrice: data.promotionalPrice || '',
+   
         status: data.status || 'AVAILABLE',
       });
       setSelectedImages(imageIds);
@@ -295,7 +295,7 @@ const ProductDetail = () => {
       code: isEditing ? formData.code : generateRandomCode(),
       quantity: parseInt(formData.quantity),
       price: parseFloat(formData.price),
-      promotionalPrice: formData.promotionalPrice ? parseFloat(formData.promotionalPrice) : null,
+     
       status: isEditing ? formData.status : 'AVAILABLE',
     };
 
@@ -636,18 +636,7 @@ const ProductDetail = () => {
                       required
                     />
                   </div>
-                  <div className="mb-5">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Giá khuyến mãi (VND)</label>
-                    <input
-                      type="number"
-                      name="promotionalPrice"
-                      value={formData.promotionalPrice}
-                      onChange={handleInputChange}
-                      className="block w-full rounded-lg border border-gray-300 shadow-sm px-4 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition-colors"
-                      min="0.01"
-                      step="0.01"
-                    />
-                  </div>
+                 
                 </>
               )}
               <div className="mb-5">

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { HiOutlinePlus, HiOutlineTrash, HiOutlineX, HiOutlineQrcode } from 'react-icons/hi';
+import { HiOutlinePlus, HiOutlineTrash, HiOutlineX, HiOutlineQrcode, HiOutlineTruck } from 'react-icons/hi';
 import Select from 'react-select';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { toast } from 'react-toastify';
@@ -46,6 +46,15 @@ const CartAndPayment = ({
   appliedVoucher,
   setAppliedVoucher,
   setSelectedBill,
+  showDeliveryModal,
+  setShowDeliveryModal,
+  provinces,
+  districts,
+  wards,
+  deliveryForm,
+  handleDeliveryFormChange,
+  handleAddressChange,
+  createDeliveryBill,
 }) => {
   const scannerRef = useRef(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
@@ -206,7 +215,9 @@ const CartAndPayment = ({
           <div className="lg:col-span-2">
             <div className="bg-white shadow-md rounded-lg p-4 md:p-6 border border-gray-200">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold text-gray-800">Giỏ Hàng - {selectedBill.code}</h2>
+                <h2 className="text-lg font-semibold text-gray-800">
+                  Giỏ Hàng - {selectedBill.code} ({selectedBill.billType || 'COUNTER'})
+                </h2>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setShowAddProductModal(true)}
@@ -225,6 +236,14 @@ const CartAndPayment = ({
                     Quét QR
                   </button>
                   <button
+                    onClick={() => setShowDeliveryModal(true)}
+                    className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-colors disabled:opacity-50"
+                    disabled={isLoading}
+                  >
+                    <HiOutlineTruck className="inline mr-2" size={16} />
+                    Giao Hàng
+                  </button>
+                  <button
                     onClick={cancelBill}
                     className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors disabled:opacity-50"
                     disabled={isLoading}
@@ -234,6 +253,12 @@ const CartAndPayment = ({
                   </button>
                 </div>
               </div>
+              {selectedBill.address && (
+                <div className="mb-4 text-sm text-gray-700">
+                  <p><strong>Địa chỉ giao hàng:</strong> {selectedBill.address}</p>
+                  <p><strong>Phí vận chuyển:</strong> {(selectedBill.moneyShip || 0).toLocaleString()} đ</p>
+                </div>
+              )}
               <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left text-gray-700">
                   <thead className="text-xs uppercase bg-indigo-50 text-indigo-700">
@@ -246,6 +271,7 @@ const CartAndPayment = ({
                       <th className="px-4 py-3">Số Lượng</th>
                       <th className="px-4 py-3">Đơn Giá</th>
                       <th className="px-4 py-3">Tổng</th>
+                     
                       <th className="px-4 py-3 w-24 rounded-tr-lg">Hành Động</th>
                     </tr>
                   </thead>
@@ -326,6 +352,7 @@ const CartAndPayment = ({
                             {(item.promotionalPrice || item.price || 0).toLocaleString()} đ
                           </td>
                           <td className="px-4 py-3">{(item.totalPrice || 0).toLocaleString()} đ</td>
+                        
                           <td className="px-4 py-3 text-center">
                             <button
                               onClick={() => deleteBillDetail(item.id)}
@@ -339,7 +366,7 @@ const CartAndPayment = ({
                       ))
                     ) : (
                       <tr>
-                        <td colSpan="9" className="px-4 py-4 text-center text-gray-500">
+                        <td colSpan="10" className="px-4 py-4 text-center text-gray-500">
                           Chưa có sản phẩm trong giỏ hàng
                         </td>
                       </tr>
@@ -351,6 +378,7 @@ const CartAndPayment = ({
                 <div className="text-right space-y-1 text-sm">
                   <p>Tổng tiền hàng: {(selectedBill.totalMoney || 0).toLocaleString()} đ</p>
                   <p>Giảm giá: {(selectedBill.reductionAmount || 0).toLocaleString()} đ</p>
+                  <p>Phí vận chuyển: {(selectedBill.moneyShip || 0).toLocaleString()} đ</p>
                   <p className="font-semibold text-base">
                     Thành tiền: {(selectedBill.finalAmount || 0).toLocaleString()} đ
                   </p>
@@ -785,6 +813,154 @@ const CartAndPayment = ({
         </div>
       )}
 
+      {/* Delivery Modal */}
+      {showDeliveryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">Thông Tin Giao Hàng</h3>
+              <button
+                onClick={() => setShowDeliveryModal(false)}
+                className="p-1 text-gray-500 hover:bg-gray-200 rounded"
+              >
+                <HiOutlineX size={20} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tên Khách Hàng</label>
+                <input
+                  type="text"
+                  name="customerName"
+                  value={deliveryForm.customerName}
+                  onChange={handleDeliveryFormChange}
+                  placeholder="Nhập tên khách hàng"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Số Điện Thoại</label>
+                <input
+                  type="text"
+                  name="phoneNumber"
+                  value={deliveryForm.phoneNumber}
+                  onChange={handleDeliveryFormChange}
+                  placeholder="Nhập số điện thoại"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tỉnh/Thành Phố</label>
+                <Select
+                  options={provinces.map((province) => ({
+                    value: province.ProvinceID,
+                    label: province.ProvinceName,
+                  }))}
+                  value={provinces.find((p) => p.ProvinceID === deliveryForm.provinceId)?.ProvinceName
+                    ? { value: deliveryForm.provinceId, label: provinces.find((p) => p.ProvinceID === deliveryForm.provinceId).ProvinceName }
+                    : null}
+                  onChange={(option) => handleAddressChange('provinceId', option.value)}
+                  placeholder="Chọn tỉnh/thành phố"
+                  className="text-sm"
+                  styles={{
+                    control: (base) => ({
+                      ...base,
+                      borderColor: '#d1d5db',
+                      boxShadow: 'none',
+                      '&:hover': { borderColor: '#6366f1' },
+                    }),
+                  }}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quận/Huyện</label>
+                <Select
+                  options={districts.map((district) => ({
+                    value: district.DistrictID,
+                    label: district.DistrictName,
+                  }))}
+                  value={districts.find((d) => d.DistrictID === deliveryForm.districtId)?.DistrictName
+                    ? { value: deliveryForm.districtId, label: districts.find((d) => d.DistrictID === deliveryForm.districtId).DistrictName }
+                    : null}
+                  onChange={(option) => handleAddressChange('districtId', option.value)}
+                  placeholder="Chọn quận/huyện"
+                  className="text-sm"
+                  isDisabled={!deliveryForm.provinceId}
+                  styles={{
+                    control: (base) => ({
+                      ...base,
+                      borderColor: '#d1d5db',
+                      boxShadow: 'none',
+                      '&:hover': { borderColor: '#6366f1' },
+                    }),
+                  }}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Xã/Phường</label>
+                <Select
+                  options={wards.map((ward) => ({
+                    value: ward.WardCode,
+                    label: ward.WardName,
+                  }))}
+                  value={wards.find((w) => w.WardCode === deliveryForm.wardCode)?.WardName
+                    ? { value: deliveryForm.wardCode, label: wards.find((w) => w.WardCode === deliveryForm.wardCode).WardName }
+                    : null}
+                  onChange={(option) => handleAddressChange('wardCode', option.value)}
+                  placeholder="Chọn xã/phường"
+                  className="text-sm"
+                  isDisabled={!deliveryForm.districtId}
+                  styles={{
+                    control: (base) => ({
+                      ...base,
+                      borderColor: '#d1d5db',
+                      boxShadow: 'none',
+                      '&:hover': { borderColor: '#6366f1' },
+                    }),
+                  }}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Địa Chỉ Chi Tiết</label>
+                <input
+                  type="text"
+                  name="addressDetail"
+                  value={deliveryForm.addressDetail}
+                  onChange={handleDeliveryFormChange}
+                  placeholder="Nhập địa chỉ chi tiết"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ngày Giao Hàng Mong Muốn</label>
+                <input
+                  type="date"
+                  name="desiredDate"
+                  value={deliveryForm.desiredDate}
+                  onChange={handleDeliveryFormChange}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={createDeliveryBill}
+                className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-md hover:bg-teal-700 transition-colors disabled:opacity-50"
+                disabled={isLoading}
+              >
+                Xác Nhận
+              </button>
+              <button
+                onClick={() => setShowDeliveryModal(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Invoice PDF Modal */}
       {showInvoiceModal && invoicePDF && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
@@ -834,7 +1010,3 @@ const CartAndPayment = ({
 };
 
 export default CartAndPayment;
-
-
-
-//Tạo hóa đơn

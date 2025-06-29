@@ -8,6 +8,7 @@ import AdminQuanlyGiamGia from "./AdminRouter/AdminQuanlyGiamGia";
 import AdminQuanLySanPham from "./AdminRouter/AdminQuanLySanPham";
 import ClientRouter from "./ClientRouTer/ClientRouter";
 import AdminQuanLyThongKe from "./AdminRouter/AdminQuanLyThongKe";
+import AdminQuanLyHoaDon from "./AdminRouter/AdminQuanLyHoaDon";
 
 
 
@@ -40,6 +41,7 @@ const AppRouter = () => {
                     {AdminQuanlyGiamGia}
                     {AdminQuanLySanPham}
                     {AdminQuanLyThongKe}
+                    {AdminQuanLyHoaDon}
                    
                   </Routes>
                 </main>

@@ -7,6 +7,7 @@ import com.example.datnmainpolo.entity.Bill;
 import com.example.datnmainpolo.entity.BillDetail;
 import com.example.datnmainpolo.entity.ProductDetail;
 import com.example.datnmainpolo.enums.BillDetailStatus;
+import com.example.datnmainpolo.enums.OrderStatus;
 import com.example.datnmainpolo.enums.ProductStatus;
 import com.example.datnmainpolo.repository.BillDetailRepository;
 import com.example.datnmainpolo.repository.BillRepository;
@@ -65,6 +66,7 @@ public class BillDetailServiceImpl implements BillDetailService {
         billDetail.setPrice(productDetail.getPrice() != null ? productDetail.getPrice() : ZERO);
         billDetail.setPromotionalPrice(productDetail.getPromotionalPrice());
         billDetail.setStatus(BillDetailStatus.PENDING);
+        billDetail.setTypeOrder(OrderStatus.PENDING); // Initialize typeOrder
         billDetail.setCreatedAt(Instant.now());
         billDetail.setUpdatedAt(Instant.now());
         billDetail.setCreatedBy("system");
@@ -137,6 +139,7 @@ public class BillDetailServiceImpl implements BillDetailService {
 
         billDetail.setQuantity(quantity);
         billDetail.setUpdatedAt(Instant.now());
+        billDetail.setUpdatedBy("system");
 
         BillDetail savedBillDetail = billDetailRepository.save(billDetail);
 
@@ -164,13 +167,25 @@ public class BillDetailServiceImpl implements BillDetailService {
         BigDecimal totalPrice = calculateTotalPrice(billDetail);
         bill.setTotalMoney(bill.getTotalMoney() != null ? bill.getTotalMoney().subtract(totalPrice) : ZERO);
         bill.setUpdatedAt(Instant.now());
-        billDetail.setUpdatedBy("system");
+        bill.setUpdatedBy("system");
         billRepository.save(bill);
 
         billDetail.setDeleted(true);
         billDetail.setUpdatedAt(Instant.now());
         billDetail.setUpdatedBy("system");
         billDetailRepository.save(billDetail);
+    }
+
+    @Transactional
+    public void updateBillDetailTypeOrder(Integer billId, OrderStatus typeOrder) {
+        logger.info("Updating typeOrder to {} for all bill details of bill {}", typeOrder, billId);
+        List<BillDetail> billDetails = billDetailRepository.findByBillId(billId);
+        for (BillDetail detail : billDetails) {
+            detail.setTypeOrder(typeOrder);
+            detail.setUpdatedAt(Instant.now());
+            detail.setUpdatedBy("system");
+            billDetailRepository.save(detail);
+        }
     }
 
     private void updateBillTotal(Bill bill, int quantityChange, ProductDetail productDetail) {
@@ -202,7 +217,6 @@ public class BillDetailServiceImpl implements BillDetailService {
         return totalMoney.subtract(reductionAmount).add(moneyShip);
     }
 
-
     private BillDetailResponseDTO buildBillDetailResponseDTO(BillDetail billDetail) {
         BigDecimal totalPrice = calculateTotalPrice(billDetail);
         return BillDetailResponseDTO.builder()
@@ -228,6 +242,7 @@ public class BillDetailServiceImpl implements BillDetailService {
                 .quantity(billDetail.getQuantity())
                 .totalPrice(totalPrice)
                 .status(billDetail.getStatus())
+                .typeOrder(billDetail.getTypeOrder())
                 .createdAt(billDetail.getCreatedAt())
                 .updatedAt(billDetail.getUpdatedAt())
                 .createdBy(billDetail.getCreatedBy())

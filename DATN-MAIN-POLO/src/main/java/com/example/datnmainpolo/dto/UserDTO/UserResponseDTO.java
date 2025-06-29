@@ -18,7 +18,7 @@ public class UserResponseDTO {
     private String phoneNumber;
     private String email;
     private String avatar;
-    private Integer purchaseCount;
+    private Integer loyaltyPoints;
     private Instant createdAt;
     private Instant updatedAt;
     private Boolean deleted;

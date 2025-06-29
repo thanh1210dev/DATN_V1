@@ -1,6 +1,8 @@
 package com.example.datnmainpolo.controller;
 
+
 import com.example.datnmainpolo.dto.BillDTO.BillResponseDTO;
+import com.example.datnmainpolo.dto.BillDTO.DeliveryBillAddressRequestDTO;
 import com.example.datnmainpolo.dto.BillDTO.PaymentResponseDTO;
 import com.example.datnmainpolo.dto.BillDetailDTO.AddProductToBillRequestDTO;
 import com.example.datnmainpolo.dto.BillDetailDTO.BillDetailResponseDTO;
@@ -9,14 +11,15 @@ import com.example.datnmainpolo.enums.OrderStatus;
 import com.example.datnmainpolo.enums.PaymentType;
 import com.example.datnmainpolo.service.BillDetailService;
 import com.example.datnmainpolo.service.BillService;
+import com.example.datnmainpolo.service.Impl.BillServiceImpl.DeliveryBillService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-
-import java.math.BigDecimal;
-
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.security.access.prepost.PreAuthorize;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 
 @RestController
 @RequiredArgsConstructor
@@ -24,11 +27,17 @@ import org.springframework.security.access.prepost.PreAuthorize;
 public class BillController {
 
     private final BillService billService;
+    private final DeliveryBillService deliveryBillService;
+    private final BillDetailService billDetailService;
 
     @PostMapping("/counter-sale")
-    // @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<BillResponseDTO> createCounterSale() {
         return ResponseEntity.ok(billService.counterSale());
+    }
+
+    @PostMapping("/delivery-sale")
+    public ResponseEntity<BillResponseDTO> createDeliverySale(@Valid @RequestBody DeliveryBillAddressRequestDTO request) {
+        return ResponseEntity.ok(deliveryBillService.createDeliveryBill(request));
     }
 
     @GetMapping("/search")
@@ -40,8 +49,30 @@ public class BillController {
         return ResponseEntity.ok(billService.searchBills(code, status, page, size));
     }
 
+    @GetMapping("/search-advanced")
+    public ResponseEntity<PaginationResponse<BillResponseDTO>> searchBillsAdvanced(
+            @RequestParam(required = false) String code,
+            @RequestParam(required = false) OrderStatus status,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size) {
+        Instant start = null;
+        Instant end = null;
+        try {
+            start = (startDate != null && !startDate.isEmpty()) ? Instant.parse(startDate) : null;
+            end = (endDate != null && !endDate.isEmpty()) ? Instant.parse(endDate) : null;
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("Định dạng ngày không hợp lệ: " + e.getMessage());
+        }
+        return ResponseEntity.ok(billService.searchBillsAdvanced(code, status, start, end, minPrice, maxPrice, page, size));
+    }
+
+
+
     @PostMapping("/{billId}/voucher")
-    // @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<BillResponseDTO> addVoucherToBill(
             @PathVariable Integer billId,
             @RequestParam String voucherCode) {
@@ -49,7 +80,6 @@ public class BillController {
     }
 
     @PutMapping("/{billId}/status")
-    // @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<BillResponseDTO> updateBillStatus(
             @PathVariable Integer billId,
             @RequestParam OrderStatus status) {
@@ -57,7 +87,6 @@ public class BillController {
     }
 
     @PostMapping("/{billId}/payment")
-    // @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<PaymentResponseDTO> processPayment(
             @PathVariable Integer billId,
             @RequestParam PaymentType paymentType,
@@ -66,9 +95,25 @@ public class BillController {
     }
 
     @PostMapping("/{billId}/confirm-banking")
-    // @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<BillResponseDTO> confirmBankingPayment(
             @PathVariable Integer billId) {
         return ResponseEntity.ok(billService.confirmBankingPayment(billId));
+    }
+
+    @GetMapping("/{billId}/print")
+    public ResponseEntity<String> printInvoice(@PathVariable Integer billId) {
+        return ResponseEntity.ok(billService.generateInvoice(billId));
+    }
+    @GetMapping("/{billId}")
+    public ResponseEntity<BillResponseDTO> getBillDetail(@PathVariable Integer billId) {
+        return ResponseEntity.ok(billService.getDetail(billId));
+    }
+
+    @GetMapping("/{billId}/details")
+    public ResponseEntity<PaginationResponse<BillDetailResponseDTO>> getBillDetails(
+            @PathVariable Integer billId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size) {
+        return ResponseEntity.ok(billDetailService.getBillDetailsByBillId(billId, page, size));
     }
 }
