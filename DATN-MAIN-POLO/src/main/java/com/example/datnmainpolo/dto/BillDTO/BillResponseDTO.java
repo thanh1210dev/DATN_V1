@@ -5,6 +5,7 @@ import com.example.datnmainpolo.enums.BillType;
 import com.example.datnmainpolo.enums.OrderStatus;
 import com.example.datnmainpolo.enums.PaymentType;
 import com.example.datnmainpolo.enums.VoucherType; // Import VoucherType
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
@@ -30,17 +31,21 @@ public class BillResponseDTO {
     private BigDecimal reductionAmount;
     private BigDecimal moneyShip;
     private BigDecimal finalAmount;
-
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "Asia/Ho_Chi_Minh")
     private Instant confirmationDate;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "Asia/Ho_Chi_Minh")
     private Instant deliveryDate;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "Asia/Ho_Chi_Minh")
     private Instant receivedDate;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "Asia/Ho_Chi_Minh")
     private Instant completionDate;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "Asia/Ho_Chi_Minh")
     private Instant desiredDate;
 
     private PaymentType type;
 
     private String employeeName;
-
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "Asia/Ho_Chi_Minh")
     private Instant createdAt;
     private Instant updatedAt;
     private String createdBy;
