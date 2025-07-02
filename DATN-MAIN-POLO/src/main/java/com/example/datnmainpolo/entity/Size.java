@@ -26,7 +26,7 @@ public class Size {
     private String code;
 
     @jakarta.validation.constraints.Size(max = 100)
-    @Column(name = "name", length = 100)
+    @Column(name = "name", columnDefinition = "nvarchar(100)")
     private String name;
 
     @Column(name = "created_at")

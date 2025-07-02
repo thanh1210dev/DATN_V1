@@ -2,6 +2,7 @@ package com.example.datnmainpolo.controller;
 
 
 import com.example.datnmainpolo.dto.BillDTO.BillResponseDTO;
+import com.example.datnmainpolo.dto.BillDTO.CustomerRequestDTO;
 import com.example.datnmainpolo.dto.BillDTO.DeliveryBillAddressRequestDTO;
 import com.example.datnmainpolo.dto.BillDTO.PaymentResponseDTO;
 import com.example.datnmainpolo.dto.BillDetailDTO.AddProductToBillRequestDTO;
@@ -116,4 +117,18 @@ public class BillController {
             @RequestParam(defaultValue = "5") int size) {
         return ResponseEntity.ok(billDetailService.getBillDetailsByBillId(billId, page, size));
     }
+
+    @PostMapping("/{billId}/assign-customer")
+    public ResponseEntity<BillResponseDTO> addLoyalCustomerToBill(@PathVariable Integer billId, @RequestParam Integer customerId){
+        return ResponseEntity.ok(billService.addLoyalCustomerToBill(billId, customerId));
+    }
+
+    @PostMapping("/{billId}/visiting-guests")
+    public ResponseEntity<BillResponseDTO> addVisitingGuestsToBill(
+            @PathVariable Integer billId,
+            @RequestBody CustomerRequestDTO requestDTO) {
+        BillResponseDTO response = billService.addVisitingGuests(billId, requestDTO);
+        return ResponseEntity.ok(response);
+    }
+
 }

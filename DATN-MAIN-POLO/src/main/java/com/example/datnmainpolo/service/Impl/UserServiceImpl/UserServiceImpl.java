@@ -4,6 +4,7 @@ import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.dto.UserDTO.UserRequestDTO;
 import com.example.datnmainpolo.dto.UserDTO.UserResponseDTO;
 import com.example.datnmainpolo.entity.UserEntity;
+import com.example.datnmainpolo.enums.Role;
 import com.example.datnmainpolo.repository.UserRepository;
 import com.example.datnmainpolo.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,10 +18,10 @@ import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 import java.util.Set;
 
@@ -34,6 +35,13 @@ public class UserServiceImpl implements UserService {
     private Validator validator;
 
     @Override
+    public PaginationResponse<UserResponseDTO> findByCodeAndNameofClient(String code, String name, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
+        Page<UserEntity> pageData = userRepository.findByCodeAndNameAndRole(code, name, pageable);
+        return new PaginationResponse<>(pageData.map(this::mapToResponseDTO));
+    }
+
+    @Override
     public PaginationResponse<UserResponseDTO> findByCodeAndName(String code, String name, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
         Page<UserEntity> pageData = userRepository.findByCodeAndName(code, name, pageable);
@@ -41,28 +49,9 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public PaginationResponse<UserResponseDTO> findByCodeAndNameofClient(
-            String code, String name, String phoneNumber, String email,
-            String startDate, String endDate, Boolean isBirthday,
-            Integer minPoints, Integer maxPoints, String memberTier,
-            int page, int size) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("loyaltyPoints").descending());
-
-        // Chuyển đổi startDate và endDate từ String sang Instant
-        Instant startInstant = null;
-        Instant endInstant = null;
-        if (startDate != null && !startDate.isEmpty()) {
-            startInstant = LocalDate.parse(startDate, DateTimeFormatter.ISO_LOCAL_DATE)
-                    .atStartOfDay(ZoneId.systemDefault()).toInstant();
-        }
-        if (endDate != null && !endDate.isEmpty()) {
-            endInstant = LocalDate.parse(endDate, DateTimeFormatter.ISO_LOCAL_DATE)
-                    .atTime(23, 59, 59).atZone(ZoneId.systemDefault()).toInstant();
-        }
-
-        Page<UserEntity> pageData = userRepository.findByCodeAndNameofClient(
-                code, name, phoneNumber, email, startInstant, endInstant, isBirthday,
-                minPoints, maxPoints, memberTier, pageable);
+    public PaginationResponse<UserResponseDTO> findTopPurchasers(String code, String name, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("purchaseCount").descending());
+        Page<UserEntity> pageData = userRepository.findByRoleAndCodeAndName(Role.CLIENT, code, name, pageable);
         return new PaginationResponse<>(pageData.map(this::mapToResponseDTO));
     }
 
@@ -171,5 +160,38 @@ public class UserServiceImpl implements UserService {
         user.setEmail(dto.getEmail());
         user.setPassword(dto.getPassword());
         user.setAvatar(dto.getAvatar());
+    }
+
+
+
+
+    ///  nếu mua hàng thành công thì dunngf cá này
+    public void incrementPurchaseCount(Integer userId) {
+        UserEntity user = userRepository.findByIdAndDeletedFalse(userId)
+                .orElseThrow(() -> new EntityNotFoundException("Người dùng không tồn tại"));
+        user.setLoyaltyPoints(user.getLoyaltyPoints() + 1);
+        user.setUpdatedAt(Instant.now());
+        userRepository.save(user);
+    }
+
+    // tim kiem nguoi dung bang so dien thoai ten hoac email
+    @Override
+    public PaginationResponse<UserResponseDTO> findByPhoneNumberOrNameOrEmailAndRole(
+            String phoneNumber, String name, String email, Role role, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
+        Page<UserEntity> pageData = userRepository.findByPhoneNumberOrNameOrEmailAndRole(phoneNumber, name, email, role,
+                pageable);
+        return new PaginationResponse<>(pageData.map(this::mapToResponseDTO));
+    }
+
+    // cập nhật điểm cộng khách hàng thân thiết
+    @Override
+    public void updateLoyaltyPoints(Integer customerId, BigDecimal orderValue) {
+        UserEntity customer = userRepository.findById(customerId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng"));
+        int addPoints = orderValue.divide(new BigDecimal("10000"), RoundingMode.FLOOR).intValue();
+        int currentPoints = customer.getLoyaltyPoints() != null ? customer.getLoyaltyPoints() : 0;
+        customer.setLoyaltyPoints(currentPoints + addPoints);
+        userRepository.save(customer);
     }
 }

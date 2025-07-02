@@ -3,7 +3,7 @@ spring:
     name: PoLo
 
   datasource:
-    url: jdbc:sqlserver://localhost;databaseName=DATN3;trustServerCertificate=true;useUnicode=true;characterEncoding=UTF-8
+    url: jdbc:sqlserver://localhost;databaseName=DATN;trustServerCertificate=true;useUnicode=true;characterEncoding=UTF-8
     username: sa
     password: 123
 

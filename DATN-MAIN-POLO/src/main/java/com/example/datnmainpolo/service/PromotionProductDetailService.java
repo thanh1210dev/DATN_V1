@@ -10,7 +10,7 @@ import com.example.datnmainpolo.dto.PromotionProductDetailDTO.PromotionProductDe
 import com.example.datnmainpolo.entity.PromotionProductDetail;
 import com.example.datnmainpolo.enums.PromotionStatus;
 
-;import java.math.BigDecimal;
+import java.math.BigDecimal;
 import java.util.List;
 
 public interface PromotionProductDetailService {

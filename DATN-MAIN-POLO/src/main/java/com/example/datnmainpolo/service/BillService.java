@@ -1,6 +1,7 @@
 package com.example.datnmainpolo.service;
 
 import com.example.datnmainpolo.dto.BillDTO.BillResponseDTO;
+import com.example.datnmainpolo.dto.BillDTO.CustomerRequestDTO;
 import com.example.datnmainpolo.dto.BillDTO.PaymentResponseDTO;
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.enums.OrderStatus;
@@ -19,4 +20,6 @@ public interface BillService {
     BillResponseDTO confirmBankingPayment(Integer billId);
     String generateInvoice(Integer billId);
     BillResponseDTO getDetail(Integer billId);
+    BillResponseDTO addLoyalCustomerToBill(Integer billId, Integer customerId);
+    BillResponseDTO addVisitingGuests(Integer billId,CustomerRequestDTO requestDTO);
 }

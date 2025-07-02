@@ -27,7 +27,7 @@ public class OrderHistory {
     private OrderStatus statusOrder;
 
     @Lob
-    @Column(name = "action_description")
+    @Column(name = "action_description",columnDefinition = "nvarchar(MAX)")
     private String actionDescription;
 
     @Column(name = "created_at")
