@@ -61,6 +61,13 @@ spring:
 upload:
   dir: uploads/images
 
+ghn:
+  api:
+    token: 929e80d4-51a7-11f0-8820-9ad08323835f
+    shop-id: 5856743
+    base-url: https://online-gateway.ghn.vn/shiip/public-api
+
+
 logging:
   pattern:
     console: "${LOGPATTERN_CONSOLE:%green(%d{HH:mm:ss.SSS}) %yellow(%-5level) %red([%thread]) %blue(%logger{255}) - %msg%n}"

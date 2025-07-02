@@ -272,7 +272,7 @@ public class VoucherServiceImpl implements VoucherService {
     }
 
     private void updateEntityFromRequestDTO(Voucher voucher, VoucherRequestDTO dto) {
-        voucher.setCode(dto.getCode());
+
         voucher.setName(dto.getName());
         voucher.setType(dto.getType());
         voucher.setStartTime(dto.getStartTime());

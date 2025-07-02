@@ -1,0 +1,208 @@
+package com.example.datnmainpolo.service.Impl.BillDetailServiceImpl;
+
+
+import com.example.datnmainpolo.dto.BillDTO.BillResponseDTO;
+import com.example.datnmainpolo.dto.BillDetailDTO.BillDetailResponseDTO;
+import com.example.datnmainpolo.repository.BillDetailRepository;
+import com.itextpdf.text.*;
+import com.itextpdf.text.pdf.*;
+import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.io.ByteArrayOutputStream;
+import java.math.BigDecimal;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Base64;
+import java.util.List;
+
+@Service
+public class InvoicePDFService {
+
+    @Autowired
+    private BillDetailRepository billDetailRepository;
+
+    private static final BaseColor PRIMARY_COLOR = new BaseColor(33, 150, 243);
+    private static final BaseColor GRAY_COLOR = new BaseColor(200, 200, 200);
+
+    public String generateInvoicePDF(BillResponseDTO billDTO, List<BillDetailResponseDTO> billDetails) {
+        try {
+            Document document = new Document(PageSize.A4, 36, 36, 36, 36);
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            PdfWriter writer = PdfWriter.getInstance(document, baos);
+            document.open();
+
+            // Load font with fallback to Helvetica
+            BaseFont baseFont;
+            try {
+                // Assuming font file is placed in src/main/resources/fonts/arial.ttf
+                baseFont = BaseFont.createFont("/fonts/arial.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+            } catch (Exception e) {
+                // Fallback to Helvetica if Arial fails
+                baseFont = BaseFont.createFont(BaseFont.HELVETICA, BaseFont.CP1252, BaseFont.EMBEDDED);
+            }
+
+            Font titleFont = new Font(baseFont, 20, Font.BOLD, PRIMARY_COLOR);
+            Font headerFont = new Font(baseFont, 12, Font.BOLD);
+            Font normalFont = new Font(baseFont, 10);
+            Font boldFont = new Font(baseFont, 10, Font.BOLD);
+
+            // Header Table (Store Info)
+            PdfPTable headerTable = new PdfPTable(2);
+            headerTable.setWidthPercentage(100);
+            headerTable.setWidths(new float[]{1, 3});
+
+            PdfPCell logoCell = new PdfPCell(new Phrase("POLO STORE", titleFont));
+            logoCell.setBorder(Rectangle.NO_BORDER);
+            logoCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+            headerTable.addCell(logoCell);
+
+            PdfPCell infoCell = new PdfPCell();
+            infoCell.setBorder(Rectangle.NO_BORDER);
+            infoCell.addElement(new Phrase("CỬA HÀNG THỜI TRANG POLO", headerFont));
+            infoCell.addElement(new Phrase("Địa chỉ: 123 Đường Láng, Đống Đa, Hà Nội", normalFont));
+            infoCell.addElement(new Phrase("Hotline: 0123 456 789", normalFont));
+            infoCell.addElement(new Phrase("Email: contact@polostore.vn", normalFont));
+            headerTable.addCell(infoCell);
+
+            document.add(headerTable);
+            document.add(new Paragraph(" ", normalFont));
+
+            // Invoice Title
+            Paragraph title = new Paragraph("HÓA ĐƠN BÁN HÀNG", titleFont);
+            title.setAlignment(Element.ALIGN_CENTER);
+            document.add(title);
+            document.add(new Paragraph(" ", normalFont));
+
+            // Bill Info Table
+            PdfPTable billInfoTable = new PdfPTable(2);
+            billInfoTable.setWidthPercentage(100);
+            billInfoTable.setWidths(new float[]{1, 1});
+
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
+                    .withZone(ZoneId.systemDefault());
+            String createdAtStr = billDTO.getCreatedAt() != null ? formatter.format(billDTO.getCreatedAt()) : "N/A";
+
+            addInfoCell(billInfoTable, "Mã hóa đơn:", billDTO.getCode(), normalFont, boldFont);
+            addInfoCell(billInfoTable, "Ngày:", createdAtStr, normalFont, boldFont);
+            addInfoCell(billInfoTable, "Khách hàng:", billDTO.getCustomerName() != null ? billDTO.getCustomerName() : "Khách lẻ", normalFont, boldFont);
+            addInfoCell(billInfoTable, "SĐT:", billDTO.getPhoneNumber() != null ? billDTO.getPhoneNumber() : "N/A", normalFont, boldFont);
+            addInfoCell(billInfoTable, "Địa chỉ:", billDTO.getAddress() != null ? billDTO.getAddress() : "N/A", normalFont, boldFont);
+            addInfoCell(billInfoTable, "Nhân viên:", billDTO.getEmployeeName() != null ? billDTO.getEmployeeName() : "N/A", normalFont, boldFont);
+            addInfoCell(billInfoTable, "Phương thức:", billDTO.getType() != null ? billDTO.getType().name() : "N/A", normalFont, boldFont);
+
+            document.add(billInfoTable);
+            document.add(new Paragraph(" ", normalFont));
+
+            // Product Details Table
+            PdfPTable productTable = new PdfPTable(6);
+            productTable.setWidthPercentage(100);
+            productTable.setWidths(new float[]{0.5f, 3, 1.5f, 1, 1.5f, 1.5f});
+            productTable.setHeaderRows(1);
+
+            // Table Header
+            String[] headers = {"#", "Sản phẩm", "Mã SP", "SL", "Đơn giá", "Thành tiền"};
+            for (String header : headers) {
+                PdfPCell headerCell = new PdfPCell(new Phrase(header, headerFont));
+                headerCell.setBackgroundColor(PRIMARY_COLOR);
+                headerCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+                headerCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+                headerCell.setPadding(8);
+                productTable.addCell(headerCell);
+            }
+
+            // Table Data
+            int index = 1;
+            for (BillDetailResponseDTO detail : billDetails) {
+                String productName = detail.getProductName() != null ? detail.getProductName() : "N/A";
+                if (productName.length() > 30) {
+                    productName = productName.substring(0, 27) + "...";
+                }
+                productName += detail.getProductSize() != null ? " (" + detail.getProductSize() + ")" : "";
+                productName += detail.getProductColor() != null ? " - " + detail.getProductColor() : "";
+
+                String productCode = detail.getProductDetailCode() != null ? detail.getProductDetailCode() : "N/A";
+                String quantity = detail.getQuantity() != null ? detail.getQuantity().toString() : "0";
+
+                BigDecimal price = detail.getPromotionalPrice() != null ? detail.getPromotionalPrice() :
+                        (detail.getPrice() != null ? detail.getPrice() : BigDecimal.ZERO);
+                BigDecimal totalPrice = detail.getTotalPrice() != null ? detail.getTotalPrice() : BigDecimal.ZERO;
+
+                addProductCell(productTable, String.valueOf(index++), normalFont, Element.ALIGN_CENTER);
+                addProductCell(productTable, productName, normalFont);
+                addProductCell(productTable, productCode, normalFont);
+                addProductCell(productTable, quantity, normalFont, Element.ALIGN_CENTER);
+                addProductCell(productTable, String.format("%,.0f", price), normalFont, Element.ALIGN_RIGHT);
+                addProductCell(productTable, String.format("%,.0f", totalPrice), normalFont, Element.ALIGN_RIGHT);
+            }
+
+            document.add(productTable);
+            document.add(new Paragraph(" ", normalFont));
+
+            // Total Table
+            PdfPTable totalTable = new PdfPTable(2);
+            totalTable.setWidthPercentage(50);
+            totalTable.setHorizontalAlignment(Element.ALIGN_RIGHT);
+
+            addTotalRow(totalTable, "Tổng tiền hàng:", billDTO.getTotalMoney(), normalFont, boldFont);
+            if (billDTO.getVoucherCode() != null) {
+                addTotalRow(totalTable, "Voucher (" + billDTO.getVoucherCode() + "):",
+                        billDTO.getReductionAmount().negate(), normalFont, boldFont);
+            }
+            addTotalRow(totalTable, "Phí vận chuyển:", billDTO.getMoneyShip(), normalFont, boldFont);
+            addTotalRow(totalTable, "TỔNG CỘNG:", billDTO.getFinalAmount(), headerFont, headerFont);
+
+            document.add(totalTable);
+
+            // Footer
+            document.add(new Paragraph(" ", normalFont));
+            Paragraph footer = new Paragraph("CẢM ƠN QUÝ KHÁCH - HẸN GẶP LẠI!", normalFont);
+            footer.setAlignment(Element.ALIGN_CENTER);
+            document.add(footer);
+
+            document.close();
+            return Base64.getEncoder().encodeToString(baos.toByteArray());
+
+        } catch (DocumentException | java.io.IOException e) {
+            throw new RuntimeException("Không thể tạo PDF hóa đơn: " + e.getMessage(), e);
+        }
+    }
+
+    private void addInfoCell(PdfPTable table, String label, String value, Font labelFont, Font valueFont) {
+        PdfPCell labelCell = new PdfPCell(new Phrase(label, labelFont));
+        labelCell.setBorder(Rectangle.NO_BORDER);
+        labelCell.setPadding(2);
+        table.addCell(labelCell);
+
+        PdfPCell valueCell = new PdfPCell(new Phrase(value, valueFont));
+        valueCell.setBorder(Rectangle.NO_BORDER);
+        valueCell.setPadding(2);
+        table.addCell(valueCell);
+    }
+
+    private void addProductCell(PdfPTable table, String value, Font font, int alignment) {
+        PdfPCell cell = new PdfPCell(new Phrase(value, font));
+        cell.setPadding(5);
+        cell.setHorizontalAlignment(alignment);
+        cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        table.addCell(cell);
+    }
+
+    private void addProductCell(PdfPTable table, String value, Font font) {
+        addProductCell(table, value, font, Element.ALIGN_LEFT);
+    }
+
+    private void addTotalRow(PdfPTable table, String label, BigDecimal amount, Font labelFont, Font amountFont) {
+        PdfPCell labelCell = new PdfPCell(new Phrase(label, labelFont));
+        labelCell.setBorder(Rectangle.NO_BORDER);
+        labelCell.setPadding(4);
+        table.addCell(labelCell);
+
+        String amountStr = amount != null ? String.format("%,.0f đ", amount) : "0 đ";
+        PdfPCell amountCell = new PdfPCell(new Phrase(amountStr, amountFont));
+        amountCell.setBorder(Rectangle.NO_BORDER);
+        amountCell.setPadding(4);
+        amountCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        table.addCell(amountCell);
+    }
+}

@@ -31,7 +31,7 @@ public class Bill {
 
 
     @Size(max = 100)
-    @Column(name = "customer_name", length = 100,columnDefinition = "nvarchar(100)")
+    @Column(name = "customer_name", columnDefinition = "NVARCHAR(255)")
     private String customerName;
 
     @Size(max = 20)
@@ -39,7 +39,7 @@ public class Bill {
     private String phoneNumber;
 
     @Size(max = 100)
-    @Column(name = "address", columnDefinition = "nvarchar(100)")
+    @Column(name = "address", columnDefinition = "NVARCHAR(255)")
     private String address;
 
 
@@ -66,28 +66,28 @@ public class Bill {
     @Enumerated(EnumType.STRING)
     private BillType billType; //ONLINE, OFLINE
 
-    @Column(name = "money_ship", precision = 10, scale = 2)      // tien ship
-    private BigDecimal moneyShip;
 
-    @Column(name = "total_money", precision = 10, scale = 2)    // tong tien
-    private BigDecimal totalMoney;
 
-    @Column(name = "reduction_amount", precision = 10, scale = 2)   // so tien giam gia
-    private BigDecimal reductionAmount;
 
-    @Column(name = "amount", precision = 10, scale = 2)
-    private BigDecimal amount;
 
-    @Column(name = "final_amount", precision = 10, scale = 2)
-    private BigDecimal finalAmount;
 
-    @Column(name = "change_amount", precision = 10,scale = 2)
-    private BigDecimal changeAmount;
+
+    @Column(name = "total_money", nullable = false)
+    private BigDecimal totalMoney = BigDecimal.ZERO;
+
+    @Column(name = "reduction_amount", nullable = false)
+    private BigDecimal reductionAmount = BigDecimal.ZERO;
+
+    @Column(name = "money_ship", nullable = false)
+    private BigDecimal moneyShip = BigDecimal.ZERO;
+
+    @Column(name = "final_amount", nullable = false)
+    private BigDecimal finalAmount = BigDecimal.ZERO;
+    // ... getters and setters ...
 
     @Size(max = 100)
     @Column(name = "voucher_code", length = 100)
     private String voucherCode;
-
     @Size(max = 100)
     @Column(name = "voucher_name", length = 100)
     private String voucherName;

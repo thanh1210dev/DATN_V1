@@ -1,9 +1,12 @@
 package com.example.datnmainpolo.service;
 
 
+import java.math.BigDecimal;
+
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.dto.UserDTO.UserRequestDTO;
 import com.example.datnmainpolo.dto.UserDTO.UserResponseDTO;
+import com.example.datnmainpolo.enums.Role;
 
 public interface UserService {
     UserResponseDTO createUser(UserRequestDTO requestDTO);
@@ -15,4 +18,6 @@ public interface UserService {
     PaginationResponse<UserResponseDTO> findByCodeAndName(String code, String name, int page, int size);
     PaginationResponse<UserResponseDTO> findByCodeAndNameofClient(String code, String name, int page, int size);
     PaginationResponse<UserResponseDTO> findTopPurchasers(String code, String name, int page, int size);
+    PaginationResponse<UserResponseDTO> findByPhoneNumberOrNameOrEmailAndRole(String phoneNumber,String name , String email,Role role, int page, int size);
+    void updateLoyaltyPoints(Integer customerId, BigDecimal orderValue);
 }

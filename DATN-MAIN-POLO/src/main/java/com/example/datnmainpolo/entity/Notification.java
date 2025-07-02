@@ -30,11 +30,11 @@ public class Notification {
     private UserEntity userEntity;
 
     @Size(max = 50)
-    @Column(name = "content", columnDefinition = "nvarchar(50)")
+    @Column(name = "content", columnDefinition = "NVARCHAR(255)")
     private String content;
 
     @Size(max = 50)
-    @Column(name = "status", columnDefinition = "nvarchar(50)")
+    @Column(name = "status", length = 50)
     private String status;
 
     @Size(max = 50)

@@ -42,11 +42,11 @@ public class Product {
     private String code;
 
     @Size(max = 100)
-    @Column(name = "name", columnDefinition = "nvarchar(100)")
+    @Column(name = "name",  columnDefinition = "NVARCHAR(255)")
     private String name;
 
     @Size(max = 100)
-    @Column(name = "description", columnDefinition = "nvarchar(100)")
+    @Column(name = "description", length = 100)
     private String description;
 
     @Column(name = "created_at")

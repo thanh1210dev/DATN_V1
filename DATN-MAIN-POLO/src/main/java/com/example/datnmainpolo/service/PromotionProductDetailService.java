@@ -21,4 +21,10 @@ public interface PromotionProductDetailService {
     void softDeletePromotionProductDetail(Integer id);
 
     PaginationResponse<PromotionProductDetailResponseDTO> getAllByStatusAndDeletedFalse(PromotionStatus status, int page, int size);
+
+
+
+
+
+
 }

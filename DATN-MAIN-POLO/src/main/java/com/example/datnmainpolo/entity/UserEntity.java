@@ -53,8 +53,12 @@ public class UserEntity {
     @Column(name = "avatar", columnDefinition = "NVARCHAR(255)")
     private String avatar;
 
-    @Column(name = "purchase_count")
-    private Integer purchaseCount;
+    @Column(name = "loyalty_points")
+    private Integer loyaltyPoints;
+
+//    1 điểm = 10.000 VNĐ
+//
+//    Nếu khách mua hàng trị giá 350.000đ → nhận được 35 điểm.
 
     @Column(name = "created_at")
     private Instant createdAt;

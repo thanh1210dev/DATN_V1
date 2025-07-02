@@ -18,6 +18,9 @@ import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.Set;
@@ -61,7 +64,7 @@ public class UserServiceImpl implements UserService {
         user.setCreatedAt(Instant.now());
         user.setUpdatedAt(Instant.now());
         user.setDeleted(false);
-        user.setPurchaseCount(0);
+        user.setLoyaltyPoints(0);
 
         user = userRepository.save(user);
         return mapToResponseDTO(user);
@@ -127,7 +130,7 @@ public class UserServiceImpl implements UserService {
         user.setEmail(dto.getEmail());
         user.setPassword(dto.getPassword());
         user.setAvatar(dto.getAvatar());
-        user.setPurchaseCount(0);
+        user.setLoyaltyPoints(0);
         return user;
     }
 
@@ -141,7 +144,7 @@ public class UserServiceImpl implements UserService {
         dto.setPhoneNumber(user.getPhoneNumber());
         dto.setEmail(user.getEmail());
         dto.setAvatar(user.getAvatar());
-        dto.setPurchaseCount(user.getPurchaseCount());
+        dto.setLoyaltyPoints(user.getLoyaltyPoints());
         dto.setCreatedAt(user.getCreatedAt());
         dto.setUpdatedAt(user.getUpdatedAt());
         dto.setDeleted(user.getDeleted());
@@ -159,15 +162,33 @@ public class UserServiceImpl implements UserService {
         user.setAvatar(dto.getAvatar());
     }
 
-
-
-
-    ///  nếu mua hàng thành công thì dunngf cá này
+    /// nếu mua hàng thành công thì dunngf cá này
     public void incrementPurchaseCount(Integer userId) {
         UserEntity user = userRepository.findByIdAndDeletedFalse(userId)
                 .orElseThrow(() -> new EntityNotFoundException("Người dùng không tồn tại"));
-        user.setPurchaseCount(user.getPurchaseCount() + 1);
+        user.setLoyaltyPoints(user.getLoyaltyPoints() + 1);
         user.setUpdatedAt(Instant.now());
         userRepository.save(user);
+    }
+
+    // tim kiem nguoi dung bang so dien thoai ten hoac email
+    @Override
+    public PaginationResponse<UserResponseDTO> findByPhoneNumberOrNameOrEmailAndRole(
+            String phoneNumber, String name, String email, Role role, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
+        Page<UserEntity> pageData = userRepository.findByPhoneNumberOrNameOrEmailAndRole(phoneNumber, name, email, role,
+                pageable);
+        return new PaginationResponse<>(pageData.map(this::mapToResponseDTO));
+    }
+
+    // cập nhật điểm cộng khách hàng thân thiết
+    @Override
+    public void updateLoyaltyPoints(Integer customerId, BigDecimal orderValue) {
+        UserEntity customer = userRepository.findById(customerId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng"));
+        int addPoints = orderValue.divide(new BigDecimal("10000"), RoundingMode.FLOOR).intValue();
+        int currentPoints = customer.getLoyaltyPoints() != null ? customer.getLoyaltyPoints() : 0;
+        customer.setLoyaltyPoints(currentPoints + addPoints);
+        userRepository.save(customer);
     }
 }

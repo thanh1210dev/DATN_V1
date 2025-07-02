@@ -9,24 +9,22 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Optional;
 
 @Repository
 public interface BillRepository extends JpaRepository<Bill, Integer> {
-    // Lấy danh sách bill chưa bị xóa (phân trang)
     Page<Bill> findAllByDeletedFalse(Pageable pageable);
-
-    // Tìm bill theo mã đơn hàng
     Optional<Bill> findByCode(String code);
-
-    // Tìm tất cả theo trạng thái
     Page<Bill> findAllByStatusAndDeletedFalse(OrderStatus status, Pageable pageable);
-
-    // Optional: tìm theo customer
     Page<Bill> findAllByCustomerIdAndDeletedFalse(Integer customerId, Pageable pageable);
 
+    @Query("SELECT COUNT(b) FROM Bill b WHERE b.status = :status AND b.deleted = false")
+    long countByStatusAndDeletedFalse(@Param("status") OrderStatus status);
+
     @Query("SELECT b FROM Bill b WHERE " +
-            "(:code IS NULL OR b.code LIKE  CONCAT('%', :code, '%')) AND " +
+            "(:code IS NULL OR b.code LIKE CONCAT('%', :code, '%')) AND " +
             "(:status IS NULL OR b.status = :status) AND " +
             "b.deleted = false")
     Page<Bill> findByCodeOrStatus(
@@ -34,4 +32,20 @@ public interface BillRepository extends JpaRepository<Bill, Integer> {
             @Param("status") OrderStatus status,
             Pageable pageable);
 
+    @Query("SELECT b FROM Bill b WHERE " +
+            "(:code IS NULL OR b.code LIKE  CONCAT('%', :code, '%')) " +
+            "AND (:status IS NULL OR b.status = :status) " +
+            "AND (:startDate IS NULL OR b.createdAt >= :startDate) " +
+            "AND (:endDate IS NULL OR b.createdAt <= :endDate) " +
+            "AND (:minPrice IS NULL OR b.finalAmount >= :minPrice) " +
+            "AND (:maxPrice IS NULL OR b.finalAmount <= :maxPrice) " +
+            "AND b.deleted = false")
+    Page<Bill> findByAdvancedCriteria(
+            @Param("code") String code,
+            @Param("status") OrderStatus status,
+            @Param("startDate") Instant startDate,
+            @Param("endDate") Instant endDate,
+            @Param("minPrice") BigDecimal minPrice,
+            @Param("maxPrice") BigDecimal maxPrice,
+            Pageable pageable);
 }

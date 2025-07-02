@@ -25,7 +25,7 @@ public interface ChiTietSanPhamRepository extends JpaRepository<ProductDetail, I
         JOIN product_detail pd ON p.id = pd.product_id
         JOIN color c ON pd.color_id = c.id
         JOIN size s ON pd.size_id = s.id
-        JOIN bill_detail bd ON pd.id = bd.product_details_id
+        JOIN bill_detail bd ON pd.id = bd.detail_product_id
         JOIN bill b ON bd.bill_id = b.id
         WHERE b.status = 'COMPLETED'
           AND b.completion_date BETWEEN :ngayBatDau AND :ngayKetThuc

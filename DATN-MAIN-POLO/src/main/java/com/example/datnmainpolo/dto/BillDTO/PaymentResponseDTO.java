@@ -7,15 +7,18 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 
+import java.math.BigDecimal;
+
 @Getter
 @Setter
 @Builder
 public class PaymentResponseDTO {
-    private BillResponseDTO bill;  // Thông tin bill
-    private PaymentType paymentType;  // Loại thanh toán
-    private String qrCode;  // Mã QR (nếu là banking)
-    private String bankAccount;  // Số tài khoản (nếu là banking)
-    private String bankName;  // Tên ngân hàng (nếu là banking)
-    private String accountName;  // Tên chủ tài khoản (nếu là banking)
+    private BillResponseDTO bill;
+    private PaymentType paymentType;
     private BigDecimal amount;
+    private String qrCode;
+    private String bankAccount;
+    private String bankName;
+    private String accountName;
+    private String invoicePDF; // Base64-encoded PDF invoice
 }

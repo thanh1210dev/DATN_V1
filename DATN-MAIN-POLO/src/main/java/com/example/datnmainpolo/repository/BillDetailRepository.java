@@ -1,6 +1,5 @@
 package com.example.datnmainpolo.repository;
 
-import com.example.datnmainpolo.dto.BillDTO.BillResponseDTO;
 import com.example.datnmainpolo.entity.BillDetail;
 import com.example.datnmainpolo.enums.BillDetailStatus;
 import org.springframework.data.domain.Page;
@@ -13,11 +12,9 @@ import java.util.Optional;
 
 @Repository
 public interface BillDetailRepository extends JpaRepository<BillDetail, Integer> {
-    Page<BillDetail> findAllByStatusAndDeletedFalse(BillDetailStatus status, Pageable pageable);
-
-    Optional<BillDetail> findByBillIdAndDetailProductId(Integer billId, Integer productDetailId);
-
     Page<BillDetail> findByBillIdAndDeletedFalse(Integer billId, Pageable pageable);
+    Optional<BillDetail> findByBillIdAndDetailProduct_Id(Integer billId, Integer productDetailId);
+    List<BillDetail> findAllByBillIdAndDeletedFalse(Integer billId); // New method
 
     List<BillDetail> findByBillId(Integer billId);
 }

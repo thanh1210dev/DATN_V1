@@ -7,6 +7,7 @@ import com.example.datnmainpolo.dto.LoginDTO.RegisterRequest;
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.dto.UserDTO.UserRequestDTO;
 import com.example.datnmainpolo.dto.UserDTO.UserResponseDTO;
+import com.example.datnmainpolo.enums.Role;
 import com.example.datnmainpolo.service.Impl.AuthService;
 import com.example.datnmainpolo.service.UserService;
 import jakarta.validation.Valid;
@@ -27,14 +28,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/user")
-//@CrossOrigin("*")
+// @CrossOrigin("*")
 @RequiredArgsConstructor
 public class UserController {
     private final AuthService authService;
     @Autowired
     private UserService userService;
-
-
 
     @GetMapping("/search")
     public PaginationResponse<UserResponseDTO> findByCodeAndName(
@@ -70,7 +69,8 @@ public class UserController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<UserResponseDTO> updateUser(@PathVariable Integer id, @Valid @RequestBody UserRequestDTO requestDTO) {
+    public ResponseEntity<UserResponseDTO> updateUser(@PathVariable Integer id,
+            @Valid @RequestBody UserRequestDTO requestDTO) {
         UserResponseDTO updated = userService.updateUser(id, requestDTO);
         return ResponseEntity.ok(updated);
     }
@@ -80,8 +80,6 @@ public class UserController {
         UserResponseDTO user = userService.getUserById(id);
         return ResponseEntity.ok(user);
     }
-
-
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> softDeleteUser(@PathVariable Integer id) {
@@ -103,6 +101,15 @@ public class UserController {
         }
     }
 
-
+    @GetMapping("/search/customers")
+    public PaginationResponse<UserResponseDTO> getAllCustomers(
+            @RequestParam(required = false) String phoneNumber,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String email,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return userService.findByPhoneNumberOrNameOrEmailAndRole(
+                phoneNumber, name, email, Role.CLIENT, page, size);
+    }
 
 }

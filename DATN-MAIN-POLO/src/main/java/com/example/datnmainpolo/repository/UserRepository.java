@@ -54,4 +54,23 @@ public interface UserRepository extends JpaRepository<UserEntity, Integer> {
     Optional<UserEntity> findByEmailAndDeletedFalse(String email);
 
     Optional<UserEntity> findByCodeAndDeletedFalse(String code);
+
+
+
+
+
+
+    @Query("SELECT u FROM UserEntity u WHERE u.role = :role AND u.deleted = false " +
+            "AND (:phoneNumber IS NULL OR u.phoneNumber LIKE %:phoneNumber%) " +
+            "AND (:name IS NULL OR u.name LIKE %:name%) " +
+            "AND (:email IS NULL OR u.email LIKE %:email%)")
+    Page<UserEntity> findByPhoneNumberOrNameOrEmailAndRole(
+            @Param("phoneNumber") String phoneNumber,
+            @Param("name") String name,
+            @Param("email") String email,
+            @Param("role") Role role,
+            Pageable pageable
+    );
+
+    
 }
