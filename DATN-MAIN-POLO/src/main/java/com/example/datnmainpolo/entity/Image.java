@@ -28,7 +28,7 @@ public class Image {
     private String url;
 
     @Size(max = 50)
-    @Column(name = "status", length = 50)
+    @Column(name = "status", columnDefinition = "nvarchar(50)")
     private String status;
 
     @Column(name = "cover")

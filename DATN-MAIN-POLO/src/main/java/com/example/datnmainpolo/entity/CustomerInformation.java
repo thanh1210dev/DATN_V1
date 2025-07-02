@@ -23,7 +23,7 @@ public class CustomerInformation {
     private Integer id;
 
     @Size(max = 100)
-    @Column(name = "name", length = 100)
+    @Column(name = "name", columnDefinition = "nvarchar(100)")
     private String name;
 
     @Size(max = 20)
@@ -31,7 +31,7 @@ public class CustomerInformation {
     private String phoneNumber;
 
     @Size(max = 100)
-    @Column(name = "address", length = 100)
+    @Column(name = "address", columnDefinition = "nvarchar(100)")
     private String address;
 
     @Column(name = "created_at")

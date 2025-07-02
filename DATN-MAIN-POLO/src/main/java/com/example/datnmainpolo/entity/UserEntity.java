@@ -38,6 +38,9 @@ public class UserEntity {
     @Column(name = "birth_date")
     private LocalDate birthDate;
 
+    @Column(name = "address", columnDefinition = "NVARCHAR(255)")
+    private String address;
+
     @Column(name = "phone_number", columnDefinition = "NVARCHAR(255)")
     private String phoneNumber;
 

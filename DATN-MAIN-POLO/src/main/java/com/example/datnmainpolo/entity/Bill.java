@@ -31,7 +31,7 @@ public class Bill {
 
 
     @Size(max = 100)
-    @Column(name = "customer_name", length = 100)
+    @Column(name = "customer_name", length = 100,columnDefinition = "nvarchar(100)")
     private String customerName;
 
     @Size(max = 20)
@@ -39,7 +39,7 @@ public class Bill {
     private String phoneNumber;
 
     @Size(max = 100)
-    @Column(name = "address", length = 100)
+    @Column(name = "address", columnDefinition = "nvarchar(100)")
     private String address;
 
 
@@ -75,8 +75,14 @@ public class Bill {
     @Column(name = "reduction_amount", precision = 10, scale = 2)   // so tien giam gia
     private BigDecimal reductionAmount;
 
+    @Column(name = "amount", precision = 10, scale = 2)
+    private BigDecimal amount;
+
     @Column(name = "final_amount", precision = 10, scale = 2)
     private BigDecimal finalAmount;
+
+    @Column(name = "change_amount", precision = 10,scale = 2)
+    private BigDecimal changeAmount;
 
     @Size(max = 100)
     @Column(name = "voucher_code", length = 100)

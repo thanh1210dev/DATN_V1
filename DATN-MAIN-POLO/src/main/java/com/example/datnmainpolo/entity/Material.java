@@ -27,7 +27,7 @@ public class Material {
     private String code;
 
     @Size(max = 100)
-    @Column(name = "name", length = 100)
+    @Column(name = "name", columnDefinition = "nvarchar(100)")
     private String name;
 
     @Column(name = "created_at")
