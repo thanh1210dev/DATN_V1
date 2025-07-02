@@ -3,7 +3,6 @@ package com.example.datnmainpolo.controller;
 import com.example.datnmainpolo.dto.LoginDTO.LoginRequest;
 import com.example.datnmainpolo.dto.LoginDTO.LoginResponse;
 import com.example.datnmainpolo.dto.LoginDTO.RegisterRequest;
-
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.dto.UserDTO.UserRequestDTO;
 import com.example.datnmainpolo.dto.UserDTO.UserResponseDTO;
@@ -13,28 +12,15 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/user")
-//@CrossOrigin("*")
 @RequiredArgsConstructor
 public class UserController {
     private final AuthService authService;
     @Autowired
     private UserService userService;
-
-
 
     @GetMapping("/search")
     public PaginationResponse<UserResponseDTO> findByCodeAndName(
@@ -49,18 +35,17 @@ public class UserController {
     public PaginationResponse<UserResponseDTO> findByCodeAndNameClient(
             @RequestParam(required = false) String code,
             @RequestParam(required = false) String name,
+            @RequestParam(required = false) String phoneNumber,
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) Boolean isBirthday,
+            @RequestParam(required = false) Integer minPoints,
+            @RequestParam(required = false) Integer maxPoints,
+            @RequestParam(required = false) String memberTier,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        return userService.findByCodeAndNameofClient(code, name, page, size);
-    }
-
-    @GetMapping("/top-purchasers")
-    public PaginationResponse<UserResponseDTO> findTopPurchasers(
-            @RequestParam(required = false) String code,
-            @RequestParam(required = false) String name,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "5") int size) {
-        return userService.findTopPurchasers(code, name, page, size);
+        return userService.findByCodeAndNameofClient(code, name, phoneNumber, email, startDate, endDate, isBirthday, minPoints, maxPoints, memberTier, page, size);
     }
 
     @PostMapping
@@ -81,8 +66,6 @@ public class UserController {
         return ResponseEntity.ok(user);
     }
 
-
-
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> softDeleteUser(@PathVariable Integer id) {
         userService.softDeleteUser(id);
@@ -102,7 +85,4 @@ public class UserController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
-
-
-
 }

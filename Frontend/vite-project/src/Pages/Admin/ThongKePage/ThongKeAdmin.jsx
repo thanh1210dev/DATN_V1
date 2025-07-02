@@ -34,16 +34,27 @@ const ThongKeAdmin = () => {
   const [khuyenMai, setKhuyenMai] = useState([]);
   const [donHangTheoTrangThai, setDonHangTheoTrangThai] = useState([]);
   const [donHangTheoThoiGian, setDonHangTheoThoiGian] = useState([]);
+  const [nhanVienBanHang, setNhanVienBanHang] = useState([]);
   const [donViThoiGian, setDonViThoiGian] = useState('NGAY');
+  const [billType, setBillType] = useState(null); // Add billType state
   const [ngayBatDau, setNgayBatDau] = useState(moment().subtract(7, 'days'));
   const [ngayKetThuc, setNgayKetThuc] = useState(moment());
   const [kySoSanh, setKySoSanh] = useState('THANG');
   const [topSanPham, setTopSanPham] = useState(5);
   const [nguongTonKho, setNguongTonKho] = useState(10);
   const [soNgayTonKhoLau, setSoNgayTonKhoLau] = useState(30);
-  const [topKhachHang, setTopKhachHang] = useState(5);
+  const [khachHangFilter, setKhachHangFilter] = useState({
+    code: '',
+    name: '',
+    phoneNumber: '',
+    email: '',
+    isBirthday: null,
+    minPoints: null,
+    maxPoints: null,
+    memberTier: '',
+  });
 
-  // Lấy dữ liệu doanh thu
+  // Fetch revenue data
   useEffect(() => {
     const fetchDoanhThu = async () => {
       try {
@@ -51,6 +62,7 @@ const ThongKeAdmin = () => {
           donViThoiGian,
           ngayBatDau: ngayBatDau.toISOString(),
           ngayKetThuc: ngayKetThuc.endOf('day').toISOString(),
+          billType, // Include billType in request
         };
         const data = await ThongKeService.layDoanhThuTheoThoiGian(yeuCau);
         setDoanhThuData(data);
@@ -82,9 +94,9 @@ const ThongKeAdmin = () => {
       fetchDoanhThuHomNay();
       fetchSoSanhDoanhThu();
     }
-  }, [activeTab, donViThoiGian, ngayBatDau, ngayKetThuc, kySoSanh]);
+  }, [activeTab, donViThoiGian, ngayBatDau, ngayKetThuc, kySoSanh, billType]);
 
-  // Lấy dữ liệu sản phẩm
+  // Fetch product data
   useEffect(() => {
     const fetchSanPhamBanChay = async () => {
       try {
@@ -124,16 +136,26 @@ const ThongKeAdmin = () => {
     }
   }, [activeTab, topSanPham, ngayBatDau, ngayKetThuc, nguongTonKho, soNgayTonKhoLau]);
 
-  // Lấy dữ liệu khách hàng và khuyến mãi
+  // Fetch customer, payment, promotion, and employee data
   useEffect(() => {
     const fetchKhachHangThanThiet = async () => {
       try {
-        const data = await ThongKeService.layKhachHangThanThiet(
-          topKhachHang,
-          ngayBatDau.toISOString(),
-          ngayKetThuc.endOf('day').toISOString()
-        );
-        setKhachHangThanThiet(data);
+        const params = {
+          code: khachHangFilter.code || null,
+          name: khachHangFilter.name || null,
+          phoneNumber: khachHangFilter.phoneNumber || null,
+          email: khachHangFilter.email || null,
+          startDate: ngayBatDau ? ngayBatDau.toISOString() : null,
+          endDate: ngayKetThuc ? ngayKetThuc.endOf('day').toISOString() : null,
+          isBirthday: khachHangFilter.isBirthday,
+          minPoints: khachHangFilter.minPoints,
+          maxPoints: khachHangFilter.maxPoints,
+          memberTier: khachHangFilter.memberTier || null,
+          page: 0,
+          size: 10,
+        };
+        const data = await ThongKeService.layKhachHangThanThiet(params);
+        setKhachHangThanThiet(data.content || data); // Handle paginated response
       } catch (error) {
         console.error('Lỗi lấy khách hàng thân thiết:', error);
       }
@@ -181,6 +203,18 @@ const ThongKeAdmin = () => {
       }
     };
 
+    const fetchNhanVienBanHang = async () => {
+      try {
+        const data = await ThongKeService.layNhanVienBanHang(
+          ngayBatDau.toISOString(),
+          ngayKetThuc.endOf('day').toISOString()
+        );
+        setNhanVienBanHang(data);
+      } catch (error) {
+        console.error('Lỗi lấy nhân viên bán hàng:', error);
+      }
+    };
+
     if (activeTab === 'khach-hang') {
       fetchKhachHangThanThiet();
     }
@@ -190,9 +224,12 @@ const ThongKeAdmin = () => {
       fetchDonHangTheoTrangThai();
       fetchDonHangTheoThoiGian();
     }
-  }, [activeTab, topKhachHang, ngayBatDau, ngayKetThuc]);
+    if (activeTab === 'nhan-vien') {
+      fetchNhanVienBanHang();
+    }
+  }, [activeTab, ngayBatDau, ngayKetThuc, khachHangFilter]);
 
-  // Dữ liệu cho biểu đồ doanh thu
+  // Chart data for revenue
   const chartDataDoanhThu = {
     labels: doanhThuData.map((item) => moment(item.ngay).format('DD/MM/YYYY')),
     datasets: [
@@ -218,7 +255,7 @@ const ThongKeAdmin = () => {
     },
   };
 
-  // Dữ liệu cho biểu đồ đơn hàng theo trạng thái
+  // Chart data for orders by status
   const chartDataDonHangTrangThai = {
     labels: donHangTheoTrangThai.map((item) => item.trangThai),
     datasets: [
@@ -252,7 +289,7 @@ const ThongKeAdmin = () => {
     },
   };
 
-  // Dữ liệu cho biểu đồ đơn hàng theo thời gian
+  // Chart data for orders by time
   const chartDataDonHangThoiGian = {
     labels: donHangTheoThoiGian.map((item) => moment(item.ngay).format('DD/MM/YYYY')),
     datasets: [
@@ -278,7 +315,7 @@ const ThongKeAdmin = () => {
     },
   };
 
-  // Cột cho bảng so sánh doanh thu
+  // Columns for revenue comparison table
   const soSanhColumns = [
     { title: 'Kỳ', dataIndex: 'ky', key: 'ky' },
     { title: 'Doanh thu (VND)', dataIndex: 'doanhThu', key: 'doanhThu', render: (value) => value.toLocaleString() },
@@ -290,7 +327,7 @@ const ThongKeAdmin = () => {
     },
   ];
 
-  // Cột cho bảng sản phẩm bán chạy
+  // Columns for best-selling products table
   const banChayColumns = [
     { title: 'Mã sản phẩm', dataIndex: 'maSanPham', key: 'maSanPham' },
     { title: 'Tên sản phẩm', dataIndex: 'tenSanPham', key: 'tenSanPham' },
@@ -300,7 +337,7 @@ const ThongKeAdmin = () => {
     { title: 'Doanh thu (VND)', dataIndex: 'doanhThu', key: 'doanhThu', render: (value) => value.toLocaleString() },
   ];
 
-  // Cột cho bảng tồn kho thấp
+  // Columns for low inventory products table
   const tonKhoThapColumns = [
     { title: 'Mã sản phẩm', dataIndex: 'maSanPham', key: 'maSanPham' },
     { title: 'Tên sản phẩm', dataIndex: 'tenSanPham', key: 'tenSanPham' },
@@ -308,7 +345,7 @@ const ThongKeAdmin = () => {
     { title: 'Ngưỡng tối thiểu', dataIndex: 'nguongToiThieu', key: 'nguongToiThieu' },
   ];
 
-  // Cột cho bảng tồn kho lâu
+  // Columns for long inventory products table
   const tonKhoLauColumns = [
     { title: 'Mã sản phẩm', dataIndex: 'maSanPham', key: 'maSanPham' },
     { title: 'Tên sản phẩm', dataIndex: 'tenSanPham', key: 'tenSanPham' },
@@ -321,22 +358,25 @@ const ThongKeAdmin = () => {
     },
   ];
 
-  // Cột cho bảng khách hàng thân thiết
+  // Columns for loyal customers table
   const khachHangColumns = [
     { title: 'Mã khách hàng', dataIndex: 'maKhachHang', key: 'maKhachHang' },
     { title: 'Tên khách hàng', dataIndex: 'tenKhachHang', key: 'tenKhachHang' },
     { title: 'Số lượng đơn hàng', dataIndex: 'soLuongDonHang', key: 'soLuongDonHang' },
     { title: 'Tổng chi tiêu (VND)', dataIndex: 'tongChiTieu', key: 'tongChiTieu', render: (value) => value.toLocaleString() },
+    { title: 'Điểm tích lũy', dataIndex: 'loyaltyPoints', key: 'loyaltyPoints' },
+    { title: 'Hạng thành viên', dataIndex: 'memberTier', key: 'memberTier' },
   ];
 
-  // Cột cho bảng phương thức thanh toán
+  // Columns for payment methods table
   const phuongThucThanhToanColumns = [
     { title: 'Phương thức', dataIndex: 'phuongThuc', key: 'phuongThuc' },
     { title: 'Số lượng đơn hàng', dataIndex: 'soLuongDonHang', key: 'soLuongDonHang' },
+    { title: 'Tỷ lệ (%)', dataIndex: 'tyLe', key: 'tyLe', render: (value) => value.toFixed(2) },
     { title: 'Tổng doanh thu (VND)', dataIndex: 'tongDoanhThu', key: 'tongDoanhThu', render: (value) => value.toLocaleString() },
   ];
 
-  // Cột cho bảng khuyến mãi
+  // Columns for promotions table
   const khuyenMaiColumns = [
     { title: 'Mã khuyến mãi', dataIndex: 'maKhuyenMai', key: 'maKhuyenMai' },
     { title: 'Tên khuyến mãi', dataIndex: 'tenKhuyenMai', key: 'tenKhuyenMai' },
@@ -344,16 +384,24 @@ const ThongKeAdmin = () => {
     { title: 'Tổng doanh thu (VND)', dataIndex: 'tongDoanhThu', key: 'tongDoanhThu', render: (value) => value.toLocaleString() },
   ];
 
-  // Cột cho bảng đơn hàng theo trạng thái
+  // Columns for orders by status table
   const donHangTrangThaiColumns = [
     { title: 'Trạng thái', dataIndex: 'trangThai', key: 'trangThai' },
     { title: 'Số lượng đơn hàng', dataIndex: 'soLuongDonHang', key: 'soLuongDonHang' },
   ];
 
-  // Cột cho bảng đơn hàng theo thời gian
+  // Columns for orders by time table
   const donHangThoiGianColumns = [
     { title: 'Ngày', dataIndex: 'ngay', key: 'ngay', render: (value) => moment(value).format('DD/MM/YYYY') },
     { title: 'Số lượng đơn hàng', dataIndex: 'soLuongDonHang', key: 'soLuongDonHang' },
+  ];
+
+  // Columns for employee sales table
+  const nhanVienBanHangColumns = [
+    { title: 'Mã nhân viên', dataIndex: 'maNhanVien', key: 'maNhanVien' },
+    { title: 'Tên nhân viên', dataIndex: 'tenNhanVien', key: 'tenNhanVien' },
+    { title: 'Số lượng đơn hàng', dataIndex: 'soLuongDonHang', key: 'soLuongDonHang' },
+    { title: 'Tổng doanh thu (VND)', dataIndex: 'tongDoanhThu', key: 'tongDoanhThu', render: (value) => value.toLocaleString() },
   ];
 
   return (
@@ -363,7 +411,7 @@ const ThongKeAdmin = () => {
         <TabPane tab="Thống Kê Doanh Thu" key="doanh-thu">
           <Card className="mb-6 rounded-lg shadow">
             <Row gutter={16} className="mb-4">
-              <Col span={8}>
+              <Col span={6}>
                 <Select
                   value={donViThoiGian}
                   onChange={setDonViThoiGian}
@@ -377,7 +425,19 @@ const ThongKeAdmin = () => {
                   <Option value="NAM">Năm</Option>
                 </Select>
               </Col>
-              <Col span={16}>
+              <Col span={6}>
+                <Select
+                  value={billType}
+                  onChange={setBillType}
+                  className="w-full"
+                  placeholder="Chọn loại đơn hàng"
+                  allowClear
+                >
+                  <Option value="ONLINE">Online</Option>
+                  <Option value="OFFLINE">Offline</Option>
+                </Select>
+              </Col>
+              <Col span={12}>
                 <RangePicker
                   value={[ngayBatDau, ngayKetThuc]}
                   onChange={(dates) => {
@@ -474,18 +534,86 @@ const ThongKeAdmin = () => {
           <Card className="mb-6 rounded-lg shadow">
             <h3 className="text-lg font-semibold mb-4 text-gray-700">Khách Hàng Thân Thiết</h3>
             <Row gutter={16} className="mb-4">
-              <Col span={8}>
+              <Col span={6}>
+                <input
+                  type="text"
+                  placeholder="Mã khách hàng"
+                  value={khachHangFilter.code}
+                  onChange={(e) => setKhachHangFilter({ ...khachHangFilter, code: e.target.value })}
+                  className="w-full p-2 border rounded"
+                />
+              </Col>
+              <Col span={6}>
+                <input
+                  type="text"
+                  placeholder="Tên khách hàng"
+                  value={khachHangFilter.name}
+                  onChange={(e) => setKhachHangFilter({ ...khachHangFilter, name: e.target.value })}
+                  className="w-full p-2 border rounded"
+                />
+              </Col>
+              <Col span={6}>
+                <input
+                  type="text"
+                  placeholder="Số điện thoại"
+                  value={khachHangFilter.phoneNumber}
+                  onChange={(e) => setKhachHangFilter({ ...khachHangFilter, phoneNumber: e.target.value })}
+                  className="w-full p-2 border rounded"
+                />
+              </Col>
+              <Col span={6}>
+                <input
+                  type="text"
+                  placeholder="Email"
+                  value={khachHangFilter.email}
+                  onChange={(e) => setKhachHangFilter({ ...khachHangFilter, email: e.target.value })}
+                  className="w-full p-2 border rounded"
+                />
+              </Col>
+            </Row>
+            <Row gutter={16} className="mb-4">
+              <Col span={6}>
                 <Select
-                  value={topKhachHang}
-                  onChange={setTopKhachHang}
+                  value={khachHangFilter.isBirthday}
+                  onChange={(value) => setKhachHangFilter({ ...khachHangFilter, isBirthday: value })}
                   className="w-full"
-                  placeholder="Chọn số lượng khách hàng"
+                  placeholder="Sinh nhật"
+                  allowClear
                 >
-                  <Option value={5}>Top 5</Option>
-                  <Option value={10}>Top 10</Option>
+                  <Option value={true}>Có</Option>
+                  <Option value={false}>Không</Option>
                 </Select>
               </Col>
-              <Col span={16}>
+              <Col span={6}>
+                <input
+                  type="number"
+                  placeholder="Điểm tối thiểu"
+                  value={khachHangFilter.minPoints || ''}
+                  onChange={(e) => setKhachHangFilter({ ...khachHangFilter, minPoints: e.target.value })}
+                  className="w-full p-2 border rounded"
+                />
+              </Col>
+              <Col span={6}>
+                <input
+                  type="number"
+                  placeholder="Điểm tối đa"
+                  value={khachHangFilter.maxPoints || ''}
+                  onChange={(e) => setKhachHangFilter({ ...khachHangFilter, maxPoints: e.target.value })}
+                  className="w-full p-2 border rounded"
+                />
+              </Col>
+              <Col span={6}>
+                <input
+                  type="text"
+                  placeholder="Hạng thành viên"
+                  value={khachHangFilter.memberTier}
+                  onChange={(e) => setKhachHangFilter({ ...khachHangFilter, memberTier: e.target.value })}
+                  className="w-full p-2 border rounded"
+                />
+              </Col>
+            </Row>
+            <Row gutter={16} className="mb-4">
+              <Col span={24}>
                 <RangePicker
                   value={[ngayBatDau, ngayKetThuc]}
                   onChange={(dates) => {
@@ -541,6 +669,24 @@ const ThongKeAdmin = () => {
             </Row>
             <Bar data={chartDataDonHangThoiGian} options={chartOptionsDonHangThoiGian} />
             <Table columns={donHangThoiGianColumns} dataSource={donHangTheoThoiGian} rowKey="ngay" />
+          </Card>
+        </TabPane>
+        <TabPane tab="Thống Kê Nhân Viên" key="nhan-vien">
+          <Card className="mb-6 rounded-lg shadow">
+            <h3 className="text-lg font-semibold mb-4 text-gray-700">Nhân Viên Bán Hàng</h3>
+            <Row gutter={16} className="mb-4">
+              <Col span={24}>
+                <RangePicker
+                  value={[ngayBatDau, ngayKetThuc]}
+                  onChange={(dates) => {
+                    setNgayBatDau(dates ? dates[0] : null);
+                    setNgayKetThuc(dates ? dates[1] : null);
+                  }}
+                  className="w-full"
+                />
+              </Col>
+            </Row>
+            <Table columns={nhanVienBanHangColumns} dataSource={nhanVienBanHang} rowKey="maNhanVien" />
           </Card>
         </TabPane>
       </Tabs>
