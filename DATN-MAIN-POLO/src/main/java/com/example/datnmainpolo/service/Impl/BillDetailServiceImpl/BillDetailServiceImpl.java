@@ -7,6 +7,7 @@ import com.example.datnmainpolo.entity.Bill;
 import com.example.datnmainpolo.entity.BillDetail;
 import com.example.datnmainpolo.entity.ProductDetail;
 import com.example.datnmainpolo.enums.BillDetailStatus;
+import com.example.datnmainpolo.enums.BillType;
 import com.example.datnmainpolo.enums.OrderStatus;
 import com.example.datnmainpolo.enums.ProductStatus;
 import com.example.datnmainpolo.repository.BillDetailRepository;
@@ -66,7 +67,7 @@ public class BillDetailServiceImpl implements BillDetailService {
         billDetail.setPrice(productDetail.getPrice() != null ? productDetail.getPrice() : ZERO);
         billDetail.setPromotionalPrice(productDetail.getPromotionalPrice());
         billDetail.setStatus(BillDetailStatus.PENDING);
-        billDetail.setTypeOrder(OrderStatus.PENDING); // Initialize typeOrder
+        billDetail.setTypeOrder(OrderStatus.PENDING);
         billDetail.setCreatedAt(Instant.now());
         billDetail.setUpdatedAt(Instant.now());
         billDetail.setCreatedBy("system");
@@ -178,13 +179,26 @@ public class BillDetailServiceImpl implements BillDetailService {
 
     @Transactional
     public void updateBillDetailTypeOrder(Integer billId, OrderStatus typeOrder) {
-        logger.info("Updating typeOrder to {} for all bill details of bill {}", typeOrder, billId);
+        logger.info("Updating typeOrder for all bill details of bill {}", billId);
+
+        Bill bill = billRepository.findById(billId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
+
         List<BillDetail> billDetails = billDetailRepository.findByBillId(billId);
-        for (BillDetail detail : billDetails) {
-            detail.setTypeOrder(typeOrder);
-            detail.setUpdatedAt(Instant.now());
-            detail.setUpdatedBy("system");
-            billDetailRepository.save(detail);
+        if (bill.getStatus() == OrderStatus.PAID && bill.getBillType() == BillType.ONLINE) {
+            for (BillDetail detail : billDetails) {
+                detail.setTypeOrder(OrderStatus.PENDING);
+                detail.setUpdatedAt(Instant.now());
+                detail.setUpdatedBy("system");
+                billDetailRepository.save(detail);
+            }
+        } else {
+            for (BillDetail detail : billDetails) {
+                detail.setTypeOrder(typeOrder);
+                detail.setUpdatedAt(Instant.now());
+                detail.setUpdatedBy("system");
+                billDetailRepository.save(detail);
+            }
         }
     }
 

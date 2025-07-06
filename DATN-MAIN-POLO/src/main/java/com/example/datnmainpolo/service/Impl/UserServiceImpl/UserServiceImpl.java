@@ -1,4 +1,4 @@
-package com.example.datnmainpolo.service.Impl.UserServiceImpl;
+package com.example.datnmainpolo.service.Impl;
 
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.dto.UserDTO.UserRequestDTO;
@@ -22,6 +22,7 @@ import jakarta.validation.Validator;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Optional;
 import java.util.Set;
 
@@ -35,9 +36,15 @@ public class UserServiceImpl implements UserService {
     private Validator validator;
 
     @Override
-    public PaginationResponse<UserResponseDTO> findByCodeAndNameofClient(String code, String name, int page, int size) {
+    public PaginationResponse<UserResponseDTO> findByCodeAndNameofClient(
+            String code, String name, String phoneNumber, String email,
+            Integer minLoyaltyPoints, Integer maxLoyaltyPoints,
+            LocalDate birthDate, Instant startDate, Instant endDate,
+            int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
-        Page<UserEntity> pageData = userRepository.findByCodeAndNameAndRole(code, name, pageable);
+        Page<UserEntity> pageData = userRepository.findByCodeAndNameAndRole(
+                code, name, phoneNumber, email, minLoyaltyPoints, maxLoyaltyPoints,
+                birthDate, startDate, endDate, pageable);
         return new PaginationResponse<>(pageData.map(this::mapToResponseDTO));
     }
 
@@ -162,10 +169,6 @@ public class UserServiceImpl implements UserService {
         user.setAvatar(dto.getAvatar());
     }
 
-
-
-
-    ///  nếu mua hàng thành công thì dunngf cá này
     public void incrementPurchaseCount(Integer userId) {
         UserEntity user = userRepository.findByIdAndDeletedFalse(userId)
                 .orElseThrow(() -> new EntityNotFoundException("Người dùng không tồn tại"));
@@ -174,7 +177,6 @@ public class UserServiceImpl implements UserService {
         userRepository.save(user);
     }
 
-    // tim kiem nguoi dung bang so dien thoai ten hoac email
     @Override
     public PaginationResponse<UserResponseDTO> findByPhoneNumberOrNameOrEmailAndRole(
             String phoneNumber, String name, String email, Role role, int page, int size) {
@@ -184,7 +186,6 @@ public class UserServiceImpl implements UserService {
         return new PaginationResponse<>(pageData.map(this::mapToResponseDTO));
     }
 
-    // cập nhật điểm cộng khách hàng thân thiết
     @Override
     public void updateLoyaltyPoints(Integer customerId, BigDecimal orderValue) {
         UserEntity customer = userRepository.findById(customerId)

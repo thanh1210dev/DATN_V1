@@ -1,18 +1,18 @@
 package com.example.datnmainpolo.controller;
 
-
 import com.example.datnmainpolo.dto.BillDTO.BillResponseDTO;
 import com.example.datnmainpolo.dto.BillDTO.CustomerRequestDTO;
 import com.example.datnmainpolo.dto.BillDTO.DeliveryBillAddressRequestDTO;
 import com.example.datnmainpolo.dto.BillDTO.PaymentResponseDTO;
-import com.example.datnmainpolo.dto.BillDetailDTO.AddProductToBillRequestDTO;
 import com.example.datnmainpolo.dto.BillDetailDTO.BillDetailResponseDTO;
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
+import com.example.datnmainpolo.dto.UserDTO.UserRequestDTO;
 import com.example.datnmainpolo.enums.OrderStatus;
 import com.example.datnmainpolo.enums.PaymentType;
 import com.example.datnmainpolo.service.BillDetailService;
 import com.example.datnmainpolo.service.BillService;
 import com.example.datnmainpolo.service.Impl.BillServiceImpl.DeliveryBillService;
+
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -71,8 +71,6 @@ public class BillController {
         return ResponseEntity.ok(billService.searchBillsAdvanced(code, status, start, end, minPrice, maxPrice, page, size));
     }
 
-
-
     @PostMapping("/{billId}/voucher")
     public ResponseEntity<BillResponseDTO> addVoucherToBill(
             @PathVariable Integer billId,
@@ -105,6 +103,7 @@ public class BillController {
     public ResponseEntity<String> printInvoice(@PathVariable Integer billId) {
         return ResponseEntity.ok(billService.generateInvoice(billId));
     }
+
     @GetMapping("/{billId}")
     public ResponseEntity<BillResponseDTO> getBillDetail(@PathVariable Integer billId) {
         return ResponseEntity.ok(billService.getDetail(billId));
@@ -119,16 +118,21 @@ public class BillController {
     }
 
     @PostMapping("/{billId}/assign-customer")
-    public ResponseEntity<BillResponseDTO> addLoyalCustomerToBill(@PathVariable Integer billId, @RequestParam Integer customerId){
+    public ResponseEntity<BillResponseDTO> addLoyalCustomerToBill(@PathVariable Integer billId, @RequestParam Integer customerId) {
         return ResponseEntity.ok(billService.addLoyalCustomerToBill(billId, customerId));
     }
 
     @PostMapping("/{billId}/visiting-guests")
     public ResponseEntity<BillResponseDTO> addVisitingGuestsToBill(
             @PathVariable Integer billId,
-            @RequestBody CustomerRequestDTO requestDTO) {
-        BillResponseDTO response = billService.addVisitingGuests(billId, requestDTO);
-        return ResponseEntity.ok(response);
+            @Valid @RequestBody CustomerRequestDTO requestDTO) {
+        return ResponseEntity.ok(billService.addVisitingGuests(billId, requestDTO));
     }
 
+    @PostMapping("/{billId}/add-user")
+    public ResponseEntity<BillResponseDTO> addUserToBill(
+            @PathVariable Integer billId,
+            @Valid @RequestBody UserRequestDTO userRequestDTO) {
+        return ResponseEntity.ok(billService.addUserToBill(billId, userRequestDTO));
+    }
 }

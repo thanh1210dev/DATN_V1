@@ -10,6 +10,6 @@ import lombok.Setter;
 @NoArgsConstructor
 public class CustomerRequestDTO {
     private String name;
-    private String address;
+
     private String phoneNumber;
 }

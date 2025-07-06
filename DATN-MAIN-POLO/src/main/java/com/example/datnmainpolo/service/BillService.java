@@ -4,6 +4,8 @@ import com.example.datnmainpolo.dto.BillDTO.BillResponseDTO;
 import com.example.datnmainpolo.dto.BillDTO.CustomerRequestDTO;
 import com.example.datnmainpolo.dto.BillDTO.PaymentResponseDTO;
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
+import com.example.datnmainpolo.dto.UserDTO.UserRequestDTO;
+import com.example.datnmainpolo.entity.Bill;
 import com.example.datnmainpolo.enums.OrderStatus;
 import com.example.datnmainpolo.enums.PaymentType;
 
@@ -21,5 +23,13 @@ public interface BillService {
     String generateInvoice(Integer billId);
     BillResponseDTO getDetail(Integer billId);
     BillResponseDTO addLoyalCustomerToBill(Integer billId, Integer customerId);
-    BillResponseDTO addVisitingGuests(Integer billId,CustomerRequestDTO requestDTO);
+    BillResponseDTO addVisitingGuests(Integer billId, CustomerRequestDTO requestDTO);
+    BillResponseDTO addUserToBill(Integer billId, UserRequestDTO userRequestDTO);
+
+
+    void validateBillForDelivery(Integer billId);
+
+    void applyBestPublicVoucher(Bill savedBill);
+
+    BillResponseDTO convertToBillResponseDTO(Bill savedBill);
 }

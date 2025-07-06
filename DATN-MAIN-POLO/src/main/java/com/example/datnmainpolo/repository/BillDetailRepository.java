@@ -17,4 +17,6 @@ public interface BillDetailRepository extends JpaRepository<BillDetail, Integer>
     List<BillDetail> findAllByBillIdAndDeletedFalse(Integer billId); // New method
 
     List<BillDetail> findByBillId(Integer billId);
+
+    BillDetail findByBill_Id(Integer billId);
 }

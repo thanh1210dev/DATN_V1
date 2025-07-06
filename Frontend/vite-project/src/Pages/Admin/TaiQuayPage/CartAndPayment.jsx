@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { HiOutlinePlus, HiOutlineTrash, HiOutlineX, HiOutlineQrcode, HiOutlineTruck } from 'react-icons/hi';
+import { HiOutlinePlus, HiOutlineTrash, HiOutlineX, HiOutlineQrcode, HiOutlineTruck, HiOutlineUser } from 'react-icons/hi';
 import Select from 'react-select';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { toast } from 'react-toastify';
+import axiosInstance from '../../../Service/axiosInstance';
 
 const CartAndPayment = ({
   selectedBill,
@@ -52,6 +53,7 @@ const CartAndPayment = ({
   districts,
   wards,
   deliveryForm,
+  setDeliveryForm,
   handleDeliveryFormChange,
   handleAddressChange,
   createDeliveryBill,
@@ -59,7 +61,25 @@ const CartAndPayment = ({
   const scannerRef = useRef(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [invoicePDF, setInvoicePDF] = useState(null);
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [showVisitingGuestForm, setShowVisitingGuestForm] = useState(false);
+  const [customers, setCustomers] = useState([]);
+  const [customerFilters, setCustomerFilters] = useState({
+    phoneNumber: '',
+    name: '',
+    email: '',
+  });
+  const [customerPagination, setCustomerPagination] = useState({
+    page: 0,
+    size: 10,
+    totalPages: 1,
+  });
+  const [visitingGuestForm, setVisitingGuestForm] = useState({
+    name: '',
+    phoneNumber: '',
+  });
 
+  // QR Scanner Effect
   useEffect(() => {
     if (showQRScanner && scannerRef.current) {
       const scanner = new Html5QrcodeScanner(
@@ -90,13 +110,115 @@ const CartAndPayment = ({
     }
   }, [showQRScanner, handleQRScan, setShowQRScanner]);
 
+  // Invoice Modal Effect
   useEffect(() => {
     if (invoicePDF) {
       setShowInvoiceModal(true);
     }
   }, [invoicePDF]);
 
-  // Process payment
+  // Fetch Customers when Modal Opens or Filters/Pagination Change
+  useEffect(() => {
+    if (showCustomerModal && !showVisitingGuestForm) {
+      fetchCustomers();
+    }
+  }, [showCustomerModal, customerFilters, customerPagination.page, showVisitingGuestForm]);
+
+  // Fetch Customers
+  const fetchCustomers = async () => {
+    try {
+      setIsLoading(true);
+      const response = await axiosInstance.get('/user/search/customers', {
+        params: {
+          phoneNumber: customerFilters.phoneNumber || null,
+          name: customerFilters.name || null,
+          email: customerFilters.email || null,
+          page: customerPagination.page,
+          size: customerPagination.size,
+        },
+      });
+      setCustomers(response.data.content);
+      setCustomerPagination((prev) => ({
+        ...prev,
+        totalPages: response.data.totalPages,
+      }));
+    } catch (error) {
+      toast.error('Không thể tải danh sách khách hàng');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle Customer Filter Change
+  const handleCustomerFilterChange = (e) => {
+    const { name, value } = e.target;
+    setCustomerFilters((prev) => ({ ...prev, [name]: value }));
+    setCustomerPagination((prev) => ({ ...prev, page: 0 }));
+  };
+
+  // Handle Customer Pagination Change
+  const handleCustomerPaginationChange = (page) => {
+    setCustomerPagination((prev) => ({ ...prev, page }));
+  };
+
+  // Handle Visiting Guest Form Change
+  const handleVisitingGuestFormChange = (e) => {
+    const { name, value } = e.target;
+    setVisitingGuestForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // Add Loyal Customer to Bill
+  const addLoyalCustomerToBill = async (customerId) => {
+    if (!selectedBill) {
+      toast.error('Vui lòng chọn hóa đơn');
+      return;
+    }
+    try {
+      setIsLoading(true);
+      const response = await axiosInstance.post(`/bills/${selectedBill.id}/assign-customer`, null, {
+        params: { customerId },
+      });
+      setSelectedBill(response.data);
+      setShowCustomerModal(false);
+      setShowVisitingGuestForm(false);
+      toast.success('Thêm khách hàng trung thành vào hóa đơn thành công');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Không thể thêm khách hàng');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Add Visiting Guest to Bill
+  const addVisitingGuestToBill = async () => {
+    if (!selectedBill) {
+      toast.error('Vui lòng chọn hóa đơn');
+      return;
+    }
+    if (!visitingGuestForm.name || !visitingGuestForm.phoneNumber) {
+      toast.error('Vui lòng nhập đầy đủ tên và số điện thoại');
+      return;
+    }
+    if (!/^\d{10}$/.test(visitingGuestForm.phoneNumber)) {
+      toast.error('Số điện thoại phải có đúng 10 chữ số');
+      return;
+    }
+    try {
+      setIsLoading(true);
+      const response = await axiosInstance.post(`/bills/${selectedBill.id}/visiting-guests`, visitingGuestForm);
+      setSelectedBill(response.data);
+      setShowCustomerModal(false);
+      setShowVisitingGuestForm(false);
+      setVisitingGuestForm({ name: '', phoneNumber: '' });
+      toast.success('Thêm khách vãng lai vào hóa đơn thành công');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Không thể thêm khách vãng lai');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Process Payment
   const handleProcessPayment = async () => {
     if (!selectedBill) {
       toast.error('Vui lòng chọn hóa đơn');
@@ -146,7 +268,7 @@ const CartAndPayment = ({
     }
   };
 
-  // Confirm banking payment
+  // Confirm Banking Payment
   const handleConfirmBankingPayment = async () => {
     if (!selectedBill) {
       toast.error('Vui lòng chọn hóa đơn');
@@ -192,7 +314,7 @@ const CartAndPayment = ({
     }
   };
 
-  // Format voucher message
+  // Format Voucher Message
   const renderVoucherMessage = () => {
     if (!appliedVoucher || !selectedBill?.voucherCode) return null;
     const { code, type, percentageDiscountValue, fixedDiscountValue } = appliedVoucher;
@@ -206,6 +328,17 @@ const CartAndPayment = ({
       </p>
     );
   };
+
+  // Update delivery form when customer is selected
+  useEffect(() => {
+    if (selectedBill && (selectedBill.customerName || selectedBill.phoneNumber)) {
+      setDeliveryForm((prev) => ({
+        ...prev,
+        customerName: selectedBill.customerName || prev.customerName,
+        phoneNumber: selectedBill.phoneNumber || prev.phoneNumber,
+      }));
+    }
+  }, [selectedBill]);
 
   return (
     <>
@@ -221,44 +354,58 @@ const CartAndPayment = ({
                 <div className="flex gap-2">
                   <button
                     onClick={() => setShowAddProductModal(true)}
-                    className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors disabled:opacity-50"
+                    className="px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors disabled:opacity-50"
                     disabled={isLoading}
                   >
-                    <HiOutlinePlus className="inline mr-2" size={16} />
+                    <HiOutlinePlus className="inline mr-1.5" size={14} />
                     Thêm Sản Phẩm
                   </button>
                   <button
                     onClick={() => setShowQRScanner(true)}
-                    className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50"
+                    className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50"
                     disabled={isLoading}
                   >
-                    <HiOutlineQrcode className="inline mr-2" size={16} />
+                    <HiOutlineQrcode className="inline mr-1.5" size={14} />
                     Quét QR
                   </button>
                   <button
-                    onClick={() => setShowDeliveryModal(true)}
-                    className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-colors disabled:opacity-50"
+                    onClick={() => setShowCustomerModal(true)}
+                    className="px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors disabled:opacity-50"
                     disabled={isLoading}
                   >
-                    <HiOutlineTruck className="inline mr-2" size={16} />
-                    Giao Hàng
+                    <HiOutlineUser className="inline mr-1.5" size={14} />
+                    Chọn Khách Hàng
                   </button>
+                  {selectedBill.customerName && (
+                    <button
+                      onClick={() => setShowDeliveryModal(true)}
+                      className="px-3 py-1.5 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-colors disabled:opacity-50"
+                      disabled={isLoading}
+                    >
+                      <HiOutlineTruck className="inline mr-1.5" size={14} />
+                      Giao Hàng
+                    </button>
+                  )}
                   <button
                     onClick={cancelBill}
-                    className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors disabled:opacity-50"
+                    className="px-3 py-1.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors disabled:opacity-50"
                     disabled={isLoading}
                   >
-                    <HiOutlineX className="inline mr-2" size={16} />
+                    <HiOutlineX className="inline mr-1.5" size={14} />
                     Hủy Hóa Đơn
                   </button>
                 </div>
               </div>
-              {selectedBill.address && (
-                <div className="mb-4 text-sm text-gray-700">
-                  <p><strong>Địa chỉ giao hàng:</strong> {selectedBill.address}</p>
-                  <p><strong>Phí vận chuyển:</strong> {(selectedBill.moneyShip || 0).toLocaleString()} đ</p>
-                </div>
-              )}
+              <div className="mb-4 text-sm text-gray-700">
+                <p><strong>Khách hàng:</strong> {selectedBill.customerName || 'Chưa có'}</p>
+                <p><strong>Số điện thoại:</strong> {selectedBill.phoneNumber || 'Chưa có'}</p>
+                {selectedBill.address && (
+                  <>
+                    <p><strong>Địa chỉ giao hàng:</strong> {selectedBill.address}</p>
+                    <p><strong>Phí vận chuyển:</strong> {(selectedBill.moneyShip || 0).toLocaleString()} đ</p>
+                  </>
+                )}
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left text-gray-700">
                   <thead className="text-xs uppercase bg-indigo-50 text-indigo-700">
@@ -271,7 +418,6 @@ const CartAndPayment = ({
                       <th className="px-4 py-3">Số Lượng</th>
                       <th className="px-4 py-3">Đơn Giá</th>
                       <th className="px-4 py-3">Tổng</th>
-                     
                       <th className="px-4 py-3 w-24 rounded-tr-lg">Hành Động</th>
                     </tr>
                   </thead>
@@ -352,14 +498,13 @@ const CartAndPayment = ({
                             {(item.promotionalPrice || item.price || 0).toLocaleString()} đ
                           </td>
                           <td className="px-4 py-3">{(item.totalPrice || 0).toLocaleString()} đ</td>
-                        
                           <td className="px-4 py-3 text-center">
                             <button
                               onClick={() => deleteBillDetail(item.id)}
                               className="p-1 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50"
                               disabled={isLoading}
                             >
-                              <HiOutlineTrash size={16} />
+                              <HiOutlineTrash size={14} />
                             </button>
                           </td>
                         </tr>
@@ -388,6 +533,8 @@ const CartAndPayment = ({
             </div>
           </div>
 
+          
+
           {/* Payment Section */}
           <div className="bg-white shadow-md rounded-lg p-4 md:p-6 border border-gray-200">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Thanh Toán</h2>
@@ -397,8 +544,8 @@ const CartAndPayment = ({
                 <Select
                   options={[
                     { value: 'CASH', label: 'Tiền Mặt' },
-                    { value: 'BANKING', label: 'Chuyển Khoản' },
-                    { value: 'VNPAY', label: 'VNPay' },
+                    { value: 'BANKING', label: 'Chuyển Khoản' }
+                  
                   ]}
                   value={{
                     value: paymentType,
@@ -453,13 +600,13 @@ const CartAndPayment = ({
                   />
                   <button
                     onClick={() => setShowSelectVoucherModal(true)}
-                    className="px-3 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
+                    className="px-2 py-1.5 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 transition-colors"
                   >
                     Chọn
                   </button>
                   <button
                     onClick={applyVoucher}
-                    className="px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                    className="px-2 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50"
                     disabled={isLoading}
                   >
                     Áp Dụng
@@ -469,20 +616,12 @@ const CartAndPayment = ({
               <div className="flex flex-col gap-2">
                 <button
                   onClick={handleProcessPayment}
-                  className="w-full px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors disabled:opacity-50"
+                  className="w-full px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors disabled:opacity-50"
                   disabled={isLoading}
                 >
                   Thanh Toán
                 </button>
-                {paymentType === 'BANKING' && selectedBill.status === 'PENDING' && (
-                  <button
-                    onClick={handleConfirmBankingPayment}
-                    className="w-full px-4 py-2 bg-yellow-600 text-white text-sm font-medium rounded-md hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500 transition-colors disabled:opacity-50"
-                    disabled={isLoading}
-                  >
-                    Xác Nhận Chuyển Khoản
-                  </button>
-                )}
+               
               </div>
             </div>
           </div>
@@ -499,7 +638,7 @@ const CartAndPayment = ({
                 onClick={() => setShowAddProductModal(false)}
                 className="p-1 text-gray-500 hover:bg-gray-200 rounded"
               >
-                <HiOutlineX size={20} />
+                <HiOutlineX size={18} />
               </button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 mb-4">
@@ -614,7 +753,7 @@ const CartAndPayment = ({
                           className="p-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50"
                           disabled={isLoading}
                         >
-                          <HiOutlinePlus size={16} />
+                          <HiOutlinePlus size={14} />
                         </button>
                       </td>
                     </tr>
@@ -625,7 +764,7 @@ const CartAndPayment = ({
             <div className="flex justify-between items-center mt-4">
               <button
                 onClick={() => setShowAddProductModal(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 transition-colors"
+                className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 transition-colors"
               >
                 Đóng
               </button>
@@ -633,22 +772,184 @@ const CartAndPayment = ({
                 <button
                   onClick={() => handlePaginationChange('productDetails', pagination.productDetails.page - 1)}
                   disabled={pagination.productDetails.page === 0}
-                  className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                  className="px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                 >
                   ← Previous
                 </button>
-                <span className="px-4 py-2 bg-white border border-gray-300 rounded-md text-gray-700 text-sm">
+                <span className="px-3 py-1.5 bg-white border border-gray-300 rounded-md text-gray-700 text-sm">
                   Page {pagination.productDetails.page + 1} / {pagination.productDetails.totalPages}
                 </span>
                 <button
                   onClick={() => handlePaginationChange('productDetails', pagination.productDetails.page + 1)}
                   disabled={pagination.productDetails.page + 1 >= pagination.productDetails.totalPages}
-                  className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                  className="px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                 >
                   Next →
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Select Customer Modal */}
+      {showCustomerModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">
+                {showVisitingGuestForm ? 'Thêm Khách Vãng Lai' : 'Chọn Khách Hàng Trung Thành'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowCustomerModal(false);
+                  setShowVisitingGuestForm(false);
+                  setVisitingGuestForm({ name: '', phoneNumber: '' });
+                }}
+                className="p-1 text-gray-500 hover:bg-gray-200 rounded"
+              >
+                <HiOutlineX size={18} />
+              </button>
+            </div>
+            {!showVisitingGuestForm ? (
+              <>
+                <div className="flex justify-end mb-4">
+                  <button
+                    onClick={() => setShowVisitingGuestForm(true)}
+                    className="px-3 py-1.5 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-colors disabled:opacity-50"
+                    disabled={isLoading}
+                  >
+                    <HiOutlineUser className="inline mr-1.5" size={14} />
+                    Thêm Khách Vãng Lai
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                  {Object.entries(customerFilters).map(([key, value]) => (
+                    <div key={key}>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        {key === 'phoneNumber' ? 'Số Điện Thoại' : key === 'name' ? 'Tên' : 'Email'}
+                      </label>
+                      <input
+                        type="text"
+                        name={key}
+                        value={value}
+                        onChange={handleCustomerFilterChange}
+                        className="w-full rounded-md border border-gray-300 px-2 py-2 text-sm focus:border-gray-500 focus:ring-gray-500"
+                        placeholder={`Nhập ${key === 'phoneNumber' ? 'số điện thoại' : key === 'name' ? 'tên' : 'email'}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left text-gray-700">
+                    <thead className="text-xs uppercase bg-indigo-50 text-indigo-600">
+                      <tr>
+                        <th className="px-6 py-3 w-16 rounded-tl-lg">#</th>
+                        <th className="px-4 py-3">Mã KH</th>
+                        <th className="px-4 py-3">Tên</th>
+                        <th className="px-4 py-3">Số Điện Thoại</th>
+                        <th className="px-4 py-3">Email</th>
+                        <th className="px-4 py-3">Điểm Tích Lũy</th>
+                        <th className="px-4 py-3 w-24 rounded-tr-lg">Hành Động</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {customers.map((customer, index) => (
+                        <tr key={customer.id} className="border-b hover:bg-indigo-50 transition-colors">
+                          <td className="px-6 py-3 text-center">
+                            {customerPagination.page * customerPagination.size + index + 1}
+                          </td>
+                          <td className="px-4 py-3">{customer.code}</td>
+                          <td className="px-4 py-3">{customer.name}</td>
+                          <td className="px-4 py-3">{customer.phoneNumber}</td>
+                          <td className="px-4 py-3">{customer.email || 'N/A'}</td>
+                          <td className="px-4 py-3">{customer.loyaltyPoints || 0}</td>
+                          <td className="px-4 py-3 text-center">
+                            <button
+                              onClick={() => addLoyalCustomerToBill(customer.id)}
+                              className="p-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                              disabled={isLoading}
+                            >
+                              Chọn
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex justify-between items-center mt-4">
+                  <button
+                    onClick={() => {
+                      setShowCustomerModal(false);
+                      setShowVisitingGuestForm(false);
+                    }}
+                    className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 transition-colors"
+                  >
+                    Đóng
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleCustomerPaginationChange(customerPagination.page - 1)}
+                      disabled={customerPagination.page === 0}
+                      className="px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                    >
+                      ← Trước
+                    </button>
+                    <span className="px-3 py-1.5 bg-white border border-gray-300 rounded-md text-gray-700 text-sm">
+                      Trang {customerPagination.page + 1} / {customerPagination.totalPages}
+                    </span>
+                    <button
+                      onClick={() => handleCustomerPaginationChange(customerPagination.page + 1)}
+                      disabled={customerPagination.page + 1 >= customerPagination.totalPages}
+                      className="px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                    >
+                      Tiếp →
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tên Khách Hàng</label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={visitingGuestForm.name}
+                    onChange={handleVisitingGuestFormChange}
+                    placeholder="Nhập tên khách hàng"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Số Điện Thoại</label>
+                  <input
+                    type="text"
+                    name="phoneNumber"
+                    value={visitingGuestForm.phoneNumber}
+                    onChange={handleVisitingGuestFormChange}
+                    placeholder="Nhập số điện thoại (10 số)"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="flex justify-end gap-2 mt-6">
+                  <button
+                    onClick={addVisitingGuestToBill}
+                    className="px-3 py-1.5 bg-teal-600 text-white text-sm font-medium rounded-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-colors disabled:opacity-50"
+                    disabled={isLoading}
+                  >
+                    Thêm
+                  </button>
+                  <button
+                    onClick={() => setShowVisitingGuestForm(false)}
+                    className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 transition-colors"
+                  >
+                    Quay Lại
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -663,7 +964,7 @@ const CartAndPayment = ({
                 onClick={() => setShowSelectVoucherModal(false)}
                 className="p-1 text-gray-500 hover:bg-gray-200 rounded"
               >
-                <HiOutlineX size={20} />
+                <HiOutlineX size={18} />
               </button>
             </div>
             <div className="overflow-x-auto">
@@ -713,7 +1014,7 @@ const CartAndPayment = ({
             <div className="flex justify-between items-center mt-4">
               <button
                 onClick={() => setShowSelectVoucherModal(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 transition-colors"
+                className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 transition-colors"
               >
                 Đóng
               </button>
@@ -721,17 +1022,17 @@ const CartAndPayment = ({
                 <button
                   onClick={() => handlePaginationChange('vouchers', pagination.vouchers.page - 1)}
                   disabled={pagination.vouchers.page === 0}
-                  className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                  className="px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                 >
                   ← Trước
                 </button>
-                <span className="px-4 py-2 bg-white border border-gray-300 rounded-md text-gray-700 text-sm">
+                <span className="px-3 py-1.5 bg-white border border-gray-300 rounded-md text-gray-700 text-sm">
                   Trang {pagination.vouchers.page + 1} / {pagination.vouchers.totalPages}
                 </span>
                 <button
                   onClick={() => handlePaginationChange('vouchers', pagination.vouchers.page + 1)}
                   disabled={pagination.vouchers.page + 1 >= pagination.vouchers.totalPages}
-                  className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                  className="px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                 >
                   Tiếp →
                 </button>
@@ -751,7 +1052,7 @@ const CartAndPayment = ({
                 onClick={() => setShowBankingInfo(false)}
                 className="p-1 text-gray-500 hover:bg-gray-200 rounded"
               >
-                <HiOutlineX size={20} />
+                <HiOutlineX size={18} />
               </button>
             </div>
             <div className="space-y-2 text-sm">
@@ -759,25 +1060,25 @@ const CartAndPayment = ({
               <p><strong>Số Tài Khoản:</strong> {bankingDetails.bankAccount}</p>
               <p><strong>Chủ Tài Khoản:</strong> {bankingDetails.accountName}</p>
               <p><strong>Số Tiền:</strong> {(bankingDetails.amount || 0).toLocaleString()} đ</p>
-              {bankingDetails.qrCode && (
+              
                 <img
-                  src={`http://localhost:8080${bankingDetails.qrCode}`}
+                  src={`https://media-cdn-v2.laodong.vn/storage/newsportal/2021/6/15/920631/4128Nh_2021-06-15_Lu.jpeg`}
                   alt="QR Code"
-                  className="w-32 h-32 mx-auto mt-4"
+                  className="w-43 h-42 mx-auto mt-4"
                 />
-              )}
+              
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button
                 onClick={handleConfirmBankingPayment}
-                className="px-4 py-2 bg-yellow-600 text-white text-sm font-medium rounded-md hover:bg-yellow-700 transition-colors disabled:opacity-50"
+                className="px-3 py-1.5 bg-yellow-600 text-white text-sm font-medium rounded-md hover:bg-yellow-700 transition-colors disabled:opacity-50"
                 disabled={isLoading}
               >
                 Xác Nhận
               </button>
               <button
                 onClick={() => setShowBankingInfo(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 transition-colors"
+                className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 transition-colors"
               >
                 Đóng
               </button>
@@ -796,7 +1097,7 @@ const CartAndPayment = ({
                 onClick={() => setShowQRScanner(false)}
                 className="p-1 text-gray-500 hover:bg-gray-200 rounded"
               >
-                <HiOutlineX size={20} />
+                <HiOutlineX size={18} />
               </button>
             </div>
             <div id="qr-reader" className="w-full h-64 bg-gray-100 rounded-md" ref={scannerRef}></div>
@@ -804,7 +1105,7 @@ const CartAndPayment = ({
             <div className="flex justify-end mt-4">
               <button
                 onClick={() => setShowQRScanner(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 transition-colors"
+                className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 transition-colors"
               >
                 Đóng
               </button>
@@ -823,7 +1124,7 @@ const CartAndPayment = ({
                 onClick={() => setShowDeliveryModal(false)}
                 className="p-1 text-gray-500 hover:bg-gray-200 rounded"
               >
-                <HiOutlineX size={20} />
+                <HiOutlineX size={18} />
               </button>
             </div>
             <div className="space-y-4">
@@ -945,14 +1246,14 @@ const CartAndPayment = ({
             <div className="flex justify-end gap-2 mt-6">
               <button
                 onClick={createDeliveryBill}
-                className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-md hover:bg-teal-700 transition-colors disabled:opacity-50"
+                className="px-3 py-1.5 bg-teal-600 text-white text-sm font-medium rounded-md hover:bg-teal-700 transition-colors disabled:opacity-50"
                 disabled={isLoading}
               >
                 Xác Nhận
               </button>
               <button
                 onClick={() => setShowDeliveryModal(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 transition-colors"
+                className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 transition-colors"
               >
                 Đóng
               </button>
@@ -974,7 +1275,7 @@ const CartAndPayment = ({
                 }}
                 className="p-1 text-gray-500 hover:bg-gray-200 rounded"
               >
-                <HiOutlineX size={20} />
+                <HiOutlineX size={18} />
               </button>
             </div>
             <div className="w-full h-[70vh]">
@@ -988,7 +1289,7 @@ const CartAndPayment = ({
             <div className="flex justify-end gap-2 mt-4">
               <button
                 onClick={downloadPDF}
-                className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 transition-colors"
+                className="px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 transition-colors"
               >
                 Tải Xuống
               </button>
@@ -997,7 +1298,7 @@ const CartAndPayment = ({
                   setShowInvoiceModal(false);
                   setInvoicePDF(null);
                 }}
-                className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 transition-colors"
+                className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 transition-colors"
               >
                 Đóng
               </button>
@@ -1010,3 +1311,6 @@ const CartAndPayment = ({
 };
 
 export default CartAndPayment;
+
+
+/// Xác nhận chuyển khoản  banking  handleConfirmBankingPayment Thanh toán thành công

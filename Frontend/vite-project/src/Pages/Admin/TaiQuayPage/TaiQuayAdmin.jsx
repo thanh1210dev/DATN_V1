@@ -126,6 +126,9 @@ const TaiQuayAdmin = () => {
         const updatedBill = response.data.content.find((bill) => bill.id === selectedBill.id);
         if (updatedBill) {
           setSelectedBill(updatedBill);
+        } else {
+          setSelectedBill(null);
+          setBillDetails([]);
         }
       }
     } catch (error) {
@@ -149,7 +152,6 @@ const TaiQuayAdmin = () => {
         filters.minPrice ? parseFloat(filters.minPrice) : null,
         filters.maxPrice ? parseFloat(filters.maxPrice) : null
       );
-      // Tạo hóa
       setProductDetails(response.content);
       setPagination((prev) => ({
         ...prev,
@@ -162,7 +164,7 @@ const TaiQuayAdmin = () => {
     }
   };
 
-  // Fetch vouchers
+  // Fetch vouchers Thêm sản phẩm
   const fetchVouchers = async () => {
     try {
       setIsLoading(true);
@@ -238,7 +240,7 @@ const TaiQuayAdmin = () => {
       setVoucherCode(response.data.voucherCode || '');
       await fetchAppliedVoucher(response.data.voucherCode);
       toast.success('Tạo hóa đơn thành công');
-      fetchBills();
+      await fetchBills();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Không thể tạo hóa đơn');
     } finally {
@@ -247,56 +249,59 @@ const TaiQuayAdmin = () => {
   };
 
   // Create delivery bill
- // In TaiQuayAdmin.js
-const createDeliveryBill = async () => {
-  if (!selectedBill) {
+  const createDeliveryBill = async () => {
+    if (!selectedBill) {
       toast.error('Vui lòng chọn hóa đơn');
       return;
-  }
-  if (!deliveryForm.customerName || !deliveryForm.phoneNumber || !deliveryForm.addressDetail) {
+    }
+    if (!deliveryForm.customerName || !deliveryForm.phoneNumber || !deliveryForm.addressDetail) {
       toast.error('Vui lòng nhập đầy đủ thông tin khách hàng');
       return;
-  }
-  if (!deliveryForm.provinceId || !deliveryForm.districtId || !deliveryForm.wardCode) {
+    }
+    if (!/^\d{10}$/.test(deliveryForm.phoneNumber)) {
+      toast.error('Số điện thoại phải có đúng 10 chữ số');
+      return;
+    }
+    if (!deliveryForm.provinceId || !deliveryForm.districtId || !deliveryForm.wardCode) {
       toast.error('Vui lòng chọn đầy đủ tỉnh, huyện, xã');
       return;
-  }
-  try {
+    }
+    try {
       setIsLoading(true);
-      const formattedDesiredDate = deliveryForm.desiredDate 
-          ? `${deliveryForm.desiredDate}T00:00:00Z` 
-          : null;
+      const formattedDesiredDate = deliveryForm.desiredDate
+        ? `${deliveryForm.desiredDate}T00:00:00Z`
+        : null;
       const response = await axiosInstance.post('/bills/delivery-sale', {
-          billId: selectedBill.id,
-          customerName: deliveryForm.customerName,
-          phoneNumber: deliveryForm.phoneNumber,
-          addressDetail: deliveryForm.addressDetail,
-          provinceId: deliveryForm.provinceId,
-          districtId: deliveryForm.districtId,
-          wardCode: deliveryForm.wardCode,
-          desiredDate: formattedDesiredDate,
+        billId: selectedBill.id,
+        customerName: deliveryForm.customerName,
+        phoneNumber: deliveryForm.phoneNumber,
+        addressDetail: deliveryForm.addressDetail,
+        provinceId: deliveryForm.provinceId,
+        districtId: deliveryForm.districtId,
+        wardCode: deliveryForm.wardCode,
+        desiredDate: formattedDesiredDate,
       });
       setSelectedBill(response.data);
       setShowDeliveryModal(false);
       setDeliveryForm({
-          customerName: '',
-          phoneNumber: '',
-          addressDetail: '',
-          provinceId: null,
-          districtId: null,
-          wardCode: null,
-          desiredDate: '',
+        customerName: '',
+        phoneNumber: '',
+        addressDetail: '',
+        provinceId: null,
+        districtId: null,
+        wardCode: null,
+        desiredDate: '',
       });
       setDistricts([]);
       setWards([]);
       await fetchBills();
       toast.success('Cập nhật thông tin giao hàng thành công');
-  } catch (error) {
+    } catch (error) {
       toast.error(error.response?.data?.message || 'Không thể cập nhật thông tin giao hàng');
-  } finally {
+    } finally {
       setIsLoading(false);
-  }
-};
+    }
+  };
 
   // Add product to bill with quantity
   const addProductToBill = async (productDetailId, quantity = 1) => {
@@ -318,6 +323,7 @@ const createDeliveryBill = async () => {
       await fetchBills();
       setShowAddProductModal(false);
       setShowQRScanner(false);
+      fetchProductDetails();
       setProductQuantities((prev) => ({ ...prev, [productDetailId]: 1 }));
       toast.success('Thêm sản phẩm thành công');
     } catch (error) {
@@ -476,6 +482,15 @@ const createDeliveryBill = async () => {
       setAppliedVoucher(null);
       setCashPaid('');
       setChangeAmount(0);
+      setDeliveryForm({
+        customerName: '',
+        phoneNumber: '',
+        addressDetail: '',
+        provinceId: null,
+        districtId: null,
+        wardCode: null,
+        desiredDate: '',
+      });
       await fetchBills();
       toast.success('Hủy hóa đơn thành công');
     } catch (error) {
@@ -623,8 +638,6 @@ const createDeliveryBill = async () => {
         handlePaginationChange={handlePaginationChange}
       />
       <CartAndPayment
-
-      
         selectedBill={selectedBill}
         billDetails={billDetails}
         productDetails={productDetails}
@@ -672,6 +685,7 @@ const createDeliveryBill = async () => {
         districts={districts}
         wards={wards}
         deliveryForm={deliveryForm}
+        setDeliveryForm={setDeliveryForm}
         handleDeliveryFormChange={handleDeliveryFormChange}
         handleAddressChange={handleAddressChange}
         createDeliveryBill={createDeliveryBill}
@@ -681,11 +695,3 @@ const createDeliveryBill = async () => {
 };
 
 export default TaiQuayAdmin;
-
-
-
-
-
-
-
-// createDeliveryBill

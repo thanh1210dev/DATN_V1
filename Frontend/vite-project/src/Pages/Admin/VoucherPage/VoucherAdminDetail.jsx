@@ -87,17 +87,18 @@ const VoucherAdminDetail = () => {
 
   const fetchUsers = async () => {
     try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
       const params = {
         code: searchCode || undefined,
         name: searchName || undefined,
         phoneNumber: searchPhoneNumber || undefined,
         email: searchEmail || undefined,
+        minLoyaltyPoints: memberTier === "BRONZE" ? 0 : memberTier === "SILVER" ? 500 : memberTier === "GOLD" ? 1000 : memberTier === "PLATINUM" ? 2000 : undefined,
+        maxLoyaltyPoints: memberTier === "BRONZE" ? 499 : memberTier === "SILVER" ? 999 : memberTier === "GOLD" ? 1999 : undefined,
+        birthDate: isBirthday ? `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}` : undefined,
         startDate: isTopPurchaser ? startDate || undefined : undefined,
         endDate: isTopPurchaser ? endDate || undefined : undefined,
-        isBirthday: isBirthday || undefined,
-        minPoints: memberTier === "BRONZE" ? 0 : memberTier === "SILVER" ? 500 : memberTier === "GOLD" ? 1000 : memberTier === "PLATINUM" ? 2000 : undefined,
-        maxPoints: memberTier === "BRONZE" ? 499 : memberTier === "SILVER" ? 999 : memberTier === "GOLD" ? 1999 : undefined,
-        memberTier: memberTier || undefined,
         page,
         size,
       };
@@ -228,9 +229,7 @@ const VoucherAdminDetail = () => {
             <p className="text-sm font-medium text-gray-800">{voucher.name}</p>
           </div>
           <div className="p-4 bg-gray-50 rounded-lg shadow-sm">
-            <p className="text-xs font-semibold text-gray-500
-
- uppercase">Loại</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase">Loại</p>
             <p className="text-sm font-medium text-gray-800">{typeLabels[voucher.type] || voucher.type}</p>
           </div>
           <div className="p-4 bg-gray-50 rounded-lg shadow-sm">
@@ -394,7 +393,7 @@ const VoucherAdminDetail = () => {
               <th className="px-4 py-3">Tên</th>
               <th className="px-4 py-3">Email</th>
               <th className="px-4 py-3">Số điện thoại</th>
-              <th className="px-4 py-3">ngày sinh</th>
+              <th className="px-4 py-3">Ngày sinh</th>
               <th className="px-4 py-3">Điểm trung thành</th>
               <th className="px-4 py-3">Hạng thành viên</th>
               <th className="px-4 py-3 rounded-tr-lg">Hành động</th>
@@ -426,9 +425,8 @@ const VoucherAdminDetail = () => {
                     <td className="px-4 py-3">{user.email}</td>
                     <td className="px-4 py-3">{user.phoneNumber}</td>
                     <td className="px-4 py-3">
-  {new Date(user.birthDate).toLocaleDateString('vi-VN')}
-</td>
-
+                      {user.birthDate ? new Date(user.birthDate).toLocaleDateString('vi-VN') : '-'}
+                    </td>
                     <td className="px-4 py-3">{user.loyaltyPoints || 0}</td>
                     <td className="px-4 py-3">{tier.icon} {tier.label}</td>
                     <td className="px-4 py-3 text-center">
