@@ -33,8 +33,9 @@ public interface BillRepository extends JpaRepository<Bill, Integer> {
             Pageable pageable);
 
     @Query("SELECT b FROM Bill b WHERE " +
-            "(:code IS NULL OR b.code LIKE  CONCAT('%', :code, '%')) " +
+            "(:code IS NULL OR b.code LIKE CONCAT('%', :code, '%')) " +
             "AND (:status IS NULL OR b.status = :status) " +
+            "AND (:phoneNumber IS NULL OR b.phoneNumber LIKE CONCAT('%', :phoneNumber, '%')) " +
             "AND (:startDate IS NULL OR b.createdAt >= :startDate) " +
             "AND (:endDate IS NULL OR b.createdAt <= :endDate) " +
             "AND (:minPrice IS NULL OR b.finalAmount >= :minPrice) " +
@@ -43,6 +44,7 @@ public interface BillRepository extends JpaRepository<Bill, Integer> {
     Page<Bill> findByAdvancedCriteria(
             @Param("code") String code,
             @Param("status") OrderStatus status,
+            @Param("phoneNumber") String phoneNumber,
             @Param("startDate") Instant startDate,
             @Param("endDate") Instant endDate,
             @Param("minPrice") BigDecimal minPrice,

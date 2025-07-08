@@ -15,7 +15,9 @@ import java.time.Instant;
 public interface BillService {
     BillResponseDTO counterSale();
     PaginationResponse<BillResponseDTO> searchBills(String code, OrderStatus status, int page, int size);
-    PaginationResponse<BillResponseDTO> searchBillsAdvanced(String code, OrderStatus status, Instant startDate, Instant endDate, BigDecimal minPrice, BigDecimal maxPrice, int page, int size);
+    PaginationResponse<BillResponseDTO> searchBillsAdvanced(String code, OrderStatus status, String phoneNumber,
+                                                            Instant startDate, Instant endDate, BigDecimal minPrice,
+                                                            BigDecimal maxPrice, int page, int size);
     BillResponseDTO addVoucherToBill(Integer billId, String voucherCode);
     BillResponseDTO updateBillStatus(Integer billId, OrderStatus newStatus);
     PaymentResponseDTO processPayment(Integer billId, PaymentType paymentType, BigDecimal amount);

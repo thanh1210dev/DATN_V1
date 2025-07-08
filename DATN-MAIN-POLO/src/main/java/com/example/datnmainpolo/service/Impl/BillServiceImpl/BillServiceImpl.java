@@ -116,15 +116,15 @@ public class BillServiceImpl implements BillService {
         }
 
         @Override
-        public PaginationResponse<BillResponseDTO> searchBillsAdvanced(String code, OrderStatus status,
-                                                                       Instant startDate, Instant endDate, BigDecimal minPrice, BigDecimal maxPrice, int page,
-                                                                       int size) {
-                LOGGER.debug("Advanced search bills with code: {}, status: {}, startDate: {}, endDate: {}, minPrice: {}, maxPrice: {}, page: {}, size: {}",
-                        code, status, startDate, endDate, minPrice, maxPrice, page, size);
+        public PaginationResponse<BillResponseDTO> searchBillsAdvanced(String code, OrderStatus status, String phoneNumber,
+                                                                       Instant startDate, Instant endDate, BigDecimal minPrice, BigDecimal maxPrice, int page, int size) {
+                LOGGER.debug("Advanced search bills with code: {}, status: {}, phoneNumber: {}, startDate: {}, endDate: {}, minPrice: {}, maxPrice: {}, page: {}, size: {}",
+                        code, status, phoneNumber, startDate, endDate, minPrice, maxPrice, page, size);
                 Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
                 Page<Bill> pageData = billRepository.findByAdvancedCriteria(
                         code != null && !code.trim().isEmpty() ? code : null,
                         status,
+                        phoneNumber != null && !phoneNumber.trim().isEmpty() ? phoneNumber : null,
                         startDate,
                         endDate,
                         minPrice != null ? minPrice : BigDecimal.ZERO,
@@ -376,10 +376,15 @@ public class BillServiceImpl implements BillService {
                         userService.updateLoyaltyPoints(bill.getCustomer().getId(), orderValue);
                 }
 
-                BillDetail updateBillDetail = billDetailRepository.findByBill_Id(savedBill.getId());
-                updateBillDetail.setStatus(BillDetailStatus.PAID);
-                updateBillDetail.setTypeOrder(OrderStatus.PAID);
-                billDetailRepository.save(updateBillDetail);
+                // Cập nhật tất cả BillDetail liên quan đến hóa đơn
+                List<BillDetail> billDetails = billDetailRepository.findByBillId(savedBill.getId());
+                for (BillDetail billDetail : billDetails) {
+                        billDetail.setStatus(BillDetailStatus.PAID);
+                        billDetail.setTypeOrder(OrderStatus.PAID);
+                        billDetail.setUpdatedAt(Instant.now());
+                        billDetail.setUpdatedBy("system");
+                        billDetailRepository.save(billDetail);
+                }
 
                 Transaction transaction = transactionRepository.findByBillId(bill.getId())
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch"));
@@ -416,10 +421,15 @@ public class BillServiceImpl implements BillService {
                 bill.setUpdatedBy("system");
                 Bill savedBill = billRepository.save(bill);
 
-                BillDetail updateBillDetail = billDetailRepository.findByBill_Id(savedBill.getId());
-                updateBillDetail.setStatus(BillDetailStatus.PAID);
-                updateBillDetail.setTypeOrder(OrderStatus.PAID);
-                billDetailRepository.save(updateBillDetail);
+                // Cập nhật tất cả BillDetail liên quan đến hóa đơn
+                List<BillDetail> billDetails = billDetailRepository.findByBillId(savedBill.getId());
+                for (BillDetail billDetail : billDetails) {
+                        billDetail.setStatus(BillDetailStatus.PAID);
+                        billDetail.setTypeOrder(OrderStatus.PAID);
+                        billDetail.setUpdatedAt(Instant.now());
+                        billDetail.setUpdatedBy("system");
+                        billDetailRepository.save(billDetail);
+                }
 
                 Transaction transaction = transactionRepository.findByBillId(bill.getId())
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch"));
@@ -454,6 +464,16 @@ public class BillServiceImpl implements BillService {
                 bill.setUpdatedAt(Instant.now());
                 bill.setUpdatedBy("system");
                 Bill savedBill = billRepository.save(bill);
+
+                // Cập nhật tất cả BillDetail liên quan đến hóa đơn
+                List<BillDetail> billDetails = billDetailRepository.findByBillId(savedBill.getId());
+                for (BillDetail billDetail : billDetails) {
+                        billDetail.setStatus(BillDetailStatus.PAID);
+                        billDetail.setTypeOrder(OrderStatus.PAID);
+                        billDetail.setUpdatedAt(Instant.now());
+                        billDetail.setUpdatedBy("system");
+                        billDetailRepository.save(billDetail);
+                }
 
                 Transaction transaction = transactionRepository.findByBillId(bill.getId())
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch"));
@@ -509,6 +529,16 @@ public class BillServiceImpl implements BillService {
                 transaction.setUpdatedAt(Instant.now());
                 transactionRepository.save(transaction);
 
+                // Cập nhật tất cả BillDetail liên quan đến hóa đơn
+                List<BillDetail> billDetails = billDetailRepository.findByBillId(billId);
+                for (BillDetail billDetail : billDetails) {
+                        billDetail.setStatus(BillDetailStatus.PAID);
+                        billDetail.setTypeOrder(OrderStatus.PAID);
+                        billDetail.setUpdatedAt(Instant.now());
+                        billDetail.setUpdatedBy("system");
+                        billDetailRepository.save(billDetail);
+                }
+
                 Bill savedBill = billRepository.save(bill);
 
                 // Nếu hóa đơn là ONLINE, cập nhật typeOrder của BillDetail thành PENDING
@@ -522,8 +552,8 @@ public class BillServiceImpl implements BillService {
                 }
 
                 BillResponseDTO billResponse = convertToBillResponseDTO(savedBill);
-                List<BillDetailResponseDTO> billDetails = billDetailService.getAllBillDetailsByBillId(billId);
-                String invoicePDF = invoicePDFService.generateInvoicePDF(billResponse, billDetails);
+                List<BillDetailResponseDTO> billDetailsDTO = billDetailService.getAllBillDetailsByBillId(billId);
+                String invoicePDF = invoicePDFService.generateInvoicePDF(billResponse, billDetailsDTO);
 
                 PaymentResponseDTO response = PaymentResponseDTO.builder()
                         .bill(billResponse)

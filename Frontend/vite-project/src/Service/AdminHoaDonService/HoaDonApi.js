@@ -45,6 +45,16 @@ const HoaDonApi = {
       return 0;
     }
   },
+
+  // Print invoice for a bill
+  printInvoice: async (billId) => {
+    try {
+      const response = await axiosInstance.get(`/bills/${billId}/print`);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || "Lỗi khi tạo hóa đơn PDF";
+    }
+  },
 };
 
 export default HoaDonApi;

@@ -69,7 +69,7 @@ const BillDetail = () => {
     fetchBillDetails();
   }, [id, navigate]);
 
-  // Format date safely
+  // Format date safely Quay lại
   const formatDate = (dateStr) => {
     if (!dateStr) return 'N/A';
     const date = new Date(dateStr);
@@ -100,7 +100,7 @@ const BillDetail = () => {
         <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} newestOnTop closeOnClick pauseOnHover theme="light" />
         <p className="text-center text-red-500">Không tìm thấy hóa đơn</p>
         <button
-          onClick={() => navigate('/admin/bills')}
+          onClick={() => navigate('/admin/danh-sach-hoa-don')}
           className="mt-4 flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
         >
           <HiArrowLeft className="mr-2" /> Quay lại
@@ -126,7 +126,7 @@ const BillDetail = () => {
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold text-gray-800">Chi tiết hóa đơn #{bill.code}</h2>
         <button
-          onClick={() => navigate('/admin/bills')}
+          onClick={() => navigate('/admin/danh-sach-hoa-don')}
           className="flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
         >
           <HiArrowLeft className="mr-2" /> Quay lại

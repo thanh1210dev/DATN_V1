@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { HiOutlinePlus, HiOutlineTrash, HiOutlineX, HiOutlineQrcode, HiOutlineTruck, HiOutlineUser } from 'react-icons/hi';
+import { HiOutlinePlus, HiOutlineTrash, HiOutlineX, HiOutlineQrcode, HiOutlineTruck, HiOutlineUser, HiChevronLeft, HiChevronRight } from 'react-icons/hi';
 import Select from 'react-select';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { toast } from 'react-toastify';
+import QRCode from 'qrcode';
 import axiosInstance from '../../../Service/axiosInstance';
 
 const CartAndPayment = ({
@@ -78,6 +79,9 @@ const CartAndPayment = ({
     name: '',
     phoneNumber: '',
   });
+  const [qrCodeUrl, setQrCodeUrl] = useState(null);
+  const [isImageViewModalOpen, setIsImageViewModalOpen] = useState(false);
+  const [selectedImagesForView, setSelectedImagesForView] = useState([]);
 
   // QR Scanner Effect
   useEffect(() => {
@@ -109,6 +113,20 @@ const CartAndPayment = ({
       };
     }
   }, [showQRScanner, handleQRScan, setShowQRScanner]);
+
+  // Generate QR Code for Banking Details
+  useEffect(() => {
+    if (showBankingInfo && bankingDetails) {
+      const qrData = `Ngân Hàng: ${bankingDetails.bankName}\nSố Tài Khoản: ${bankingDetails.bankAccount}\nChủ Tài Khoản: ${bankingDetails.accountName}\nSố Tiền: ${(bankingDetails.amount || 0).toLocaleString()} đ`;
+      QRCode.toDataURL(qrData, { width: 300, margin: 2 }, (err, url) => {
+        if (err) {
+          toast.error('Không thể tạo mã QR');
+          return;
+        }
+        setQrCodeUrl(url);
+      });
+    }
+  }, [showBankingInfo, bankingDetails]);
 
   // Invoice Modal Effect
   useEffect(() => {
@@ -282,7 +300,8 @@ const CartAndPayment = ({
       setShowBankingInfo(false);
       setVoucherCode('');
       setAppliedVoucher(null);
-      toast.success('Xác nhận thanh toán chuyển khoản thành công');
+      setQrCodeUrl(null);
+      toast.success('Xác nhận thanh toán chuyển khoản thành công!');
       if (response.invoicePDF) {
         setInvoicePDF(response.invoicePDF);
       }
@@ -427,7 +446,15 @@ const CartAndPayment = ({
                         <tr key={item.id} className="border-b hover:bg-indigo-50 transition-colors">
                           <td className="px-4 py-3 text-center">{index + 1}</td>
                           <td className="px-4 py-3 flex items-center space-x-3">
-                            <div className="relative overflow-hidden w-12 h-12">
+                            <div
+                              className="relative overflow-hidden w-12 h-12 cursor-pointer"
+                              onClick={() => {
+                                if (item.productImage && Array.isArray(item.productImage) && item.productImage.length > 0) {
+                                  setSelectedImagesForView(item.productImage);
+                                  setIsImageViewModalOpen(true);
+                                }
+                              }}
+                            >
                               {item.productImage && Array.isArray(item.productImage) && item.productImage.length > 0 ? (
                                 <div
                                   className="image-carousel-inner"
@@ -533,8 +560,6 @@ const CartAndPayment = ({
             </div>
           </div>
 
-          
-
           {/* Payment Section */}
           <div className="bg-white shadow-md rounded-lg p-4 md:p-6 border border-gray-200">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Thanh Toán</h2>
@@ -545,11 +570,10 @@ const CartAndPayment = ({
                   options={[
                     { value: 'CASH', label: 'Tiền Mặt' },
                     { value: 'BANKING', label: 'Chuyển Khoản' }
-                  
                   ]}
                   value={{
                     value: paymentType,
-                    label: paymentType === 'CASH' ? 'Tiền Mặt' : paymentType === 'BANKING' ? 'Chuyển Khoản' : 'VNPay',
+                    label: paymentType === 'CASH' ? 'Tiền Mặt' : 'Chuyển Khoản',
                   }}
                   onChange={(option) => setPaymentType(option.value)}
                   className="text-sm"
@@ -621,7 +645,6 @@ const CartAndPayment = ({
                 >
                   Thanh Toán
                 </button>
-               
               </div>
             </div>
           </div>
@@ -692,7 +715,15 @@ const CartAndPayment = ({
                         {pagination.productDetails.page * pagination.productDetails.size + index + 1}
                       </td>
                       <td className="px-4 py-3 flex items-center space-x-3">
-                        <div className="relative overflow-hidden w-12 h-12">
+                        <div
+                          className="relative overflow-hidden w-12 h-12 cursor-pointer"
+                          onClick={() => {
+                            if (detail.images && Array.isArray(detail.images) && detail.images.length > 0) {
+                              setSelectedImagesForView(detail.images);
+                              setIsImageViewModalOpen(true);
+                            }
+                          }}
+                        >
                           {detail.images && Array.isArray(detail.images) && detail.images.length > 0 ? (
                             <div
                               className="image-carousel-inner"
@@ -845,7 +876,7 @@ const CartAndPayment = ({
                     <thead className="text-xs uppercase bg-indigo-50 text-indigo-600">
                       <tr>
                         <th className="px-6 py-3 w-16 rounded-tl-lg">#</th>
-                        <th className="px-4 py-3">Mã KH</th>
+                       
                         <th className="px-4 py-3">Tên</th>
                         <th className="px-4 py-3">Số Điện Thoại</th>
                         <th className="px-4 py-3">Email</th>
@@ -859,7 +890,7 @@ const CartAndPayment = ({
                           <td className="px-6 py-3 text-center">
                             {customerPagination.page * customerPagination.size + index + 1}
                           </td>
-                          <td className="px-4 py-3">{customer.code}</td>
+                          
                           <td className="px-4 py-3">{customer.name}</td>
                           <td className="px-4 py-3">{customer.phoneNumber}</td>
                           <td className="px-4 py-3">{customer.email || 'N/A'}</td>
@@ -1049,7 +1080,10 @@ const CartAndPayment = ({
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-gray-800">Thông Tin Chuyển Khoản</h3>
               <button
-                onClick={() => setShowBankingInfo(false)}
+                onClick={() => {
+                  setShowBankingInfo(false);
+                  setQrCodeUrl(null);
+                }}
                 className="p-1 text-gray-500 hover:bg-gray-200 rounded"
               >
                 <HiOutlineX size={18} />
@@ -1060,13 +1094,21 @@ const CartAndPayment = ({
               <p><strong>Số Tài Khoản:</strong> {bankingDetails.bankAccount}</p>
               <p><strong>Chủ Tài Khoản:</strong> {bankingDetails.accountName}</p>
               <p><strong>Số Tiền:</strong> {(bankingDetails.amount || 0).toLocaleString()} đ</p>
-              
-                <img
-                  src={`https://media-cdn-v2.laodong.vn/storage/newsportal/2021/6/15/920631/4128Nh_2021-06-15_Lu.jpeg`}
-                  alt="QR Code"
-                  className="w-43 h-42 mx-auto mt-4"
-                />
-              
+              {qrCodeUrl && (
+                <div
+                  className="cursor-pointer"
+                  onClick={() => {
+                    setSelectedImagesForView([{ url: qrCodeUrl, id: 'qr-code' }]);
+                    setIsImageViewModalOpen(true);
+                  }}
+                >
+                  <img
+                    src={qrCodeUrl}
+                    alt="Banking QR Code"
+                    className="w-43 h-43 mx-auto mt-4"
+                  />
+                </div>
+              )}
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button
@@ -1077,7 +1119,10 @@ const CartAndPayment = ({
                 Xác Nhận
               </button>
               <button
-                onClick={() => setShowBankingInfo(false)}
+                onClick={() => {
+                  setShowBankingInfo(false);
+                  setQrCodeUrl(null);
+                }}
                 className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 transition-colors"
               >
                 Đóng
@@ -1306,11 +1351,68 @@ const CartAndPayment = ({
           </div>
         </div>
       )}
+
+      {/* Image View Modal */}
+      {isImageViewModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-3xl shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Xem Hình Ảnh</h3>
+            {selectedImagesForView.length > 0 ? (
+              <div className="relative">
+                <img
+                  src={selectedImagesForView[0].url ? `http://localhost:8080${selectedImagesForView[0].url}` : selectedImagesForView[0].id === 'qr-code' ? selectedImagesForView[0].url : qrCodeUrl}
+                  alt="Selected Image"
+                  className="w-full h-96 object-contain rounded-lg"
+                  onError={() => console.error(`Failed to load image: ${selectedImagesForView[0].url || qrCodeUrl}`)}
+                />
+                {selectedImagesForView.length > 1 && (
+                  <>
+                    <button
+                      onClick={() => setSelectedImagesForView(prev => {
+                        const newImages = [...prev];
+                        newImages.unshift(newImages.pop());
+                        return newImages;
+                      })}
+                      className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white rounded-full p-2 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+                    >
+                      <HiChevronLeft size={24} />
+                    </button>
+                    <button
+                      onClick={() => setSelectedImagesForView(prev => {
+                        const newImages = [...prev];
+                        newImages.push(newImages.shift());
+                        return newImages;
+                      })}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-600 text-white rounded-full p-2 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+                    >
+                      <HiChevronRight size={24} />
+                    </button>
+                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-sm px-3 py-1 rounded-full">
+                      1 / {selectedImagesForView.length}
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-600 text-center">Không có hình ảnh để hiển thị</p>
+            )}
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => {
+                  setIsImageViewModalOpen(false);
+                  setSelectedImagesForView([]);
+                }}
+                className="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-400 focus:outline-none transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
 
 export default CartAndPayment;
-
-
-/// Xác nhận chuyển khoản  banking  handleConfirmBankingPayment Thanh toán thành công
+// Mã KH

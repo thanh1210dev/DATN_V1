@@ -317,13 +317,13 @@ const ProductDetail = () => {
         const newImageIds = uploadResponse.data.map(img => img.id);
         finalImageIds = [...finalImageIds, ...newImageIds];
       }
-
+  
       const finalPayload = {
-        ...pendingGeneratedAndDownloadQRCode,
+        ...pendingPayload, // Corrected from pendingGeneratedAndDownloadQRCode
         imageIds: finalImageIds,
         newImages: undefined,
       };
-
+  
       if (isEditing) {
         await ProductDetailService.update(editingId, finalPayload);
         toast.success('Cập nhật chi tiết sản phẩm thành công!');
@@ -781,6 +781,7 @@ const ProductDetail = () => {
           </div>
         </div>
       )}
+      
 
       {isImageModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -932,3 +933,6 @@ const ProductDetail = () => {
 };
 
 export default ProductDetail;
+
+
+/// handleConfirmSubmit
