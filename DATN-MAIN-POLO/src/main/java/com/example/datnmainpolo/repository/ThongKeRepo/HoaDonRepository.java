@@ -1,5 +1,4 @@
-
-        package com.example.datnmainpolo.repository.ThongKeRepo;
+package com.example.datnmainpolo.repository.ThongKeRepo;
 
 import com.example.datnmainpolo.entity.Bill;
 import com.example.datnmainpolo.entity.UserEntity;
@@ -43,7 +42,7 @@ public interface HoaDonRepository extends JpaRepository<Bill, Integer> {
                SUM(b.final_amount) AS tong_doanh_thu
         FROM bill b
         LEFT JOIN account u ON b.employee_id = u.id
-        WHERE b.status = 'COMPLETED'
+        WHERE b.status = 'PAID'
           AND b.bill_type = 'OFFLINE'
           AND b.completion_date BETWEEN :ngayBatDau AND :ngayKetThuc
           AND b.deleted = 0
@@ -60,11 +59,15 @@ public interface HoaDonRepository extends JpaRepository<Bill, Integer> {
                COUNT(b.id) AS so_luong_don_hang,
                SUM(b.final_amount) AS tong_doanh_thu
         FROM bill b
-        WHERE b.status = 'COMPLETED'
+        WHERE b.status = 'PAID'
+          AND b.completion_date BETWEEN :ngayBatDau AND :ngayKetThuc
           AND b.deleted = 0
         GROUP BY b.type
     """, nativeQuery = true)
-    List<Object[]> thongKePhuongThucThanhToan();
+    List<Object[]> thongKePhuongThucThanhToan(
+            @Param("ngayBatDau") Instant ngayBatDau,
+            @Param("ngayKetThuc") Instant ngayKetThuc
+    );
 
     @Query(value = """
         SELECT b.voucher_code AS ma_khuyen_mai,
@@ -72,7 +75,7 @@ public interface HoaDonRepository extends JpaRepository<Bill, Integer> {
                COUNT(b.id) AS so_lan_su_dung,
                SUM(b.final_amount) AS tong_doanh_thu
         FROM bill b
-        WHERE b.status = 'COMPLETED'
+        WHERE b.status = 'PAID'
           AND b.completion_date BETWEEN :ngayBatDau AND :ngayKetThuc
           AND b.deleted = 0
           AND b.voucher_code IS NOT NULL
@@ -88,10 +91,14 @@ public interface HoaDonRepository extends JpaRepository<Bill, Integer> {
         SELECT b.status AS trang_thai,
                COUNT(b.id) AS so_luong_don_hang
         FROM bill b
-        WHERE b.deleted = 0
+        WHERE b.completion_date BETWEEN :ngayBatDau AND :ngayKetThuc
+          AND b.deleted = 0
         GROUP BY b.status
     """, nativeQuery = true)
-    List<Object[]> thongKeDonHangTheoTrangThai();
+    List<Object[]> thongKeDonHangTheoTrangThai(
+            @Param("ngayBatDau") Instant ngayBatDau,
+            @Param("ngayKetThuc") Instant ngayKetThuc
+    );
 
     @Query(value = """
         SELECT CONVERT(DATE, b.created_at) AS ngay,

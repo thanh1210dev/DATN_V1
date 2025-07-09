@@ -32,7 +32,7 @@ public class ThongKeDoanhThuServiceImpl implements ThongKeDoanhThuService {
 
         List<Object[]> ketQua;
         try {
-            ketQua = hoaDonRepository.timDoanhThuTheoDonViThoiGian("COMPLETED", ngayBatDau, ngayKetThuc, billType);
+            ketQua = hoaDonRepository.timDoanhThuTheoDonViThoiGian("PAID", ngayBatDau, ngayKetThuc, billType);
         } catch (Exception e) {
             System.err.println("Error fetching revenue: " + e.getMessage());
             return new ArrayList<>();
@@ -58,7 +58,7 @@ public class ThongKeDoanhThuServiceImpl implements ThongKeDoanhThuService {
 
         List<Object[]> ketQua;
         try {
-            ketQua = hoaDonRepository.timDoanhThuTheoDonViThoiGian("COMPLETED", startOfDay, endOfDay, null);
+            ketQua = hoaDonRepository.timDoanhThuTheoDonViThoiGian("PAID", startOfDay, endOfDay, null);
         } catch (Exception e) {
             System.err.println("Error fetching today's revenue: " + e.getMessage());
             ThongKeDoanhThuDTO dto = new ThongKeDoanhThuDTO();
@@ -110,7 +110,35 @@ public class ThongKeDoanhThuServiceImpl implements ThongKeDoanhThuService {
         ZoneId zoneId = ZoneId.systemDefault();
 
         try {
-            if ("THANG".equalsIgnoreCase(ky)) {
+            if ("NGAY".equalsIgnoreCase(ky)) {
+                Instant dauNgayNay = ngayHienTai.atZone(zoneId).toLocalDate().atStartOfDay(zoneId).toInstant();
+                Instant cuoiNgayNay = ngayHienTai.atZone(zoneId).toLocalDate().atTime(23, 59, 59).atZone(zoneId).toInstant();
+                Instant dauNgayTruoc = dauNgayNay.atZone(zoneId).minusDays(1).toInstant();
+                Instant cuoiNgayTruoc = cuoiNgayNay.atZone(zoneId).minusDays(1).toInstant();
+
+                BigDecimal doanhThuNgayNay = hoaDonRepository.timDoanhThuTheoDonViThoiGian(
+                                "PAID", dauNgayNay, cuoiNgayNay, null)
+                        .stream().map(row -> (BigDecimal) row[1]).reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                BigDecimal doanhThuNgayTruoc = hoaDonRepository.timDoanhThuTheoDonViThoiGian(
+                                "PAID", dauNgayTruoc, cuoiNgayTruoc, null)
+                        .stream().map(row -> (BigDecimal) row[1]).reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                SoSanhDoanhThuDTO ngayNay = new SoSanhDoanhThuDTO();
+                ngayNay.setKy("Hôm nay");
+                ngayNay.setDoanhThu(doanhThuNgayNay);
+
+                SoSanhDoanhThuDTO ngayTruoc = new SoSanhDoanhThuDTO();
+                ngayTruoc.setKy("Hôm qua");
+                ngayTruoc.setDoanhThu(doanhThuNgayTruoc);
+
+                double tyLe = doanhThuNgayTruoc.compareTo(BigDecimal.ZERO) != 0 ?
+                        doanhThuNgayNay.subtract(doanhThuNgayTruoc).doubleValue() / doanhThuNgayTruoc.doubleValue() * 100 : 0;
+                ngayNay.setTyLeTangTruong(tyLe);
+
+                danhSach.add(ngayNay);
+                danhSach.add(ngayTruoc);
+            } else if ("THANG".equalsIgnoreCase(ky)) {
                 Instant dauThangNay = ngayHienTai.atZone(zoneId).withDayOfMonth(1).toInstant();
                 Instant cuoiThangNay = ngayHienTai.atZone(zoneId).withDayOfMonth(
                         ngayHienTai.atZone(zoneId).toLocalDate().lengthOfMonth()).withHour(23).withMinute(59).withSecond(59).toInstant();
@@ -119,11 +147,11 @@ public class ThongKeDoanhThuServiceImpl implements ThongKeDoanhThuService {
                         dauThangTruoc.atZone(zoneId).toLocalDate().lengthOfMonth()).withHour(23).withMinute(59).withSecond(59).toInstant();
 
                 BigDecimal doanhThuThangNay = hoaDonRepository.timDoanhThuTheoDonViThoiGian(
-                                "COMPLETED", dauThangNay, cuoiThangNay, null)
+                                "PAID", dauThangNay, cuoiThangNay, null)
                         .stream().map(row -> (BigDecimal) row[1]).reduce(BigDecimal.ZERO, BigDecimal::add);
 
                 BigDecimal doanhThuThangTruoc = hoaDonRepository.timDoanhThuTheoDonViThoiGian(
-                                "COMPLETED", dauThangTruoc, cuoiThangTruoc, null)
+                                "PAID", dauThangTruoc, cuoiThangTruoc, null)
                         .stream().map(row -> (BigDecimal) row[1]).reduce(BigDecimal.ZERO, BigDecimal::add);
 
                 SoSanhDoanhThuDTO thangNay = new SoSanhDoanhThuDTO();
@@ -150,11 +178,11 @@ public class ThongKeDoanhThuServiceImpl implements ThongKeDoanhThuService {
                         dauQuyTruoc.atZone(zoneId).plusMonths(2).toLocalDate().lengthOfMonth()).withHour(23).withMinute(59).withSecond(59).toInstant();
 
                 BigDecimal doanhThuQuyNay = hoaDonRepository.timDoanhThuTheoDonViThoiGian(
-                                "COMPLETED", dauQuyNay, cuoiQuyNay, null)
+                                "PAID", dauQuyNay, cuoiQuyNay, null)
                         .stream().map(row -> (BigDecimal) row[1]).reduce(BigDecimal.ZERO, BigDecimal::add);
 
                 BigDecimal doanhThuQuyTruoc = hoaDonRepository.timDoanhThuTheoDonViThoiGian(
-                                "COMPLETED", dauQuyTruoc, cuoiQuyTruoc, null)
+                                "PAID", dauQuyTruoc, cuoiQuyTruoc, null)
                         .stream().map(row -> (BigDecimal) row[1]).reduce(BigDecimal.ZERO, BigDecimal::add);
 
                 SoSanhDoanhThuDTO quyNay = new SoSanhDoanhThuDTO();
@@ -180,11 +208,11 @@ public class ThongKeDoanhThuServiceImpl implements ThongKeDoanhThuService {
                         .withHour(23).withMinute(59).withSecond(59).toInstant();
 
                 BigDecimal doanhThuNamNay = hoaDonRepository.timDoanhThuTheoDonViThoiGian(
-                                "COMPLETED", dauNamNay, cuoiNamNay, null)
+                                "PAID", dauNamNay, cuoiNamNay, null)
                         .stream().map(row -> (BigDecimal) row[1]).reduce(BigDecimal.ZERO, BigDecimal::add);
 
                 BigDecimal doanhThuNamTruoc = hoaDonRepository.timDoanhThuTheoDonViThoiGian(
-                                "COMPLETED", dauNamTruoc, cuoiNamTruoc, null)
+                                "PAID", dauNamTruoc, cuoiNamTruoc, null)
                         .stream().map(row -> (BigDecimal) row[1]).reduce(BigDecimal.ZERO, BigDecimal::add);
 
                 SoSanhDoanhThuDTO namNay = new SoSanhDoanhThuDTO();
@@ -209,10 +237,10 @@ public class ThongKeDoanhThuServiceImpl implements ThongKeDoanhThuService {
     }
 
     @Override
-    public List<PhuongThucThanhToanDTO> thongKePhuongThucThanhToan() {
+    public List<PhuongThucThanhToanDTO> thongKePhuongThucThanhToan(Instant ngayBatDau, Instant ngayKetThuc) {
         List<Object[]> ketQua;
         try {
-            ketQua = hoaDonRepository.thongKePhuongThucThanhToan();
+            ketQua = hoaDonRepository.thongKePhuongThucThanhToan(ngayBatDau, ngayKetThuc);
         } catch (Exception e) {
             System.err.println("Error fetching payment methods: " + e.getMessage());
             return new ArrayList<>();
@@ -259,10 +287,10 @@ public class ThongKeDoanhThuServiceImpl implements ThongKeDoanhThuService {
     }
 
     @Override
-    public List<DonHangTheoTrangThaiDTO> thongKeDonHangTheoTrangThai() {
+    public List<DonHangTheoTrangThaiDTO> thongKeDonHangTheoTrangThai(Instant ngayBatDau, Instant ngayKetThuc) {
         List<Object[]> ketQua;
         try {
-            ketQua = hoaDonRepository.thongKeDonHangTheoTrangThai();
+            ketQua = hoaDonRepository.thongKeDonHangTheoTrangThai(ngayBatDau, ngayKetThuc);
         } catch (Exception e) {
             System.err.println("Error fetching order status: " + e.getMessage());
             return new ArrayList<>();

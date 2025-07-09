@@ -543,7 +543,7 @@ public class BillServiceImpl implements BillService {
 
                 // Nếu hóa đơn là ONLINE, cập nhật typeOrder của BillDetail thành PENDING
                 if (bill.getBillType() == BillType.ONLINE) {
-                        billDetailService.updateBillDetailTypeOrder(billId, OrderStatus.PENDING);
+                        billDetailService.updateBillDetailTypeOrder(billId, OrderStatus.CONFIRMING);
                 }
 
                 if (bill.getCustomer() != null && bill.getStatus() == OrderStatus.PAID) {

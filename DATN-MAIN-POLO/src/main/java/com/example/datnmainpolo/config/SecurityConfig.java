@@ -46,12 +46,12 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
 
-
-                .oauth2Login(oauth -> oauth
-                        .userInfoEndpoint().userService(customOAuth2UserService)
-                        .and()
-                        .successHandler(oAuth2LoginSuccessHandler)
-                )
+//
+//                .oauth2Login(oauth -> oauth
+//                        .userInfoEndpoint().userService(customOAuth2UserService)
+//                        .and()
+//                        .successHandler(oAuth2LoginSuccessHandler)
+//                )
 
                 .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 .and()

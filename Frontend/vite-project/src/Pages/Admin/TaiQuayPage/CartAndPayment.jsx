@@ -876,7 +876,7 @@ const CartAndPayment = ({
                     <thead className="text-xs uppercase bg-indigo-50 text-indigo-600">
                       <tr>
                         <th className="px-6 py-3 w-16 rounded-tl-lg">#</th>
-                       
+                        <th className="px-4 py-3">Mã KH</th>
                         <th className="px-4 py-3">Tên</th>
                         <th className="px-4 py-3">Số Điện Thoại</th>
                         <th className="px-4 py-3">Email</th>
@@ -890,7 +890,7 @@ const CartAndPayment = ({
                           <td className="px-6 py-3 text-center">
                             {customerPagination.page * customerPagination.size + index + 1}
                           </td>
-                          
+                          <td className="px-4 py-3">{customer.code || 'Khách Tại quầy'}</td>
                           <td className="px-4 py-3">{customer.name}</td>
                           <td className="px-4 py-3">{customer.phoneNumber}</td>
                           <td className="px-4 py-3">{customer.email || 'N/A'}</td>

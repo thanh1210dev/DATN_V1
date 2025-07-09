@@ -1,5 +1,4 @@
-
-        package com.example.datnmainpolo.service;
+package com.example.datnmainpolo.service;
 
 import com.example.datnmainpolo.dto.ThongKeDoanhThuDTO.*;
 import org.springframework.data.domain.Page;
@@ -12,9 +11,9 @@ public interface ThongKeDoanhThuService {
     List<ThongKeDoanhThuDTO> layDoanhThuTheoThoiGian(YeuCauDoanhThuDTO yeuCau);
     ThongKeDoanhThuDTO layDoanhThuHomNay();
     List<SoSanhDoanhThuDTO> soSanhDoanhThu(String ky);
-    List<PhuongThucThanhToanDTO> thongKePhuongThucThanhToan();
+    List<PhuongThucThanhToanDTO> thongKePhuongThucThanhToan(Instant ngayBatDau, Instant ngayKetThuc);
     List<KhuyenMaiDTO> thongKeKhuyenMai(Instant ngayBatDau, Instant ngayKetThuc);
-    List<DonHangTheoTrangThaiDTO> thongKeDonHangTheoTrangThai();
+    List<DonHangTheoTrangThaiDTO> thongKeDonHangTheoTrangThai(Instant ngayBatDau, Instant ngayKetThuc);
     List<DonHangTheoThoiGianDTO> thongKeDonHangTheoThoiGian(Instant ngayBatDau, Instant ngayKetThuc);
     Page<KhachHangThanThietDTO> timKhachHangThanThiet(
             String code, String name, String phoneNumber, String email,
