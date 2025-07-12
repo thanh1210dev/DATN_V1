@@ -1,18 +1,14 @@
-package com.example.datnmainpolo.dto.CustomerInformaitonDTO;
+package com.example.datnmainpolo.dto.CartDetailResponseDTO;
 
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.time.Instant;
-
 @Builder
 @Getter
 @Setter
-@JsonIgnoreProperties(ignoreUnknown = true)
-public class CustomerInformationResponseDTO {
+public class CustomerInformationRequestDTO {
     private Integer id;
     private String name;
     private String phoneNumber;
@@ -24,6 +20,4 @@ public class CustomerInformationResponseDTO {
     private String wardName;
     private String wardCode;
     private Boolean isDefault;
-    private Instant createdAt;
-    private Instant updatedAt;
 }

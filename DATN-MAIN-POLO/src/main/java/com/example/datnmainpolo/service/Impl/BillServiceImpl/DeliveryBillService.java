@@ -154,7 +154,7 @@ public class DeliveryBillService {
         return billService.convertToBillResponseDTO(savedBill);
     }
 
-    private void updateCustomerAddressFromGHN(CustomerInformation customerInfo) {
+    void updateCustomerAddressFromGHN(CustomerInformation customerInfo) {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.set("Token", ghnToken);
@@ -239,7 +239,7 @@ public class DeliveryBillService {
         }
     }
 
-    private BigDecimal calculateShippingFee(CustomerInformation customerInfo) {
+    BigDecimal calculateShippingFee(CustomerInformation customerInfo) {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.set("Token", ghnToken);

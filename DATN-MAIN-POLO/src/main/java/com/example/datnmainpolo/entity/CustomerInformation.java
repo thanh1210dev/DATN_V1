@@ -1,14 +1,6 @@
 package com.example.datnmainpolo.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
@@ -21,12 +13,12 @@ import java.time.Instant;
 @Table(name = "customer_information")
 public class CustomerInformation {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY) // Thêm để tự động tăng id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
     private Integer id;
 
     @Size(max = 100)
-    @Column(name = "name",  columnDefinition = "NVARCHAR(255)")
+    @Column(name = "name", columnDefinition = "NVARCHAR(255)")
     private String name;
 
     @Size(max = 20)
@@ -65,14 +57,13 @@ public class CustomerInformation {
     @Column(name = "ward_code", length = 100)
     private String wardCode;
 
+    @Column(name = "is_default")
+    private Boolean isDefault = false;
 
     @Column(name = "deleted")
     private Boolean deleted;
 
-
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id")
     private UserEntity customer;
-
 }

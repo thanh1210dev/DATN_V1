@@ -179,26 +179,16 @@ public class BillDetailServiceImpl implements BillDetailService {
 
     @Transactional
     public void updateBillDetailTypeOrder(Integer billId, OrderStatus typeOrder) {
-        logger.info("Updating typeOrder for all bill details of bill {}", billId);
-
+        logger.info("Updating typeOrder for all bill details of bill {} to {}", billId, typeOrder);
         Bill bill = billRepository.findById(billId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
 
         List<BillDetail> billDetails = billDetailRepository.findByBillId(billId);
-        if (bill.getStatus() == OrderStatus.PAID && bill.getBillType() == BillType.ONLINE) {
-            for (BillDetail detail : billDetails) {
-                detail.setTypeOrder(OrderStatus.PENDING);
-                detail.setUpdatedAt(Instant.now());
-                detail.setUpdatedBy("system");
-                billDetailRepository.save(detail);
-            }
-        } else {
-            for (BillDetail detail : billDetails) {
-                detail.setTypeOrder(typeOrder);
-                detail.setUpdatedAt(Instant.now());
-                detail.setUpdatedBy("system");
-                billDetailRepository.save(detail);
-            }
+        for (BillDetail detail : billDetails) {
+            detail.setTypeOrder(typeOrder);
+            detail.setUpdatedAt(Instant.now());
+            detail.setUpdatedBy("system");
+            billDetailRepository.save(detail);
         }
     }
 

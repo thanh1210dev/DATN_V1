@@ -18,5 +18,7 @@ public interface BillDetailRepository extends JpaRepository<BillDetail, Integer>
     Optional<BillDetail> findByBillIdAndDetailProduct_Id(Integer billId, Integer productDetailId);
     List<BillDetail> findAllByBillIdAndDeletedFalse(Integer billId);
     List<BillDetail> findByBillId(Integer billId);
-    // Đã xóa: BillDetail findByBill_Id(Integer billId);
+
+
+    List<BillDetail> findAllByBill_Id(Integer billId);
 }

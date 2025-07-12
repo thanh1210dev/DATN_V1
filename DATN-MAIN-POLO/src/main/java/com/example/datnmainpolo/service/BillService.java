@@ -34,4 +34,6 @@ public interface BillService {
     void applyBestPublicVoucher(Bill savedBill);
 
     BillResponseDTO convertToBillResponseDTO(Bill savedBill);
+
+    BillResponseDTO convertToBillResponseDTO2(Bill bill);
 }

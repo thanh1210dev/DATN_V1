@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { toast } from "react-toastify";
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { toast } from 'react-toastify';
+import axiosInstance from '../../../Service/axiosInstance';
 
 const ProductCard = ({ product }) => {
   const [productDetail, setProductDetail] = useState(null);
@@ -8,9 +9,8 @@ const ProductCard = ({ product }) => {
   useEffect(() => {
     const fetchProductDetail = async () => {
       try {
-        const response = await fetch(`http://localhost:8080/api/product-details/all/${product.id}?page=0&size=1`);
-        const data = await response.json();
-        setProductDetail(data.content[0] || null);
+        const response = await axiosInstance.get(`/product-details/all/${product.id}?page=0&size=1`);
+        setProductDetail(response.data.content[0] || null);
       } catch (error) {
         console.error(error);
       }
@@ -18,35 +18,26 @@ const ProductCard = ({ product }) => {
     fetchProductDetail();
   }, [product.id]);
 
-  const handleAddToCart = () => {
-    if (!productDetail || productDetail.status !== "AVAILABLE") {
+  const handleAddToCart = async () => {
+    if (!productDetail || productDetail.status !== 'AVAILABLE') {
       toast.error(
-        productDetail?.status === "OUT_OF_STOCK"
-          ? "Sản phẩm đã hết hàng!"
-          : "Sản phẩm không còn kinh doanh!",
-        { position: "top-right", autoClose: 3000 }
+        productDetail?.status === 'OUT_OF_STOCK' ? 'Sản phẩm đã hết hàng!' : 'Sản phẩm không còn kinh doanh!',
+        { position: 'top-right', autoClose: 3000 }
       );
       return;
     }
 
-    const cart = JSON.parse(localStorage.getItem("cart") || "[]");
-    const existingItem = cart.find((item) => item.productId === product.id);
-    if (existingItem) {
-      existingItem.quantity += 1;
-    } else {
-      cart.push({
-        productId: product.id,
-        productDetailId: productDetail?.id,
-        productName: product.name,
-        price: productDetail?.promotionalPrice || productDetail?.price || 100000,
-        quantity: 1,
-        size: productDetail?.sizeName,
-        color: productDetail?.colorName,
-      });
+    try {
+      const userId = localStorage.getItem('userId');
+      if (!userId) {
+        toast.error('Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng', { position: 'top-right', autoClose: 3000 });
+        return;
+      }
+      await axiosInstance.post(`/cart-checkout/cart/add?userId=${userId}&productDetailId=${productDetail.id}&quantity=1`);
+      toast.success('Đã thêm vào giỏ hàng!', { position: 'top-right', autoClose: 3000 });
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Lỗi khi thêm vào giỏ hàng', { position: 'top-right', autoClose: 3000 });
     }
-
-    localStorage.setItem("cart", JSON.stringify(cart));
-    toast.success("Đã thêm vào giỏ hàng!", { position: "top-right", autoClose: 3000 });
   };
 
   const calculateSavings = () => {
@@ -56,26 +47,21 @@ const ProductCard = ({ product }) => {
 
   return (
     <div className="group relative bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition duration-300">
-      {/* Badge tiết kiệm */}
       {calculateSavings() > 0 && (
         <div className="absolute top-2 left-2 bg-blue-900 text-white text-xs font-bold px-2 py-1 rounded z-10">
-          Tiết kiệm {calculateSavings().toLocaleString("vi-VN")}₫
+          Tiết kiệm {calculateSavings().toLocaleString('vi-VN')}₫
         </div>
       )}
-
-      {/* Image */}
       <Link to={`/products/${product.id}`} className="block relative overflow-hidden">
         <img
           src={
             productDetail?.images?.[0]?.url
               ? `http://localhost:8080${productDetail.images[0].url}`
-              : "https://via.placeholder.com/300?text=Không+có+ảnh"
+              : 'https://via.placeholder.com/300?text=Không+có+ảnh'
           }
           alt={product.name}
           className="w-full h-72 object-cover transition-transform duration-300 group-hover:scale-105"
         />
-
-        {/* Nút Thêm nhanh */}
         <button
           type="button"
           onClick={(e) => {
@@ -87,8 +73,6 @@ const ProductCard = ({ product }) => {
           + Thêm nhanh
         </button>
       </Link>
-
-      {/* Tên và giá */}
       <div className="p-4">
         <Link to={`/products/${product.id}`}>
           <h3 className="text-sm font-bold text-gray-900 line-clamp-2">{product.name}</h3>
@@ -97,18 +81,19 @@ const ProductCard = ({ product }) => {
           {productDetail?.promotionalPrice ? (
             <>
               <span className="text-indigo-600 font-semibold text-[15px]">
-                {productDetail.promotionalPrice.toLocaleString("vi-VN")}₫
+                {productDetail.promotionalPrice.toLocaleString('vi-VN')}₫
               </span>
               <span className="line-through text-gray-400 text-sm">
-                {productDetail.price.toLocaleString("vi-VN")}₫
+                {productDetail.price.toLocaleString('vi-VN')}₫
               </span>
             </>
           ) : (
             <span className="text-indigo-600 font-semibold text-[15px]">
-              {(productDetail?.price || 100000).toLocaleString("vi-VN")}₫
+              {(productDetail?.price || 100000).toLocaleString('vi-VN')}₫
             </span>
           )}
         </div>
+        <p className="text-xs text-gray-600 mt-1">Trọng lượng: {productDetail?.weight ? `${productDetail.weight}g` : 'Chưa xác định'}</p>
       </div>
     </div>
   );

@@ -50,4 +50,6 @@ public interface BillRepository extends JpaRepository<Bill, Integer> {
             @Param("minPrice") BigDecimal minPrice,
             @Param("maxPrice") BigDecimal maxPrice,
             Pageable pageable);
+
+    Page<Bill> findByCustomerIdAndDeletedFalse(Integer userId, Pageable pageable);
 }

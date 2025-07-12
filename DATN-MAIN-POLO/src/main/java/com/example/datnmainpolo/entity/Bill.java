@@ -67,7 +67,8 @@ public class Bill {
     private BillType billType; //ONLINE, OFLINE
 
 
-
+    @Column(name = "customer_payment", nullable = false)
+    private BigDecimal customerPayment = BigDecimal.ZERO; // New field for customer payment amount
 
 
 

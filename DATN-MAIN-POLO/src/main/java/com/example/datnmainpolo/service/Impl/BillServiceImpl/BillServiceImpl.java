@@ -1,4 +1,5 @@
-package com.example.datnmainpolo.service.Impl.BillServiceImpl;
+
+        package com.example.datnmainpolo.service.Impl.BillServiceImpl;
 
 import com.example.datnmainpolo.dto.BillDTO.BillResponseDTO;
 import com.example.datnmainpolo.dto.BillDTO.CustomerRequestDTO;
@@ -76,6 +77,7 @@ public class BillServiceImpl implements BillService {
                 bill.setMoneyShip(ZERO);
                 bill.setReductionAmount(ZERO);
                 bill.setFinalAmount(ZERO);
+                bill.setCustomerPayment(ZERO);
 
                 Bill savedBill = billRepository.save(bill);
 
@@ -154,8 +156,7 @@ public class BillServiceImpl implements BillService {
                 } else {
                         try {
                                 appliedVoucher = voucherRepository.findByCodeAndDeletedFalse(voucherCode)
-                                        .orElseThrow(() -> new RuntimeException(
-                                                "Không tìm thấy voucher hoặc voucher không hợp lệ"));
+                                        .orElseThrow(() -> new RuntimeException("Không tìm thấy voucher hoặc voucher không hợp lệ"));
                                 validateVoucher(appliedVoucher, bill);
                                 applyVoucher(bill, appliedVoucher);
                         } catch (IncorrectResultSizeDataAccessException e) {
@@ -211,12 +212,22 @@ public class BillServiceImpl implements BillService {
                                 bill.setVoucherName(null);
                                 bill.setReductionAmount(ZERO);
                                 bill.setFinalAmount(calculateFinalAmount(bill));
+                                bill.setCustomerPayment(ZERO);
                         }
                 }
 
                 bill.setStatus(newStatus);
                 bill.setUpdatedAt(Instant.now());
                 bill.setUpdatedBy("system");
+
+                // Only update typeOrder if bill is not ONLINE to avoid conflict with OnlineOrderConfirmationServiceImpl
+                if (bill.getBillType() != BillType.ONLINE) {
+                        List<BillDetail> billDetails = billDetailRepository.findAllByBill_Id(billId);
+                        for (BillDetail detail : billDetails) {
+                                detail.setTypeOrder(newStatus);
+                        }
+                        billDetailRepository.saveAll(billDetails);
+                }
 
                 OrderHistory orderHistory = new OrderHistory();
                 orderHistory.setBill(bill);
@@ -238,10 +249,6 @@ public class BillServiceImpl implements BillService {
                                 transaction.setNote("Thanh toán thành công");
                                 transaction.setUpdatedAt(Instant.now());
                                 transactionRepository.save(transaction);
-                                // Nếu hóa đơn là ONLINE, cập nhật typeOrder của BillDetail thành PENDING
-                                if (bill.getBillType() == BillType.ONLINE) {
-                                        billDetailService.updateBillDetailTypeOrder(billId, OrderStatus.PENDING);
-                                }
                                 break;
                         case CANCELLED:
                                 transaction.setStatus(TransactionStatus.CANCELLED);
@@ -279,10 +286,7 @@ public class BillServiceImpl implements BillService {
                 Bill bill = billRepository.findById(billId)
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
 
-                if (bill.getStatus() != OrderStatus.PENDING) {
-                        throw new RuntimeException(
-                                "Không thể thanh toán cho đơn hàng không ở trạng thái chờ thanh toán");
-                }
+
 
                 BigDecimal finalAmount = calculateFinalAmount(bill);
                 if (finalAmount == null) {
@@ -290,50 +294,45 @@ public class BillServiceImpl implements BillService {
                         throw new RuntimeException("Không thể tính toán số tiền cuối cùng");
                 }
 
-                boolean isOfflineWithCustomer = bill.getBillType() == BillType.OFFLINE
-                        && bill.getCustomerInfor() != null;
-                if (isOfflineWithCustomer) {
-                        LOGGER.info("Bill {} is OFFLINE with customerInfor, setting billType to ONLINE and typeOrder to CONFIRMING",
-                                billId);
+                boolean hasCustomerInfo = bill.getCustomerInfor() != null;
+
+                PaymentResponseDTO response;
+                switch (paymentType) {
+                        case CASH:
+                                response = processCashPayment(bill, finalAmount, amount, hasCustomerInfo);
+                                break;
+                        case BANKING:
+                                response = processBankingPayment(bill, finalAmount, hasCustomerInfo);
+                                break;
+                        case VNPAY:
+                                response = processVNPayPayment(bill, finalAmount, hasCustomerInfo);
+                                break;
+                        case COD:
+                                response = processVNPayPayment(bill, finalAmount, hasCustomerInfo);
+                                break;
+                        default:
+                                throw new RuntimeException("Loại thanh toán không hợp lệ");
+                }
+
+                if (hasCustomerInfo && bill.getStatus() == OrderStatus.PENDING) {
+                        LOGGER.info("Bill {} has customer information, updating status to CONFIRMING", billId);
+                        bill.setStatus(OrderStatus.CONFIRMING);
                         bill.setBillType(BillType.ONLINE);
                         bill.setUpdatedAt(Instant.now());
                         bill.setUpdatedBy("system");
-                        billRepository.save(bill);
 
-                        List<BillDetail> billDetails = billDetailRepository.findByBillId(billId);
-                        for (BillDetail detail : billDetails) {
-                                detail.setTypeOrder(OrderStatus.CONFIRMING);
-                                detail.setUpdatedAt(Instant.now());
-                                detail.setUpdatedBy("system");
-                                billDetailRepository.save(detail);
-                        }
+                        billDetailService.updateBillDetailTypeOrder(billId, OrderStatus.CONFIRMING);
 
                         OrderHistory orderHistory = new OrderHistory();
                         orderHistory.setBill(bill);
-                        orderHistory.setStatusOrder(bill.getStatus());
-                        orderHistory.setActionDescription(
-                                "Hóa đơn tại quầy có thông tin khách hàng, chuyển thành ONLINE, cập nhật typeOrder thành CONFIRMING");
+                        orderHistory.setStatusOrder(OrderStatus.CONFIRMING);
+                        orderHistory.setActionDescription("Cập nhật trạng thái hóa đơn thành CONFIRMING do có thông tin khách hàng");
                         orderHistory.setCreatedAt(Instant.now());
                         orderHistory.setUpdatedAt(Instant.now());
                         orderHistory.setCreatedBy("system");
                         orderHistory.setUpdatedBy("system");
                         orderHistory.setDeleted(false);
                         orderHistoryRepository.save(orderHistory);
-                }
-
-                PaymentResponseDTO response;
-                switch (paymentType) {
-                        case CASH:
-                                response = processCashPayment(bill, finalAmount, amount, isOfflineWithCustomer);
-                                break;
-                        case BANKING:
-                                response = processBankingPayment(bill, finalAmount, isOfflineWithCustomer);
-                                break;
-                        case VNPAY:
-                                response = processVNPayPayment(bill, finalAmount, isOfflineWithCustomer);
-                                break;
-                        default:
-                                throw new RuntimeException("Loại thanh toán không hợp lệ");
                 }
 
                 if (bill.getStatus() == OrderStatus.PAID && bill.getVoucherCode() != null) {
@@ -351,7 +350,7 @@ public class BillServiceImpl implements BillService {
         }
 
         private PaymentResponseDTO processCashPayment(Bill bill, BigDecimal finalAmount, BigDecimal amount,
-                                                      boolean isOfflineWithCustomer) {
+                                                      boolean hasCustomerInfo) {
                 LOGGER.info("Processing cash payment for bill {} with amount {}", bill.getId(), amount);
                 if (amount == null) {
                         LOGGER.error("Amount is null for bill {}", bill.getId());
@@ -364,23 +363,24 @@ public class BillServiceImpl implements BillService {
                         throw new RuntimeException("Số tiền vượt quá giới hạn cho phép");
                 }
                 bill.setType(PaymentType.CASH);
+                bill.setCustomerPayment(amount.setScale(2, RoundingMode.HALF_UP));
 
-                bill.setStatus(OrderStatus.PAID);
+                bill.setStatus(hasCustomerInfo ? OrderStatus.CONFIRMING : OrderStatus.PAID);
                 bill.setUpdatedAt(Instant.now());
                 bill.setUpdatedBy("system");
                 Bill savedBill = billRepository.save(bill);
 
-                // Kiểm tra Bill xem người dùng có chưa nếu có thì tính tích điểm
                 if (bill.getCustomer() != null && bill.getStatus() == OrderStatus.PAID) {
                         BigDecimal orderValue = bill.getFinalAmount();
                         userService.updateLoyaltyPoints(bill.getCustomer().getId(), orderValue);
                 }
 
-                // Cập nhật tất cả BillDetail liên quan đến hóa đơn
                 List<BillDetail> billDetails = billDetailRepository.findByBillId(savedBill.getId());
                 for (BillDetail billDetail : billDetails) {
                         billDetail.setStatus(BillDetailStatus.PAID);
-                        billDetail.setTypeOrder(OrderStatus.PAID);
+                        if (bill.getStatus() == OrderStatus.PENDING) {
+                                billDetail.setTypeOrder(hasCustomerInfo ? OrderStatus.CONFIRMING : OrderStatus.PAID);
+                        }
                         billDetail.setUpdatedAt(Instant.now());
                         billDetail.setUpdatedBy("system");
                         billDetailRepository.save(billDetail);
@@ -388,18 +388,12 @@ public class BillServiceImpl implements BillService {
 
                 Transaction transaction = transactionRepository.findByBillId(bill.getId())
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch"));
-                transaction.setType(isOfflineWithCustomer ? TransactionType.ONLINE : TransactionType.PAYMENT);
+                transaction.setType(hasCustomerInfo ? TransactionType.ONLINE : TransactionType.PAYMENT);
                 transaction.setTotalMoney(amount.setScale(2, RoundingMode.HALF_UP));
                 transaction.setStatus(TransactionStatus.SUCCESS);
-                transaction.setNote("Thanh toán tiền mặt thành công"
-                        + (isOfflineWithCustomer ? " (xử lý như ONLINE)" : ""));
+                transaction.setNote("Thanh toán tiền mặt thành công" + (hasCustomerInfo ? " (xử lý như ONLINE)" : ""));
                 transaction.setUpdatedAt(Instant.now());
                 transactionRepository.save(transaction);
-
-                // Nếu hóa đơn là ONLINE, cập nhật typeOrder của BillDetail thành PENDING
-                if (bill.getBillType() == BillType.ONLINE) {
-                        billDetailService.updateBillDetailTypeOrder(bill.getId(), OrderStatus.PENDING);
-                }
 
                 return PaymentResponseDTO.builder()
                         .bill(convertToBillResponseDTO(savedBill))
@@ -409,23 +403,26 @@ public class BillServiceImpl implements BillService {
         }
 
         private PaymentResponseDTO processBankingPayment(Bill bill, BigDecimal finalAmount,
-                                                         boolean isOfflineWithCustomer) {
+                                                         boolean hasCustomerInfo) {
                 LOGGER.info("Processing banking payment for bill {} with amount {}", bill.getId(), finalAmount);
                 if (finalAmount.compareTo(new BigDecimal("999999999999999.99")) > 0) {
                         throw new RuntimeException("Số tiền vượt quá giới hạn cho phép");
                 }
 
-                bill.setStatus(OrderStatus.PENDING);
                 bill.setType(PaymentType.BANKING);
+                bill.setCustomerPayment(finalAmount.setScale(2, RoundingMode.HALF_UP));
+                bill.setFinalAmount(finalAmount.setScale(2, RoundingMode.HALF_UP));
+                bill.setStatus(hasCustomerInfo ? OrderStatus.CONFIRMING : OrderStatus.PENDING);
                 bill.setUpdatedAt(Instant.now());
                 bill.setUpdatedBy("system");
                 Bill savedBill = billRepository.save(bill);
 
-                // Cập nhật tất cả BillDetail liên quan đến hóa đơn
                 List<BillDetail> billDetails = billDetailRepository.findByBillId(savedBill.getId());
                 for (BillDetail billDetail : billDetails) {
                         billDetail.setStatus(BillDetailStatus.PAID);
-                        billDetail.setTypeOrder(OrderStatus.PAID);
+                        if (bill.getStatus() == OrderStatus.PENDING) {
+                                billDetail.setTypeOrder(hasCustomerInfo ? OrderStatus.CONFIRMING : OrderStatus.PAID);
+                        }
                         billDetail.setUpdatedAt(Instant.now());
                         billDetail.setUpdatedBy("system");
                         billDetailRepository.save(billDetail);
@@ -436,8 +433,7 @@ public class BillServiceImpl implements BillService {
                 transaction.setType(TransactionType.ONLINE);
                 transaction.setTotalMoney(finalAmount.setScale(2, RoundingMode.HALF_UP));
                 transaction.setStatus(TransactionStatus.PENDING);
-                transaction.setNote("Đang chờ thanh toán chuyển khoản"
-                        + (isOfflineWithCustomer ? " (xử lý như ONLINE)" : ""));
+                transaction.setNote("Đang chờ thanh toán chuyển khoản" + (hasCustomerInfo ? " (xử lý như ONLINE)" : ""));
                 transaction.setUpdatedAt(Instant.now());
                 transactionRepository.save(transaction);
 
@@ -453,23 +449,26 @@ public class BillServiceImpl implements BillService {
         }
 
         private PaymentResponseDTO processVNPayPayment(Bill bill, BigDecimal finalAmount,
-                                                       boolean isOfflineWithCustomer) {
+                                                       boolean hasCustomerInfo) {
                 LOGGER.info("Processing VNPay payment for bill {} with amount {}", bill.getId(), finalAmount);
                 if (finalAmount.compareTo(new BigDecimal("999999999999999.99")) > 0) {
                         throw new RuntimeException("Số tiền vượt quá giới hạn cho phép");
                 }
 
-                bill.setStatus(OrderStatus.PENDING);
                 bill.setType(PaymentType.VNPAY);
+                bill.setCustomerPayment(finalAmount.setScale(2, RoundingMode.HALF_UP));
+                bill.setFinalAmount(finalAmount.setScale(2, RoundingMode.HALF_UP));
+                bill.setStatus(hasCustomerInfo ? OrderStatus.CONFIRMING : OrderStatus.PENDING);
                 bill.setUpdatedAt(Instant.now());
                 bill.setUpdatedBy("system");
                 Bill savedBill = billRepository.save(bill);
 
-                // Cập nhật tất cả BillDetail liên quan đến hóa đơn
                 List<BillDetail> billDetails = billDetailRepository.findByBillId(savedBill.getId());
                 for (BillDetail billDetail : billDetails) {
                         billDetail.setStatus(BillDetailStatus.PAID);
-                        billDetail.setTypeOrder(OrderStatus.PAID);
+                        if (bill.getStatus() == OrderStatus.PENDING) {
+                                billDetail.setTypeOrder(hasCustomerInfo ? OrderStatus.CONFIRMING : OrderStatus.PAID);
+                        }
                         billDetail.setUpdatedAt(Instant.now());
                         billDetail.setUpdatedBy("system");
                         billDetailRepository.save(billDetail);
@@ -480,7 +479,7 @@ public class BillServiceImpl implements BillService {
                 transaction.setType(TransactionType.ONLINE);
                 transaction.setTotalMoney(finalAmount.setScale(2, RoundingMode.HALF_UP));
                 transaction.setStatus(TransactionStatus.PENDING);
-                transaction.setNote("Đang chờ thanh toán VNPay" + (isOfflineWithCustomer ? " (xử lý như ONLINE)" : ""));
+                transaction.setNote("Đang chờ thanh toán VNPay" + (hasCustomerInfo ? " (xử lý như ONLINE)" : ""));
                 transaction.setUpdatedAt(Instant.now());
                 transactionRepository.save(transaction);
 
@@ -498,23 +497,27 @@ public class BillServiceImpl implements BillService {
                 Bill bill = billRepository.findById(billId)
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
 
-                if (bill.getStatus() != OrderStatus.PENDING || bill.getType() != PaymentType.BANKING) {
+                if (bill.getStatus() != OrderStatus.PENDING && bill.getStatus() != OrderStatus.CONFIRMING || bill.getType() != PaymentType.BANKING) {
                         throw new RuntimeException("Không thể xác nhận thanh toán cho đơn hàng này");
                 }
 
-                bill.setStatus(OrderStatus.PAID);
+                boolean hasCustomerInfo = bill.getCustomerInfor() != null;
+
+                bill.setStatus(hasCustomerInfo ? OrderStatus.CONFIRMING : OrderStatus.PAID);
                 bill.setCompletionDate(Instant.now());
                 bill.setUpdatedAt(Instant.now());
                 bill.setUpdatedBy("system");
 
-                if (bill.getVoucherCode() != null) {
+                if (bill.getVoucherCode() != null && !hasCustomerInfo) {
                         decrementVoucherQuantity(bill.getVoucherCode());
                 }
 
                 OrderHistory orderHistory = new OrderHistory();
                 orderHistory.setBill(bill);
-                orderHistory.setStatusOrder(OrderStatus.PAID);
-                orderHistory.setActionDescription("Xác nhận thanh toán chuyển khoản thành công");
+                orderHistory.setStatusOrder(bill.getStatus());
+                orderHistory.setActionDescription(hasCustomerInfo
+                        ? "Xác nhận thanh toán chuyển khoản, cập nhật trạng thái thành CONFIRMING do có thông tin khách hàng"
+                        : "Xác nhận thanh toán chuyển khoản thành công");
                 orderHistory.setCreatedAt(Instant.now());
                 orderHistory.setUpdatedAt(Instant.now());
                 orderHistory.setCreatedBy("system");
@@ -525,26 +528,28 @@ public class BillServiceImpl implements BillService {
                 Transaction transaction = transactionRepository.findByBillId(billId)
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch"));
                 transaction.setStatus(TransactionStatus.SUCCESS);
-                transaction.setNote("Xác nhận thanh toán chuyển khoản thành công");
+                transaction.setNote(hasCustomerInfo
+                        ? "Xác nhận thanh toán chuyển khoản, xử lý như ONLINE do có thông tin khách hàng"
+                        : "Xác nhận thanh toán chuyển khoản thành công");
                 transaction.setUpdatedAt(Instant.now());
                 transactionRepository.save(transaction);
 
-                // Cập nhật tất cả BillDetail liên quan đến hóa đơn
                 List<BillDetail> billDetails = billDetailRepository.findByBillId(billId);
                 for (BillDetail billDetail : billDetails) {
                         billDetail.setStatus(BillDetailStatus.PAID);
-                        billDetail.setTypeOrder(OrderStatus.PAID);
+                        if (bill.getStatus() == OrderStatus.PENDING || bill.getStatus() == OrderStatus.CONFIRMING) {
+                                billDetail.setTypeOrder(hasCustomerInfo ? OrderStatus.CONFIRMING : OrderStatus.PAID);
+                        }
                         billDetail.setUpdatedAt(Instant.now());
                         billDetail.setUpdatedBy("system");
                         billDetailRepository.save(billDetail);
                 }
 
-                Bill savedBill = billRepository.save(bill);
-
-                // Nếu hóa đơn là ONLINE, cập nhật typeOrder của BillDetail thành PENDING
-                if (bill.getBillType() == BillType.ONLINE) {
-                        billDetailService.updateBillDetailTypeOrder(billId, OrderStatus.CONFIRMING);
+                if (hasCustomerInfo) {
+                        bill.setBillType(BillType.ONLINE);
                 }
+
+                Bill savedBill = billRepository.save(bill);
 
                 if (bill.getCustomer() != null && bill.getStatus() == OrderStatus.PAID) {
                         BigDecimal orderValue = bill.getFinalAmount();
@@ -554,17 +559,6 @@ public class BillServiceImpl implements BillService {
                 BillResponseDTO billResponse = convertToBillResponseDTO(savedBill);
                 List<BillDetailResponseDTO> billDetailsDTO = billDetailService.getAllBillDetailsByBillId(billId);
                 String invoicePDF = invoicePDFService.generateInvoicePDF(billResponse, billDetailsDTO);
-
-                PaymentResponseDTO response = PaymentResponseDTO.builder()
-                        .bill(billResponse)
-                        .paymentType(bill.getType())
-                        .amount(bill.getFinalAmount().setScale(2, RoundingMode.HALF_UP))
-                        .qrCode("/asset/maqr.jpg")
-                        .bankAccount("013607122")
-                        .bankName("ACB")
-                        .accountName("Nguyễn Như Thành")
-                        .invoicePDF(invoicePDF)
-                        .build();
 
                 return billResponse;
         }
@@ -623,6 +617,7 @@ public class BillServiceImpl implements BillService {
                         bill.setVoucherName(null);
                         bill.setReductionAmount(ZERO);
                         bill.setFinalAmount(calculateFinalAmount(bill));
+                        bill.setCustomerPayment(ZERO);
                 }
         }
 
@@ -653,6 +648,15 @@ public class BillServiceImpl implements BillService {
                 bill.setReductionAmount(reductionAmount);
                 bill.setFinalAmount(totalMoney.subtract(reductionAmount)
                         .add(bill.getMoneyShip() != null ? bill.getMoneyShip() : ZERO));
+                BigDecimal finalAmount = totalMoney.subtract(reductionAmount)
+                        .add(bill.getMoneyShip() != null ? bill.getMoneyShip() : ZERO);
+                bill.setFinalAmount(finalAmount);
+
+                // Chỉ cập nhật customerPayment nếu hóa đơn ở trạng thái PAID và phương thức thanh toán là BANKING hoặc VNPAY
+                if (bill.getStatus() == OrderStatus.PAID &&
+                        (bill.getType() == PaymentType.BANKING || bill.getType() == PaymentType.VNPAY)) {
+                        bill.setCustomerPayment(finalAmount);
+                }
         }
 
         private void decrementVoucherQuantity(String voucherCode) {
@@ -730,6 +734,43 @@ public class BillServiceImpl implements BillService {
 
         @Override
         public BillResponseDTO convertToBillResponseDTO(Bill bill) {
+                BigDecimal voucherDiscountAmount = bill.getReductionAmount();
+                VoucherType voucherType = null;
+                if (bill.getVoucherCode() != null) {
+                        Optional<Voucher> voucherOpt = voucherRepository
+                                .findByCodeAndDeletedFalse(bill.getVoucherCode());
+                        if (voucherOpt.isPresent()) {
+                                voucherType = voucherOpt.get().getType();
+                        }
+                }
+
+                return BillResponseDTO.builder()
+                        .id(bill.getId())
+                        .code(bill.getCode())
+                        .status(bill.getStatus())
+                        .customerName(bill.getCustomerName())
+                        .phoneNumber(bill.getPhoneNumber())
+                        .address(bill.getAddress())
+                        .billType(bill.getBillType())
+                        .totalMoney(bill.getTotalMoney())
+                        .reductionAmount(bill.getReductionAmount())
+                        .moneyShip(bill.getMoneyShip())
+                        .finalAmount(bill.getFinalAmount())
+                        .customerPayment(bill.getCustomerPayment())
+                        .createdAt(bill.getCreatedAt())
+                        .employeeName(bill.getEmployee() != null ? bill.getEmployee().getName() : null)
+                        .type(bill.getType())
+                        .createdBy(bill.getCreatedBy())
+                        .updatedBy(bill.getUpdatedBy())
+                        .voucherCode(bill.getVoucherCode())
+                        .voucherName(bill.getVoucherName())
+                        .voucherDiscountAmount(voucherDiscountAmount)
+                        .voucherType(voucherType)
+                        .build();
+        }
+
+        @Override
+        public BillResponseDTO convertToBillResponseDTO2(Bill bill) {
                 BigDecimal voucherDiscountAmount = bill.getReductionAmount();
                 VoucherType voucherType = null;
                 if (bill.getVoucherCode() != null) {

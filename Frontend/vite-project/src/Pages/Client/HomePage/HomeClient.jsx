@@ -1,14 +1,12 @@
-import React, { useState, useEffect } from "react";
-import { toast, ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-import Banner from "./Banner";
-import ProductService from "../../../Service/AdminProductSevice/ProductService";
-import CategoryService from "../../../Service/AdminProductSevice/CategoryService";
-import ProductFilter from "../ProductPage/ProductFilter";
-import ProductCard from "../ProductPage/ProductCard";
-import CategorySection from "./CategorySection";
-
-
+import React, { useState, useEffect } from 'react';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import Banner from './Banner';
+import ProductService from '../../../Service/AdminProductSevice/ProductService';
+import CategoryService from '../../../Service/AdminProductSevice/CategoryService';
+import ProductFilter from '../ProductPage/ProductFilter';
+import ProductCard from '../ProductPage/ProductCard';
+import CategorySection from './CategorySection';
 
 const HomeClient = () => {
   const [featuredProducts, setFeaturedProducts] = useState([]);
@@ -17,13 +15,13 @@ const HomeClient = () => {
   const [size, setSize] = useState(8);
   const [totalPages, setTotalPages] = useState(1);
   const [filters, setFilters] = useState({
-    code: "",
-    name: "",
-    categoryId: "",
-    brandId: "",
-    materialId: "",
-    sizeId: "",
-    colorId: "",
+    code: '',
+    name: '',
+    categoryId: '',
+    brandId: '',
+    materialId: '',
+    sizeId: '',
+    colorId: '',
     minPrice: 0,
     maxPrice: 10000000,
   });
@@ -49,7 +47,7 @@ const HomeClient = () => {
         setTotalPages(productsResponse.totalPages || 1);
         setCategories(categoriesResponse.content || []);
       } catch (error) {
-        toast.error(error, { position: "top-right", autoClose: 3000 });
+        toast.error(error.message || 'Lỗi khi lấy dữ liệu', { position: 'top-right', autoClose: 3000 });
       }
     };
     fetchData();
@@ -60,31 +58,29 @@ const HomeClient = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white w-full">
+    <div className="min-h-screen bg-gray-50">
       <ToastContainer />
       <Banner />
-      <div className="p-4 sm:p-6 flex flex-col lg:flex-row gap-6 w-full">
-        {/* Bộ lọc cố định sát trái */}
+      <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8 flex flex-col lg:flex-row gap-8">
         <div className="w-full lg:w-1/4">
           <ProductFilter filters={filters} setFilters={setFilters} onSearch={handleSearch} />
         </div>
-        {/* Nội dung chính */}
         <div className="w-full lg:w-3/4">
           <CategorySection categories={categories} />
-          <div className="mt-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Sản phẩm nổi bật</h2>
+          <div className="mt-12">
+            <h2 className="text-2xl font-bold text-gray-900 mb-8">Sản Phẩm Nổi Bật</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {featuredProducts.length === 0 ? (
-                <p className="col-span-full text-center text-gray-500">Không có sản phẩm</p>
+                <p className="col-span-full text-center text-gray-500 text-lg">Không có sản phẩm</p>
               ) : (
                 featuredProducts.map((product) => <ProductCard key={product.id} product={product} />)
               )}
             </div>
-            <div className="flex items-center justify-between mt-6">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between mt-8">
+              <div className="flex items-center gap-4">
                 <button
                   onClick={() => setPage((prev) => Math.max(prev - 1, 0))}
-                  className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 shadow-md"
+                  className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition duration-300"
                   disabled={page === 0}
                 >
                   ← Trước
@@ -94,7 +90,7 @@ const HomeClient = () => {
                 </span>
                 <button
                   onClick={() => setPage((prev) => Math.min(prev + 1, totalPages - 1))}
-                  className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 shadow-md"
+                  className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition duration-300"
                   disabled={page + 1 >= totalPages}
                 >
                   Tiếp →
@@ -106,7 +102,7 @@ const HomeClient = () => {
                   setSize(parseInt(e.target.value));
                   setPage(0);
                 }}
-                className="bg-white text-gray-700 border border-gray-200 rounded-lg px-4 py-2 text-sm"
+                className="bg-white text-gray-700 border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value={8}>8 / trang</option>
                 <option value={16}>16 / trang</option>

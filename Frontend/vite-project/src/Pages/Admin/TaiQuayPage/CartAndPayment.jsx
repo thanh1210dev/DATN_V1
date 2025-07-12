@@ -174,7 +174,7 @@ const CartAndPayment = ({
     setCustomerPagination((prev) => ({ ...prev, page: 0 }));
   };
 
-  // Handle Customer Pagination Change
+  // Handle Customer Pagination Change Ngày giao mong muốn
   const handleCustomerPaginationChange = (page) => {
     setCustomerPagination((prev) => ({ ...prev, page }));
   };
@@ -257,32 +257,34 @@ const CartAndPayment = ({
         toast.error('Số tiền vượt quá giới hạn cho phép');
         return;
       }
-    }
-    try {
-      setIsLoading(true);
-      const response = await processPayment();
-      setSelectedBill(response.bill || null);
-      if (paymentType === 'BANKING') {
-        setBankingDetails(response);
-        setShowBankingInfo(true);
-        if (response.invoicePDF) {
-          setInvoicePDF(response.invoicePDF);
-        }
-      } else {
-        toast.success('Thanh toán thành công');
+      try {
+        setIsLoading(true);
+        const response = await processPayment();
         setSelectedBill(null);
         setCashPaid('');
         setChangeAmount(0);
         setVoucherCode('');
         setAppliedVoucher(null);
         if (response.invoicePDF) {
-          setInvoicePDF(response.invoicePDF);
+          setInvoicePDF(response.invoicePDF); // Show invoice for cash payment
         }
+        toast.success('Thanh toán bằng tiền mặt thành công');
+      } catch (error) {
+        toast.error(error.response?.data?.message || 'Không thể xử lý thanh toán');
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Không thể xử lý thanh toán');
-    } finally {
-      setIsLoading(false);
+    } else if (paymentType === 'BANKING') {
+      try {
+        setIsLoading(true);
+        const response = await processPayment();
+        setBankingDetails(response); // Store banking details for QR code
+        setShowBankingInfo(true); // Show QR code modal
+      } catch (error) {
+        toast.error(error.response?.data?.message || 'Không thể xử lý thanh toán chuyển khoản');
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -301,10 +303,10 @@ const CartAndPayment = ({
       setVoucherCode('');
       setAppliedVoucher(null);
       setQrCodeUrl(null);
-      toast.success('Xác nhận thanh toán chuyển khoản thành công!');
       if (response.invoicePDF) {
-        setInvoicePDF(response.invoicePDF);
+        setInvoicePDF(response.invoicePDF); // Show invoice only after confirmation
       }
+      
     } catch (error) {
       toast.error(error.response?.data?.message || 'Không thể xác nhận thanh toán');
     } finally {
@@ -1415,4 +1417,6 @@ const CartAndPayment = ({
 };
 
 export default CartAndPayment;
-// Mã KH
+
+
+///  desiredDate  Thanh toán

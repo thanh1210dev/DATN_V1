@@ -1,5 +1,6 @@
-import { useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { toast } from 'react-toastify';
 
 function OAuth2RedirectHandler() {
   const navigate = useNavigate();
@@ -7,38 +8,40 @@ function OAuth2RedirectHandler() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const token = params.get("token");
-    const name = params.get("name"); 
-    const role = params.get("role");
-    const id = params.get("id");
+    const token = params.get('token');
+    const name = params.get('name');
+    const role = params.get('role');
+    const userId = params.get('id'); // Đổi tên biến để rõ ràng
 
-    console.log("✅ OAuth2 Token:", token);
-    console.log("✅ Name:", name);
-    console.log("✅ Role:", role);
-    console.log("✅ ID:", id);
+    console.log('✅ OAuth2 Token:', token);
+    console.log('✅ Name:', name);
+    console.log('✅ Role:', role);
+    console.log('✅ User ID:', userId);
 
-    if (token) {
-      localStorage.setItem("token", token);
-      localStorage.setItem("name", name);
-      localStorage.setItem("id", id);
-      localStorage.setItem("selectedRole", role);
-
-      
+    if (token && userId) {
+      localStorage.setItem('token', token);
+      localStorage.setItem('name', name || '');
+      localStorage.setItem('userId', userId); // Sử dụng key "userId"
+      localStorage.setItem('selectedRole', role || 'CLIENT');
 
       switch (role) {
-        case "Staff":
-        case "ADMIN":
-          navigate("/admin/dashboard");
+        case 'Staff':
+        case 'ADMIN':
+          navigate('/admin/dashboard');
           break;
-        case "CLIENT":
-          navigate("/");
+        case 'CLIENT':
+          navigate('/');
           break;
         default:
-          navigate("/");
+          navigate('/');
           break;
       }
     } else {
-      navigate("/login");
+      toast.error('Lỗi xác thực: Thiếu token hoặc ID người dùng', {
+        position: 'top-right',
+        autoClose: 3000,
+      });
+      navigate('/login');
     }
   }, [location, navigate]);
 

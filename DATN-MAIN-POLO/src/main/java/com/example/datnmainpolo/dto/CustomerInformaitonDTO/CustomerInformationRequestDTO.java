@@ -1,18 +1,25 @@
 package com.example.datnmainpolo.dto.CustomerInformaitonDTO;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
+@Builder
 @Getter
 @Setter
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class CustomerInformationRequestDTO {
-    @NotBlank(message = "Tên không được để trống")
-    @Size(max = 100, message = "Tên không được vượt quá 100 ký tự")
+    private Integer id;
     private String name;
-    @NotBlank(message = "Địa chỉ không được để trống")
-    @Size(max = 250, message = "Địa chỉ không được vượt quá 250 ký tự")
+    private String phoneNumber;
     private String address;
-
+    private String provinceName;
+    private Integer provinceId;
+    private String districtName;
+    private Integer districtId;
+    private String wardName;
+    private String wardCode;
+    private Boolean isDefault;
 }
