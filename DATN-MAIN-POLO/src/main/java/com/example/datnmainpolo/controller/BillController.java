@@ -1,26 +1,33 @@
 package com.example.datnmainpolo.controller;
 
-
+import com.example.datnmainpolo.config.VNPAYConfig;
 import com.example.datnmainpolo.dto.BillDTO.BillResponseDTO;
 import com.example.datnmainpolo.dto.BillDTO.CustomerRequestDTO;
 import com.example.datnmainpolo.dto.BillDTO.DeliveryBillAddressRequestDTO;
 import com.example.datnmainpolo.dto.BillDTO.PaymentResponseDTO;
 import com.example.datnmainpolo.dto.BillDetailDTO.AddProductToBillRequestDTO;
 import com.example.datnmainpolo.dto.BillDetailDTO.BillDetailResponseDTO;
+import com.example.datnmainpolo.dto.BillDetailDTO.PaymentWebhookRequestDto;
+import com.example.datnmainpolo.dto.BillDetailDTO.VNPayPaymentRequestDto;
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.enums.OrderStatus;
 import com.example.datnmainpolo.enums.PaymentType;
 import com.example.datnmainpolo.service.BillDetailService;
 import com.example.datnmainpolo.service.BillService;
 import com.example.datnmainpolo.service.Impl.BillServiceImpl.DeliveryBillService;
+
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
+import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
@@ -30,6 +37,7 @@ public class BillController {
     private final BillService billService;
     private final DeliveryBillService deliveryBillService;
     private final BillDetailService billDetailService;
+    private final VNPAYConfig vnpayConfig;
 
     @PostMapping("/counter-sale")
     public ResponseEntity<BillResponseDTO> createCounterSale() {
@@ -37,7 +45,8 @@ public class BillController {
     }
 
     @PostMapping("/delivery-sale")
-    public ResponseEntity<BillResponseDTO> createDeliverySale(@Valid @RequestBody DeliveryBillAddressRequestDTO request) {
+    public ResponseEntity<BillResponseDTO> createDeliverySale(
+            @Valid @RequestBody DeliveryBillAddressRequestDTO request) {
         return ResponseEntity.ok(deliveryBillService.createDeliveryBill(request));
     }
 
@@ -68,10 +77,9 @@ public class BillController {
         } catch (DateTimeParseException e) {
             throw new IllegalArgumentException("Định dạng ngày không hợp lệ: " + e.getMessage());
         }
-        return ResponseEntity.ok(billService.searchBillsAdvanced(code, status, start, end, minPrice, maxPrice, page, size));
+        return ResponseEntity
+                .ok(billService.searchBillsAdvanced(code, status, start, end, minPrice, maxPrice, page, size));
     }
-
-
 
     @PostMapping("/{billId}/voucher")
     public ResponseEntity<BillResponseDTO> addVoucherToBill(
@@ -105,6 +113,7 @@ public class BillController {
     public ResponseEntity<String> printInvoice(@PathVariable Integer billId) {
         return ResponseEntity.ok(billService.generateInvoice(billId));
     }
+
     @GetMapping("/{billId}")
     public ResponseEntity<BillResponseDTO> getBillDetail(@PathVariable Integer billId) {
         return ResponseEntity.ok(billService.getDetail(billId));
@@ -119,7 +128,8 @@ public class BillController {
     }
 
     @PostMapping("/{billId}/assign-customer")
-    public ResponseEntity<BillResponseDTO> addLoyalCustomerToBill(@PathVariable Integer billId, @RequestParam Integer customerId){
+    public ResponseEntity<BillResponseDTO> addLoyalCustomerToBill(@PathVariable Integer billId,
+            @RequestParam Integer customerId) {
         return ResponseEntity.ok(billService.addLoyalCustomerToBill(billId, customerId));
     }
 
@@ -130,5 +140,34 @@ public class BillController {
         BillResponseDTO response = billService.addVisitingGuests(billId, requestDTO);
         return ResponseEntity.ok(response);
     }
+
+    // Tạo link thanh toán VNPay
+    @PostMapping("/vnpay-payment-url")
+    public ResponseEntity<?> createVNPayPaymentUrl(@RequestBody VNPayPaymentRequestDto requestDto,
+            HttpServletRequest request) {
+        String paymentUrl = billService.createVNPayPaymentUrl(requestDto, request);
+        return ResponseEntity.ok(Map.of("paymentUrl", paymentUrl));
+    }
+
+    // Xử lý callback từ VNPay
+    @GetMapping("/vnpay-callback")
+    public ResponseEntity<?> processVNPayCallback(HttpServletRequest request) {
+        Map<String, String> result = billService.processVNPayCallback(request);
+        // Có thể redirect về frontend hoặc trả JSON kết quả
+        // Ví dụ: redirect về trang kết quả thanh toán trên frontend
+        String redirectUrl = "http://localhost:3000/payment-result?status=" + result.get("RspCode");
+        return ResponseEntity.status(HttpStatus.FOUND).header("Location", redirectUrl).build();
+        // Hoặc trả về JSON nếu bạn muốn xử lý trên backend
+        // return ResponseEntity.ok(result);
+    }
+
+    // Xử lý webhook từ VNPay (nếu có)
+    @PostMapping("/vnpay-webhook")
+    public ResponseEntity<?> handlePaymentWebhook(@RequestBody PaymentWebhookRequestDto webhookRequest) {
+        billService.handlePaymentWebhook(webhookRequest);
+        return ResponseEntity.ok("Webhook received and processed");
+    }
+
     
+
 }

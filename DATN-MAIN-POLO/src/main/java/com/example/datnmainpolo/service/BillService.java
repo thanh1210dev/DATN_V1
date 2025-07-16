@@ -3,12 +3,16 @@ package com.example.datnmainpolo.service;
 import com.example.datnmainpolo.dto.BillDTO.BillResponseDTO;
 import com.example.datnmainpolo.dto.BillDTO.CustomerRequestDTO;
 import com.example.datnmainpolo.dto.BillDTO.PaymentResponseDTO;
+import com.example.datnmainpolo.dto.BillDetailDTO.PaymentWebhookRequestDto;
+import com.example.datnmainpolo.dto.BillDetailDTO.VNPayPaymentRequestDto;
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.enums.OrderStatus;
 import com.example.datnmainpolo.enums.PaymentType;
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Map;
 
 public interface BillService {
     BillResponseDTO counterSale();
@@ -22,4 +26,9 @@ public interface BillService {
     BillResponseDTO getDetail(Integer billId);
     BillResponseDTO addLoyalCustomerToBill(Integer billId, Integer customerId);
     BillResponseDTO addVisitingGuests(Integer billId,CustomerRequestDTO requestDTO);
+    void handlePaymentWebhook(PaymentWebhookRequestDto webhookRequest);
+
+    String createVNPayPaymentUrl(VNPayPaymentRequestDto requestDto, HttpServletRequest request);
+
+    Map<String, String> processVNPayCallback(HttpServletRequest request);
 }

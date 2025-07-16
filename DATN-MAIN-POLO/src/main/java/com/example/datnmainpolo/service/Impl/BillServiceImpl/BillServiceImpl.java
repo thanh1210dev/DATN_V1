@@ -1,16 +1,23 @@
 package com.example.datnmainpolo.service.Impl.BillServiceImpl;
 
+import com.example.datnmainpolo.config.VNPAYConfig;
 import com.example.datnmainpolo.dto.BillDTO.*;
 import com.example.datnmainpolo.dto.BillDetailDTO.BillDetailResponseDTO;
+import com.example.datnmainpolo.dto.BillDetailDTO.PaymentWebhookRequestDto;
+import com.example.datnmainpolo.dto.BillDetailDTO.VNPayPaymentRequestDto;
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.entity.*;
 import com.example.datnmainpolo.enums.*;
 import com.example.datnmainpolo.repository.*;
 import com.example.datnmainpolo.service.BillDetailService;
 import com.example.datnmainpolo.service.Impl.BillDetailServiceImpl.InvoicePDFService;
+import com.example.datnmainpolo.utils.VNPayUtil;
 import com.example.datnmainpolo.service.OrderHistoryService;
 import com.example.datnmainpolo.service.UserService;
 import com.example.datnmainpolo.service.BillService;
+
+import jakarta.annotation.PostConstruct;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,8 +31,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -46,6 +63,7 @@ public class BillServiceImpl implements BillService {
         private final InvoicePDFService invoicePDFService;
         private final BillDetailService billDetailService;
         private final UserService userService;
+        private final VNPAYConfig vnpayConfig;
 
         @Override
         @Transactional
@@ -726,5 +744,165 @@ public class BillServiceImpl implements BillService {
                 bill.setAddress(requestDTO.getAddress());
                 billRepository.save(bill);
         return convertToBillResponseDTO(bill);
+        }
+
+        @Override
+        public void handlePaymentWebhook(PaymentWebhookRequestDto webhookRequest) {
+            String billCode = webhookRequest.getOrderReference();
+            Bill bill = billRepository.findByCode(billCode)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
+        
+            String status = webhookRequest.getStatus();
+            if ("SUCCESS".equalsIgnoreCase(status)) {
+                bill.setStatus(OrderStatus.PAID);
+                bill.setType(PaymentType.VNPAY);
+                bill.setCompletionDate(Instant.now());
+                billRepository.save(bill);
+        
+                Transaction transaction = transactionRepository.findByBillId(bill.getId())
+                        .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch"));
+                transaction.setStatus(TransactionStatus.SUCCESS);
+                transaction.setNote("Thanh toán VNPay thành công (webhook)");
+                transaction.setUpdatedAt(Instant.now());
+                transactionRepository.save(transaction);
+            } else {
+                bill.setStatus(OrderStatus.PENDING);
+                billRepository.save(bill);
+        
+                Transaction transaction = transactionRepository.findByBillId(bill.getId())
+                        .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch"));
+                transaction.setStatus(TransactionStatus.FAILED);
+                transaction.setNote("Thanh toán VNPay thất bại (webhook)");
+                transaction.setUpdatedAt(Instant.now());
+                transactionRepository.save(transaction);
+            }
+        }
+        
+        
+
+        @Override
+        public String createVNPayPaymentUrl(VNPayPaymentRequestDto requestDto, HttpServletRequest request) {
+            Bill bill = billRepository.findById(requestDto.getBillId())
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
+            if (bill.getStatus() != OrderStatus.PENDING) {
+                throw new RuntimeException("Hóa đơn không ở trạng thái chờ thanh toán");
+            }
+            BigDecimal totalAmount = bill.getFinalAmount();
+            if (totalAmount == null || totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new RuntimeException("Tổng tiền không hợp lệ");
+            }
+            long amountInVND = totalAmount.longValue() * 100L; // VNPay yêu cầu nhân 100
+
+            String vnp_TxnRef = bill.getCode() + "_" + System.currentTimeMillis();
+            String vnp_OrderInfo = "Thanh toan hoa don " + bill.getCode();
+
+            Map<String, String> vnp_Params = new HashMap<>();
+            vnp_Params.put("vnp_Version", vnpayConfig.getApiVersion());
+            vnp_Params.put("vnp_Command", vnpayConfig.getCommand());
+            vnp_Params.put("vnp_TmnCode", vnpayConfig.getTmnCode());
+            vnp_Params.put("vnp_Amount", String.valueOf(amountInVND));
+            vnp_Params.put("vnp_CurrCode", vnpayConfig.getCurrCode());
+            vnp_Params.put("vnp_TxnRef", vnp_TxnRef);
+            vnp_Params.put("vnp_OrderInfo", vnp_OrderInfo);
+            vnp_Params.put("vnp_OrderType", vnpayConfig.getOrderType());
+            vnp_Params.put("vnp_Locale", vnpayConfig.getLocale());
+            vnp_Params.put("vnp_ReturnUrl", vnpayConfig.getReturnUrl());
+            vnp_Params.put("vnp_IpAddr", request.getRemoteAddr());
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+            LocalDateTime now = LocalDateTime.now();
+            vnp_Params.put("vnp_CreateDate", now.format(formatter));
+            LocalDateTime expire = now.plusMinutes(15);
+            vnp_Params.put("vnp_ExpireDate", expire.format(formatter));
+        
+            // Tạo URL thanh toán
+            String paymentUrl = VNPayUtil.createPaymentUrl(
+                    vnpayConfig.getPayUrl(),
+                    vnpayConfig.getHashSecret(),
+                    vnp_Params
+            );
+        
+            return paymentUrl;
+        }
+
+        @Override
+        public Map<String, String> processVNPayCallback(HttpServletRequest request) {
+            Map<String, String> vnp_Params = new HashMap<>();
+            for (Enumeration<String> params = request.getParameterNames(); params.hasMoreElements(); ) {
+                String paramName = params.nextElement();
+                String paramValue = request.getParameter(paramName);
+                vnp_Params.put(paramName, paramValue);
+            }
+        
+            String vnp_SecureHash = vnp_Params.remove("vnp_SecureHash");
+        
+            // Tạo chuỗi dữ liệu để kiểm tra checksum
+            List<String> fieldNames = new ArrayList<>(vnp_Params.keySet());
+            Collections.sort(fieldNames);
+            StringBuilder hashData = new StringBuilder();
+            Iterator<String> itr = fieldNames.iterator();
+            while (itr.hasNext()) {
+                String fieldName = itr.next();
+                String fieldValue = vnp_Params.get(fieldName);
+                if ((fieldValue != null) && (fieldValue.length() > 0)) {
+                    hashData.append(fieldName);
+                    hashData.append('=');
+                    hashData.append(URLEncoder.encode(fieldValue, StandardCharsets.UTF_8));
+                    if (itr.hasNext()) {
+                        hashData.append('&');
+                    }
+                }
+            }
+            String mySecureHash = VNPayUtil.hmacSHA512(vnpayConfig.getHashSecret(), hashData.toString());
+        
+            Map<String, String> response = new HashMap<>();
+            if (vnp_SecureHash == null || !vnp_SecureHash.equals(mySecureHash)) {
+                response.put("RspCode", "97");
+                response.put("Message", "Invalid Checksum");
+                return response;
+            }
+        
+            String vnp_ResponseCode = vnp_Params.get("vnp_ResponseCode");
+            String vnp_TxnRef = vnp_Params.get("vnp_TxnRef");
+            String vnp_Amount = vnp_Params.get("vnp_Amount");
+        
+            // Lấy mã hóa đơn từ vnp_TxnRef (bạn cần tách mã billCode nếu có thêm timestamp)
+            String billCode = vnp_TxnRef.split("_")[0];
+            Bill bill = billRepository.findByCode(billCode)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
+        
+            if ("00".equals(vnp_ResponseCode)) {
+                // Thành công
+                bill.setStatus(OrderStatus.PAID);
+                bill.setType(PaymentType.VNPAY);
+                bill.setCompletionDate(Instant.now());
+                billRepository.save(bill);
+        
+                // Cập nhật transaction
+                Transaction transaction = transactionRepository.findByBillId(bill.getId())
+                        .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch"));
+                transaction.setStatus(TransactionStatus.SUCCESS);
+                transaction.setNote("Thanh toán VNPay thành công");
+                transaction.setUpdatedAt(Instant.now());
+                transactionRepository.save(transaction);
+        
+                response.put("RspCode", "00");
+                response.put("Message", "Success");
+            } else {
+                // Thất bại
+                bill.setStatus(OrderStatus.PENDING);
+                billRepository.save(bill);
+        
+                Transaction transaction = transactionRepository.findByBillId(bill.getId())
+                        .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch"));
+                transaction.setStatus(TransactionStatus.FAILED);
+                transaction.setNote("Thanh toán VNPay thất bại");
+                transaction.setUpdatedAt(Instant.now());
+                transactionRepository.save(transaction);
+        
+                response.put("RspCode", vnp_ResponseCode);
+                response.put("Message", "Failed from VNPay: " + vnp_ResponseCode);
+            }
+        
+            return response;
         }
 }
