@@ -65,4 +65,6 @@ public interface VoucherRepository extends JpaRepository<Voucher, Integer> {
     List<Voucher> findByTypeUserAndStatusAndDeletedFalse(VoucherTypeUser typeUser, PromotionStatus status);
 
     List<Voucher> findByTypeUserAndDeletedFalse(VoucherTypeUser typeUser);
+
+
 }

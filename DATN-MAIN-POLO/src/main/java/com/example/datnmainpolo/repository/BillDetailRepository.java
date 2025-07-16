@@ -10,11 +10,15 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
+
+
 @Repository
 public interface BillDetailRepository extends JpaRepository<BillDetail, Integer> {
     Page<BillDetail> findByBillIdAndDeletedFalse(Integer billId, Pageable pageable);
     Optional<BillDetail> findByBillIdAndDetailProduct_Id(Integer billId, Integer productDetailId);
-    List<BillDetail> findAllByBillIdAndDeletedFalse(Integer billId); // New method
-
+    List<BillDetail> findAllByBillIdAndDeletedFalse(Integer billId);
     List<BillDetail> findByBillId(Integer billId);
+
+
+    List<BillDetail> findAllByBill_Id(Integer billId);
 }

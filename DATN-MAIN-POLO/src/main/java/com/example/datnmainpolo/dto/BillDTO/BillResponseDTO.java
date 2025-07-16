@@ -1,10 +1,9 @@
 package com.example.datnmainpolo.dto.BillDTO;
 
-
 import com.example.datnmainpolo.enums.BillType;
 import com.example.datnmainpolo.enums.OrderStatus;
 import com.example.datnmainpolo.enums.PaymentType;
-import com.example.datnmainpolo.enums.VoucherType; // Import VoucherType
+import com.example.datnmainpolo.enums.VoucherType;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Builder;
 import lombok.Getter;
@@ -25,12 +24,14 @@ public class BillResponseDTO {
     private String phoneNumber;
     private String address;
 
-    private BillType billType; // add new
+    private BillType billType;
 
     private BigDecimal totalMoney;
     private BigDecimal reductionAmount;
     private BigDecimal moneyShip;
     private BigDecimal finalAmount;
+    private BigDecimal customerPayment; // New field for customer payment
+
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "Asia/Ho_Chi_Minh")
     private Instant confirmationDate;
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "Asia/Ho_Chi_Minh")
@@ -51,12 +52,8 @@ public class BillResponseDTO {
     private String createdBy;
     private String updatedBy;
 
-    // New fields for voucher details
     private String voucherCode;
     private String voucherName;
     private BigDecimal voucherDiscountAmount;
-    private VoucherType voucherType; // PERCENTAGE or FIXED
-
+    private VoucherType voucherType;
 }
-
-

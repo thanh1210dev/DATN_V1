@@ -1,19 +1,20 @@
-import React, { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
-import { toast, ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-import ProductImageGallery from "./ProductImageGallery";
-import ProductInfo from "./ProductInfo";
-import ProductService from "../../../Service/AdminProductSevice/ProductService";
-import ProductDetailService from "../../../Service/AdminProductSevice/ProductDetailService";
+import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import ProductImageGallery from './ProductImageGallery';
+import ProductInfo from './ProductInfo';
+import ProductService from '../../../Service/AdminProductSevice/ProductService';
+import ProductDetailService from '../../../Service/AdminProductSevice/ProductDetailService';
+import axiosInstance from '../../../Service/axiosInstance';
 
 const ProductDetail = () => {
   const { id } = useParams();
   const [product, setProduct] = useState(null);
   const [sizes, setSizes] = useState([]);
   const [colors, setColors] = useState([]);
-  const [selectedSizeId, setSelectedSizeId] = useState("");
-  const [selectedColorId, setSelectedColorId] = useState("");
+  const [selectedSizeId, setSelectedSizeId] = useState('');
+  const [selectedColorId, setSelectedColorId] = useState('');
   const [selectedDetail, setSelectedDetail] = useState(null);
 
   useEffect(() => {
@@ -33,7 +34,7 @@ const ProductDetail = () => {
           setSelectedColorId(firstDetail.colorId);
         }
       } catch (error) {
-        toast.error(error, { position: "top-right", autoClose: 3000 });
+        toast.error(error.message || 'Lỗi khi tải thông tin sản phẩm', { position: 'top-right', autoClose: 3000 });
       }
     };
     fetchData();
@@ -45,18 +46,18 @@ const ProductDetail = () => {
         try {
           const colorsResponse = await ProductDetailService.getAvailableColors(id, selectedSizeId);
           setColors(colorsResponse);
-          if (!colorsResponse.some(color => color.id === selectedColorId)) {
-            setSelectedColorId("");
+          if (!colorsResponse.some((color) => color.id === selectedColorId)) {
+            setSelectedColorId('');
             setSelectedDetail(null);
           }
         } catch (error) {
-          toast.error(error, { position: "top-right", autoClose: 3000 });
+          toast.error(error.message || 'Lỗi khi tải màu sắc', { position: 'top-right', autoClose: 3000 });
         }
       };
       fetchColors();
     } else {
       setColors([]);
-      setSelectedColorId("");
+      setSelectedColorId('');
       setSelectedDetail(null);
     }
   }, [selectedSizeId, id, selectedColorId]);
@@ -68,12 +69,34 @@ const ProductDetail = () => {
           const detailResponse = await ProductDetailService.getProductDetailBySizeAndColor(id, selectedSizeId, selectedColorId);
           setSelectedDetail(detailResponse);
         } catch (error) {
-          toast.error(error, { position: "top-right", autoClose: 3000 });
+          toast.error(error.message || 'Lỗi khi tải chi tiết sản phẩm', { position: 'top-right', autoClose: 3000 });
         }
       };
       fetchProductDetail();
     }
   }, [selectedSizeId, selectedColorId, id]);
+
+  const handleAddToCart = async () => {
+    if (!selectedDetail || selectedDetail.status !== 'AVAILABLE') {
+      toast.error(
+        selectedDetail?.status === 'OUT_OF_STOCK' ? 'Sản phẩm đã hết hàng!' : 'Sản phẩm không còn kinh doanh!',
+        { position: 'top-right', autoClose: 3000 }
+      );
+      return;
+    }
+
+    try {
+      const userId = localStorage.getItem('userId');
+      if (!userId) {
+        toast.error('Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng', { position: 'top-right', autoClose: 3000 });
+        return;
+      }
+      await axiosInstance.post(`/cart-checkout/cart/add?userId=${userId}&productDetailId=${selectedDetail.id}&quantity=1`);
+      toast.success('Đã thêm vào giỏ hàng!', { position: 'top-right', autoClose: 3000 });
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Lỗi khi thêm vào giỏ hàng', { position: 'top-right', autoClose: 3000 });
+    }
+  };
 
   if (!product) {
     return (
@@ -98,6 +121,7 @@ const ProductDetail = () => {
             setSelectedSizeId={setSelectedSizeId}
             selectedColorId={selectedColorId}
             setSelectedColorId={setSelectedColorId}
+            onAddToCart={handleAddToCart}
           />
         </div>
       </div>

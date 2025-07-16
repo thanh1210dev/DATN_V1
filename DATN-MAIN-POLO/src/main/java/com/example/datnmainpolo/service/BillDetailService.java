@@ -3,7 +3,7 @@ package com.example.datnmainpolo.service;
 import com.example.datnmainpolo.dto.BillDetailDTO.BillDetailCreateDTO;
 import com.example.datnmainpolo.dto.BillDetailDTO.BillDetailResponseDTO;
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
-
+import com.example.datnmainpolo.enums.OrderStatus;
 
 
 import java.util.List;
@@ -15,4 +15,6 @@ public interface BillDetailService {
     BillDetailResponseDTO updateQuantity(Integer billDetailId, Integer quantity);
     void deleteBillDetail(Integer billDetailId);
     List<BillDetailResponseDTO> getAllBillDetailsByBillId(Integer billId); // New method
+
+    void updateBillDetailTypeOrder(Integer billId, OrderStatus orderStatus);
 }

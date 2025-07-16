@@ -14,6 +14,8 @@ import java.math.BigDecimal;
 @Builder
 public class PaymentResponseDTO {
     private BillResponseDTO bill;
+
+    private Integer billId;
     private PaymentType paymentType;
     private BigDecimal amount;
     private String qrCode;

@@ -1,29 +1,48 @@
-import React from "react";
+import React from 'react';
 
 const PaymentMethod = ({ paymentMethod, setPaymentMethod }) => {
   return (
-    <div className="bg-white shadow-lg rounded-xl p-6">
-      <h2 className="text-lg font-bold text-indigo-700 mb-4">Phương Thức Thanh Toán</h2>
-      <div className="space-y-2">
-        <label className="flex items-center">
+    <div className="bg-white p-6 rounded-xl shadow-md">
+      <h2 className="text-xl font-semibold text-gray-900 mb-6">Phương Thức Thanh Toán</h2>
+      <div className="space-y-4">
+        <label className="flex items-center p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition duration-200">
           <input
             type="radio"
             value="COD"
-            checked={paymentMethod === "COD"}
+            checked={paymentMethod === 'COD'}
             onChange={(e) => setPaymentMethod(e.target.value)}
-            className="mr-2"
+            className="w-5 h-5 text-indigo-600 border-gray-300 focus:ring-indigo-500"
           />
-          <span className="text-sm text-gray-700">Thanh toán khi nhận hàng</span>
+          <div className="ml-4">
+            <span className="text-sm font-medium text-gray-900">Thanh toán khi nhận hàng</span>
+            <p className="text-xs text-gray-500">Thanh toán bằng tiền mặt khi nhận hàng</p>
+          </div>
         </label>
-        <label className="flex items-center">
+        <label className="flex items-center p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition duration-200">
           <input
             type="radio"
-            value="CARD"
-            checked={paymentMethod === "CARD"}
+            value="BANKING"
+            checked={paymentMethod === 'BANKING'}
             onChange={(e) => setPaymentMethod(e.target.value)}
-            className="mr-2"
+            className="w-5 h-5 text-indigo-600 border-gray-300 focus:ring-indigo-500"
           />
-          <span className="text-sm text-gray-700">Thẻ tín dụng</span>
+          <div className="ml-4">
+            <span className="text-sm font-medium text-gray-900">Thanh toán qua ngân hàng</span>
+            <p className="text-xs text-gray-500">Chuyển khoản qua ngân hàng</p>
+          </div>
+        </label>
+        <label className="flex items-center p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition duration-200">
+          <input
+            type="radio"
+            value="VNPAY"
+            checked={paymentMethod === 'VNPAY'}
+            onChange={(e) => setPaymentMethod(e.target.value)}
+            className="w-5 h-5 text-indigo-600 border-gray-300 focus:ring-indigo-500"
+          />
+          <div className="ml-4">
+            <span className="text-sm font-medium text-gray-900">Thanh toán qua VNPay</span>
+            <p className="text-xs text-gray-500">Quét mã QR hoặc sử dụng ứng dụng VNPay</p>
+          </div>
         </label>
       </div>
     </div>
@@ -31,3 +50,4 @@ const PaymentMethod = ({ paymentMethod, setPaymentMethod }) => {
 };
 
 export default PaymentMethod;
+

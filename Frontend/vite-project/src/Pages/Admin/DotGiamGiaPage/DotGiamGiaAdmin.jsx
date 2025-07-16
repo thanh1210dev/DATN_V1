@@ -317,7 +317,9 @@ const DotGiamGiaAdmin = () => {
           <thead className="text-xs font-medium uppercase bg-indigo-50 text-indigo-700">
             <tr>
               <th className="px-2 py-2 rounded-tl-lg">#</th>
+              <th className="px-2 py-2">Mã</th>
               <th className="px-2 py-2">Tên</th>
+              
               <th className="px-2 py-2">Loại</th>
               <th className="px-2 py-2">Thời gian bắt đầu</th>
               <th className="px-2 py-2">Thời gian kết thúc</th>
@@ -340,7 +342,9 @@ const DotGiamGiaAdmin = () => {
                   className="border-b hover:bg-indigo-50 transition-colors"
                 >
                   <td className="px-2 py-2 text-center">{page * size + index + 1}</td>
+                  <td className="px-2 py-2">{item.code}</td>
                   <td className="px-2 py-2">{item.name}</td>
+                  
                   <td className="px-2 py-2">{discountTypeLabels[item.typePromotion] || item.typePromotion}</td>
                   <td className="px-2 py-2">{new Date(item.startTime).toLocaleString("vi-VN")}</td>
                   <td className="px-2 py-2">{new Date(item.endTime).toLocaleString("vi-VN")}</td>

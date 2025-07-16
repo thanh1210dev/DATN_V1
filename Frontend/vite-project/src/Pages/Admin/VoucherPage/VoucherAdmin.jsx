@@ -411,6 +411,7 @@ const VoucherAdmin = () => {
                       : "-"}
                   </td>
                   <td className="px-2 py-2">{item.maxDiscountValue ? `${item.maxDiscountValue} VND` : "-"}</td>
+                  
                   <td className="px-2 py-2">{item.minOrderValue ? `${item.minOrderValue} VND` : "-"}</td>
                   <td className="px-2 py-2">{statusLabels[item.status]}</td>
                   <td className="px-2 py-2 text-center flex justify-center gap-1">

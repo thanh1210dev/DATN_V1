@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { HiOutlinePlus, HiOutlinePencilAlt, HiOutlineTrash, HiOutlineArrowLeft, HiChevronLeft, HiChevronRight } from 'react-icons/hi';
+import { HiOutlinePlus, HiOutlinePencilAlt, HiOutlineTrash, HiOutlineArrowLeft, HiChevronLeft, HiChevronRight, HiOutlineQrcode } from 'react-icons/hi';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Select from 'react-select';
+import QRCode from 'qrcode';
 import ProductService from '../../../../Service/AdminProductSevice/ProductService';
 import ProductDetailService from '../../../../Service/AdminProductSevice/ProductDetailService';
 import ImageService from '../../../../Service/AdminProductSevice/ImageService';
@@ -37,7 +38,6 @@ const ProductDetail = () => {
     code: '',
     quantity: 0,
     price: '',
- 
     status: 'AVAILABLE',
   });
   const [images, setImages] = useState([]);
@@ -47,7 +47,31 @@ const ProductDetail = () => {
   const [sizes, setSizes] = useState([]);
   const [colors, setColors] = useState([]);
 
-  // Map status enum to Vietnamese with color classes
+  // Hàm tạo và tải mã QR
+  const generateAndDownloadQRCode = async (code) => {
+    try {
+      const qrCodeUrl = await QRCode.toDataURL(code, {
+        width: 300,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#ffffff',
+        },
+      });
+
+      const link = document.createElement('a');
+      link.href = qrCodeUrl;
+      link.download = `QR_${code}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success(`Tải mã QR cho sản phẩm ${code} thành công!`);
+    } catch (error) {
+      toast.error('Không thể tạo mã QR: ' + error.message);
+    }
+  };
+
+  // Các hàm khác giữ nguyên như mã gốc
   const statusToVietnamese = (status) => {
     switch (status) {
       case 'AVAILABLE':
@@ -61,7 +85,6 @@ const ProductDetail = () => {
     }
   };
 
-  // Format date to Vietnamese format
   const formatDate = (date) => {
     if (!date) return '-';
     return new Date(date).toLocaleString('vi-VN', {
@@ -74,7 +97,6 @@ const ProductDetail = () => {
     });
   };
 
-  // Generate random code
   const generateRandomCode = () => {
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let result = '';
@@ -84,7 +106,6 @@ const ProductDetail = () => {
     return result;
   };
 
-  // Fetch product by ID
   const fetchProduct = async () => {
     try {
       if (!id || isNaN(parseInt(id))) {
@@ -104,7 +125,6 @@ const ProductDetail = () => {
     }
   };
 
-  // Fetch product details
   const fetchProductDetails = async () => {
     try {
       const data = await ProductDetailService.getAll(parseInt(id), page, size);
@@ -115,7 +135,6 @@ const ProductDetail = () => {
     }
   };
 
-  // Fetch images, sizes, and colors
   const fetchFormData = async () => {
     try {
       const [imageData, sizeData, colorData] = await Promise.all([
@@ -137,56 +156,47 @@ const ProductDetail = () => {
     fetchFormData();
   }, [id, page, size]);
 
-  // Handle image selection in modal
   const handleSelectImage = (imageId) => {
     setTempSelectedImages(prev =>
       prev.includes(imageId) ? prev.filter(id => id !== imageId) : [...prev, imageId]
     );
   };
 
-  // Handle file input for new images
   const handleFileChange = (e) => {
     setNewImages(Array.from(e.target.files));
   };
 
-  // Handle opening image modal
   const openImageModal = () => {
     setTempSelectedImages([...formData.imageIds]);
     setIsImageModalOpen(true);
   };
 
-  // Handle closing image modal
   const closeImageModal = () => {
     setIsImageModalOpen(false);
   };
 
-  // Handle confirming image selection
   const confirmImageSelection = () => {
     setSelectedImages([...tempSelectedImages]);
     setFormData(prev => ({ ...prev, imageIds: [...tempSelectedImages] }));
     setIsImageModalOpen(false);
   };
 
-  // Handle resetting image selection
   const resetImageSelection = () => {
     setTempSelectedImages([]);
   };
 
-  // Handle opening image view modal
   const openImageViewModal = (images) => {
     setSelectedImagesForView(images);
     setCurrentImageIndex(0);
     setIsImageViewModalOpen(true);
   };
 
-  // Handle closing image view modal
   const closeImageViewModal = () => {
     setIsImageViewModalOpen(false);
     setSelectedImagesForView([]);
     setCurrentImageIndex(0);
   };
 
-  // Handle navigating images in view modal
   const prevImage = () => {
     setCurrentImageIndex(prev => (prev === 0 ? selectedImagesForView.length - 1 : prev - 1));
   };
@@ -195,13 +205,11 @@ const ProductDetail = () => {
     setCurrentImageIndex(prev => (prev === selectedImagesForView.length - 1 ? 0 : prev + 1));
   };
 
-  // Handle form input changes
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // Handle combobox changes for multi-select
   const handleSelectChange = (selectedOptions, { name }) => {
     setFormData(prev => ({
       ...prev,
@@ -209,7 +217,6 @@ const ProductDetail = () => {
     }));
   };
 
-  // Handle add new product detail
   const handleAdd = () => {
     setIsModalOpen(true);
     setIsEditing(false);
@@ -221,7 +228,6 @@ const ProductDetail = () => {
       code: '',
       quantity: 0,
       price: '',
-     
       status: 'AVAILABLE',
     });
     setSelectedImages([]);
@@ -229,7 +235,6 @@ const ProductDetail = () => {
     setNewImages([]);
   };
 
-  // Handle update product detail
   const handleUpdate = async (detail) => {
     try {
       const data = await ProductDetailService.getById(detail.id);
@@ -245,7 +250,6 @@ const ProductDetail = () => {
         code: data.code,
         quantity: data.quantity,
         price: data.price || '',
-   
         status: data.status || 'AVAILABLE',
       });
       setSelectedImages(imageIds);
@@ -256,7 +260,6 @@ const ProductDetail = () => {
     }
   };
 
-  // Handle form submission
   const validateForm = () => {
     if (!formData.price || isNaN(parseFloat(formData.price))) {
       toast.error('Giá phải là một số hợp lệ');
@@ -295,7 +298,6 @@ const ProductDetail = () => {
       code: isEditing ? formData.code : generateRandomCode(),
       quantity: parseInt(formData.quantity),
       price: parseFloat(formData.price),
-     
       status: isEditing ? formData.status : 'AVAILABLE',
     };
 
@@ -315,13 +317,13 @@ const ProductDetail = () => {
         const newImageIds = uploadResponse.data.map(img => img.id);
         finalImageIds = [...finalImageIds, ...newImageIds];
       }
-
+  
       const finalPayload = {
-        ...pendingPayload,
+        ...pendingPayload, // Corrected from pendingGeneratedAndDownloadQRCode
         imageIds: finalImageIds,
         newImages: undefined,
       };
-
+  
       if (isEditing) {
         await ProductDetailService.update(editingId, finalPayload);
         toast.success('Cập nhật chi tiết sản phẩm thành công!');
@@ -340,10 +342,10 @@ const ProductDetail = () => {
     }
   };
 
-  // Handle delete product detail
   const handleDeleteClick = (id) => {
     setDeleteId(id);
     setIsDeleteModalOpen(true);
+    setPendingPayload(null);
   };
 
   const handleDeleteConfirm = async () => {
@@ -358,7 +360,6 @@ const ProductDetail = () => {
     }
   };
 
-  // Close modal
   const closeModal = () => {
     setIsModalOpen(false);
     setIsImageModalOpen(false);
@@ -371,7 +372,6 @@ const ProductDetail = () => {
     setCurrentImageIndex(0);
   };
 
-  // Navigate back to ProductAdmin
   const handleBack = () => {
     navigate('/admin/quan-ly-san-pham/danh-sach');
   };
@@ -418,7 +418,6 @@ const ProductDetail = () => {
         <h2 className="text-xl font-semibold text-gray-800">Chi tiết sản phẩm: {product.name}</h2>
       </div>
 
-      {/* Product Information */}
       <div className="bg-white shadow-lg rounded-lg p-6 mb-6">
         <h3 className="text-lg font-semibold text-gray-800 mb-4">Thông tin sản phẩm</h3>
         <div className="grid grid-cols-2 gap-4">
@@ -457,7 +456,6 @@ const ProductDetail = () => {
         </div>
       </div>
 
-      {/* Product Details Management */}
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold text-gray-800">Quản lý chi tiết sản phẩm</h3>
         <button
@@ -484,7 +482,7 @@ const ProductDetail = () => {
               <th className="px-6 py-3 w-32">Giá khuyến mãi</th>
               <th className="px-6 py-3 w-32">Trạng thái</th>
               <th className="px-6 py-3 w-40">Ngày tạo</th>
-              <th className="px-6 py-3 w-32 rounded-tr-lg">Hành động</th>
+              <th className="px-6 py-3 w-48 rounded-tr-lg">Hành động</th>
             </tr>
           </thead>
           <tbody>
@@ -565,6 +563,13 @@ const ProductDetail = () => {
                       <HiOutlinePencilAlt size={16} />
                     </button>
                     <button
+                      onClick={() => generateAndDownloadQRCode(item.code)}
+                      className="p-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
+                      title="Tải mã QR"
+                    >
+                      <HiOutlineQrcode size={16} />
+                    </button>
+                    <button
                       onClick={() => handleDeleteClick(item.id)}
                       className="p-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
                       title="Xóa"
@@ -614,7 +619,7 @@ const ProductDetail = () => {
         </select>
       </div>
 
-      {/* Add/Edit Modal */}
+      {/* Các modal khác giữ nguyên như mã gốc */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-8 w-full max-w-2xl shadow-xl overflow-y-auto max-h-[90vh]">
@@ -636,7 +641,6 @@ const ProductDetail = () => {
                       required
                     />
                   </div>
-                 
                 </>
               )}
               <div className="mb-5">
@@ -777,8 +781,8 @@ const ProductDetail = () => {
           </div>
         </div>
       )}
+      
 
-      {/* Image Selection Modal */}
       {isImageModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-8 w-full max-w-3xl shadow-xl overflow-y-auto max-h-[80vh]">
@@ -828,7 +832,6 @@ const ProductDetail = () => {
         </div>
       )}
 
-      {/* Image View Modal */}
       {isImageViewModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-3xl shadow-xl">
@@ -876,7 +879,6 @@ const ProductDetail = () => {
         </div>
       )}
 
-      {/* Add/Update Confirmation Modal */}
       {isConfirmModalOpen && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 transition-opacity duration-300">
           <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm transform transition-all duration-300">
@@ -902,7 +904,6 @@ const ProductDetail = () => {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
@@ -932,3 +933,6 @@ const ProductDetail = () => {
 };
 
 export default ProductDetail;
+
+
+/// handleConfirmSubmit

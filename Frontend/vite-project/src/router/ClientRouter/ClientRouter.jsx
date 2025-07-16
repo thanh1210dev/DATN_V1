@@ -2,16 +2,12 @@ import React from "react";
 import { Routes, Route } from "react-router-dom";
 import ClientLayout from "../../component/ClientLayout";
 import HomeClient from "../../Pages/Client/HomePage/HomeClient";
-
-
 import Cart from "../../Pages/Client/CartPage/Cart";
-
 import PrivateRoute from "../../component/PrivateRoute";
 import OrderDetail from "../../Pages/Client/OrderPage/OrderDetail";
 import LoginPage from "../../Pages/Login/LoginPage";
 import RegisterPage from "../../Pages/Login/RegisterPage";
 import OAuth2RedirectHandler from "../../Pages/Login/OAuth2RedirectHandler";
-
 import ProductDetail from "../../Pages/Client/ProductDetailPage/ProductDetail";
 import Checkout from "../../Pages/Client/CheckoutPage/Checkout";
 import Profile from "../../Pages/Client/ProfilePage/Profile";
@@ -46,7 +42,7 @@ const ClientRouter = () => {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/oauth2/redirect" element={<OAuth2RedirectHandler />} />
-      <Route path="*" element={<div className="p-6 text-center text-gray-500">404 - Không tìm thấy trang</div>} />
+      <Route path="*" element={<div className="p-6 text-center text-gray-500 font-sans text-lg">404 - Không tìm thấy trang</div>} />
     </Routes>
   );
 };

@@ -340,27 +340,10 @@ public class PromotionServiceImpl implements PromotionService {
         return new PaginationResponse<>(pageData.map(this::mapToResponseDto));
     }
 
-//    private void validateRequestDTO(PromotionRequestDTO requestDTO) {
-//        Set<ConstraintViolation<PromotionRequestDTO>> violations = validator.validate(requestDTO);
-//        if (!violations.isEmpty()) {
-//            throw new ConstraintViolationException(violations);
-//        }
-//        if (requestDTO.getStartTime() != null && requestDTO.getEndTime() != null &&
-//                !requestDTO.getStartTime().isBefore(requestDTO.getEndTime())) {
-//            throw new IllegalArgumentException("Thời gian bắt đầu phải trước thời gian kết thúc");
-//        }
-//        if (DiscountType.FIXED.equals(requestDTO.getTypePromotion())) {
-//            if (requestDTO.getPercentageDiscountValue() != null) {
-//                throw new IllegalArgumentException("Không được nhập phần trăm giảm khi chọn giảm cố định");
-//            }
-//        } else {
-//            throw new IllegalArgumentException("Kiểu giảm giá không hợp lệ");
-//        }
-//    }
 
     private Promotion mapToEntity(PromotionRequestDTO dto) {
         Promotion promotion = new Promotion();
-        promotion.setCode(dto.getCode());
+
         promotion.setName(dto.getName());
         promotion.setTypePromotion(dto.getTypePromotion());
         promotion.setStartTime(dto.getStartTime());
@@ -391,7 +374,7 @@ public class PromotionServiceImpl implements PromotionService {
     }
 
     private void updateEntityFromRequestDTO(Promotion promotion, PromotionRequestDTO dto) {
-        promotion.setCode(dto.getCode());
+
         promotion.setName(dto.getName());
         promotion.setTypePromotion(dto.getTypePromotion());
         promotion.setStartTime(dto.getStartTime());

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { HiOutlineSearch, HiOutlineEye } from "react-icons/hi";
+import { FaMedal, FaGem, FaStar, FaTrophy } from "react-icons/fa";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import VoucherApi from "../../../Service/AdminDotGiamGiaSevice/VoucherApi";
@@ -15,9 +16,15 @@ const VoucherAdminDetail = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [searchCode, setSearchCode] = useState("");
   const [searchName, setSearchName] = useState("");
+  const [searchPhoneNumber, setSearchPhoneNumber] = useState("");
+  const [searchEmail, setSearchEmail] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [isBirthday, setIsBirthday] = useState(false);
+  const [isTopPurchaser, setIsTopPurchaser] = useState(false);
+  const [memberTier, setMemberTier] = useState("");
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
-  const [userFilter, setUserFilter] = useState("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [userVouchers, setUserVouchers] = useState([]);
@@ -40,10 +47,25 @@ const VoucherAdminDetail = () => {
     PERCENT: "Giảm phần trăm",
   };
 
+  const memberTierOptions = [
+    { value: "", label: "Tất cả hạng thành viên" },
+    { value: "BRONZE", label: "Đồng (< 500 điểm)", icon: <FaMedal className="inline-block mr-2 text-bronze-600" /> },
+    { value: "SILVER", label: "Bạc (500-999 điểm)", icon: <FaMedal className="inline-block mr-2 text-silver-400" /> },
+    { value: "GOLD", label: "Vàng (1000-1999 điểm)", icon: <FaStar className="inline-block mr-2 text-yellow-400" /> },
+    { value: "PLATINUM", label: "Bạch kim (≥ 2000 điểm)", icon: <FaGem className="inline-block mr-2 text-blue-400" /> },
+  ];
+
+  const getMemberTier = (points) => {
+    if (points >= 2000) return { label: "Bạch kim", icon: <FaGem className="inline-block mr-2 text-blue-400" /> };
+    if (points >= 1000) return { label: "Vàng", icon: <FaStar className="inline-block mr-2 text-yellow-400" /> };
+    if (points >= 500) return { label: "Bạc", icon: <FaMedal className="inline-block mr-2 text-silver-400" /> };
+    return { label: "Đồng", icon: <FaMedal className="inline-block mr-2 text-bronze-600" /> };
+  };
+
   useEffect(() => {
     fetchVoucher();
     fetchUsers();
-  }, [id, page, size, searchCode, searchName, userFilter]);
+  }, [id, page, size, searchCode, searchName, searchPhoneNumber, searchEmail, startDate, endDate, isBirthday, isTopPurchaser, memberTier]);
 
   useEffect(() => {
     if (selectedUserId) {
@@ -65,16 +87,22 @@ const VoucherAdminDetail = () => {
 
   const fetchUsers = async () => {
     try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
       const params = {
         code: searchCode || undefined,
         name: searchName || undefined,
+        phoneNumber: searchPhoneNumber || undefined,
+        email: searchEmail || undefined,
+        minLoyaltyPoints: memberTier === "BRONZE" ? 0 : memberTier === "SILVER" ? 500 : memberTier === "GOLD" ? 1000 : memberTier === "PLATINUM" ? 2000 : undefined,
+        maxLoyaltyPoints: memberTier === "BRONZE" ? 499 : memberTier === "SILVER" ? 999 : memberTier === "GOLD" ? 1999 : undefined,
+        birthDate: isBirthday ? `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}` : undefined,
+        startDate: isTopPurchaser ? startDate || undefined : undefined,
+        endDate: isTopPurchaser ? endDate || undefined : undefined,
         page,
         size,
       };
-      const response =
-        userFilter === "top-purchasers"
-          ? await UserApi.topPurchasers(params)
-          : await UserApi.search(params);
+      const response = await UserApi.search(params);
       setUsers(response.data.content || []);
       setTotalPages(response.data.totalPages || 1);
     } catch (error) {
@@ -153,7 +181,7 @@ const VoucherAdminDetail = () => {
       setSelectedUsers([]);
       setSelectAll(false);
       setIsAssignModalOpen(false);
-      fetchVoucher(); // Cập nhật lại thông tin voucher để hiển thị số lượng mới
+      fetchVoucher();
     } catch (error) {
       toast.error(error.response?.data?.message || "Lỗi khi phân voucher", {
         position: "top-right",
@@ -238,7 +266,7 @@ const VoucherAdminDetail = () => {
       </div>
 
       {/* Search and Filter */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col gap-4 mb-6">
         <form onSubmit={handleSearch} className="flex items-center gap-3">
           <div className="relative">
             <input
@@ -257,14 +285,20 @@ const VoucherAdminDetail = () => {
             placeholder="Tìm kiếm tên..."
             className="px-4 py-2 border border-indigo-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-48"
           />
-          <select
-            value={userFilter}
-            onChange={(e) => setUserFilter(e.target.value)}
-            className="px-4 py-2 border border-indigo-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="all">Tất cả khách hàng</option>
-            <option value="top-purchasers">Top người mua</option>
-          </select>
+          <input
+            type="text"
+            value={searchPhoneNumber}
+            onChange={(e) => setSearchPhoneNumber(e.target.value)}
+            placeholder="Tìm kiếm số điện thoại..."
+            className="px-4 py-2 border border-indigo-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-48"
+          />
+          <input
+            type="text"
+            value={searchEmail}
+            onChange={(e) => setSearchEmail(e.target.value)}
+            placeholder="Tìm kiếm email..."
+            className="px-4 py-2 border border-indigo-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-48"
+          />
           <button
             type="submit"
             className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -272,6 +306,59 @@ const VoucherAdminDetail = () => {
             Tìm kiếm
           </button>
         </form>
+        <div className="flex items-center gap-3">
+          <select
+            value={memberTier}
+            onChange={(e) => setMemberTier(e.target.value)}
+            className="px-4 py-2 border border-indigo-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-48"
+          >
+            {memberTierOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.icon} {option.label}
+              </option>
+            ))}
+          </select>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={isBirthday}
+              onChange={(e) => setIsBirthday(e.target.checked)}
+              className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+            />
+            <span className="text-sm text-gray-700">Sinh nhật hôm nay</span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={isTopPurchaser}
+              onChange={(e) => setIsTopPurchaser(e.target.checked)}
+              className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+            />
+            <span className="text-sm text-gray-700">Top người mua</span>
+          </label>
+          {isTopPurchaser && (
+            <>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  placeholder="Từ ngày"
+                  className="px-4 py-2 border border-indigo-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-48"
+                />
+              </div>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  placeholder="Đến ngày"
+                  className="px-4 py-2 border border-indigo-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-48"
+                />
+              </div>
+            </>
+          )}
+        </div>
         <div className="flex gap-3">
           <button
             onClick={handleSelectAll}
@@ -306,44 +393,53 @@ const VoucherAdminDetail = () => {
               <th className="px-4 py-3">Tên</th>
               <th className="px-4 py-3">Email</th>
               <th className="px-4 py-3">Số điện thoại</th>
-              <th className="px-4 py-3">Số lượng mua</th>
+              <th className="px-4 py-3">Ngày sinh</th>
+              <th className="px-4 py-3">Điểm trung thành</th>
+              <th className="px-4 py-3">Hạng thành viên</th>
               <th className="px-4 py-3 rounded-tr-lg">Hành động</th>
             </tr>
           </thead>
           <tbody>
             {users.length === 0 ? (
               <tr>
-                <td colSpan="8" className="px-4 py-6 text-center text-gray-500 text-sm">
+                <td colSpan="9" className="px-4 py-6 text-center text-gray-500 text-sm">
                   Không có dữ liệu
                 </td>
               </tr>
             ) : (
-              users.map((user, index) => (
-                <tr key={user.id} className="border-b hover:bg-indigo-50 transition-colors">
-                  <td className="px-4 py-3 text-center">
-                    <input
-                      type="checkbox"
-                      checked={selectedUsers.includes(user.id)}
-                      onChange={() => handleSelectUser(user.id)}
-                      className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                    />
-                  </td>
-                  <td className="px-4 py-3 text-center">{page * size + index + 1}</td>
-                  <td className="px-4 py-3">{user.code}</td>
-                  <td className="px-4 py-3">{user.name}</td>
-                  <td className="px-4 py-3">{user.email}</td>
-                  <td className="px-4 py-3">{user.phoneNumber}</td>
-                  <td className="px-4 py-3">{user.purchaseCount || 0}</td>
-                  <td className="px-4 py-3 text-center">
-                    <button
-                      onClick={() => handleViewUserVouchers(user.id)}
-                      className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                      <HiOutlineEye size={16} />
-                    </button>
-                  </td>
-                </tr>
-              ))
+              users.map((user, index) => {
+                const tier = getMemberTier(user.loyaltyPoints);
+                return (
+                  <tr key={user.id} className="border-b hover:bg-indigo-50 transition-colors">
+                    <td className="px-4 py-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedUsers.includes(user.id)}
+                        onChange={() => handleSelectUser(user.id)}
+                        className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                      />
+                    </td>
+                    <td className="px-4 py-3 text-center">{page * size + index + 1}</td>
+                    <td className="px-4 py-3">{user.code}</td>
+                    <td className="px-4 py-3">{user.name}</td>
+                    <td className="px-4 py-3">{user.email}</td>
+                    <td className="px-4 py-3">{user.phoneNumber}</td>
+                    <td className="px-4 py-3">
+                      {user.birthDate ? new Date(user.birthDate).toLocaleDateString('vi-VN') : '-'}
+                    </td>
+                    <td className="px-4 py-3">{user.loyaltyPoints || 0}</td>
+                    <td className="px-4 py-3">{tier.icon} {tier.label}</td>
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        onClick={() => handleViewUserVouchers(user.id)}
+                        className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <HiOutlineEye size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

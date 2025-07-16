@@ -14,6 +14,7 @@ import com.example.datnmainpolo.repository.BillRepository;
 import com.example.datnmainpolo.repository.CustomerInformationRepository;
 import com.example.datnmainpolo.repository.OrderHistoryRepository;
 import com.example.datnmainpolo.repository.TransactionRepository;
+import com.example.datnmainpolo.service.BillService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,7 +45,7 @@ public class DeliveryBillService {
     private final OrderHistoryRepository orderHistoryRepository;
     private final TransactionRepository transactionRepository;
     private final RestTemplate restTemplate;
-    private final BillServiceImpl billService;
+    private final BillService billService;
 
     @Value("${ghn.api.token}")
     private String ghnToken;
@@ -66,9 +67,10 @@ public class DeliveryBillService {
             throw new RuntimeException("Thông tin khách hàng (customerName, phoneNumber, addressDetail) không được để trống");
         }
 
-        // Find the bill
+        // Find the bill and validate for delivery
         Bill bill = billRepository.findById(request.getBillId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
+        billService.validateBillForDelivery(request.getBillId());
 
         // Create or update CustomerInformation
         CustomerInformation customerInfo;
@@ -78,6 +80,7 @@ public class DeliveryBillService {
             customerInfo = new CustomerInformation();
             customerInfo.setCreatedAt(Instant.now());
             customerInfo.setDeleted(false);
+            customerInfo.setCustomer(bill.getCustomer());
         }
 
         // Update customer information with provided details
@@ -110,6 +113,7 @@ public class DeliveryBillService {
         bill.setMoneyShip(shippingFee);
         bill.setDesiredDate(request.getDesiredDate() != null ? request.getDesiredDate() : Instant.now());
         bill.setFinalAmount(bill.getTotalMoney().subtract(bill.getReductionAmount()).add(shippingFee));
+        bill.setBillType(BillType.ONLINE);
         bill.setUpdatedAt(Instant.now());
         bill.setUpdatedBy("system");
 
@@ -146,10 +150,11 @@ public class DeliveryBillService {
         // Apply best public voucher
         billService.applyBestPublicVoucher(savedBill);
 
+        // Convert to DTO using BillService
         return billService.convertToBillResponseDTO(savedBill);
     }
 
-    private void updateCustomerAddressFromGHN(CustomerInformation customerInfo) {
+    void updateCustomerAddressFromGHN(CustomerInformation customerInfo) {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.set("Token", ghnToken);
@@ -193,7 +198,7 @@ public class DeliveryBillService {
                 if (districtResponseBody != null && districtResponseBody.containsKey("data")) {
                     List<Map<String, Object>> districtDataList = (List<Map<String, Object>>) districtResponseBody.get("data");
                     if (!districtDataList.isEmpty()) {
-                        Map<String, Object> districtData = districtDataList.get(0); // Lấy phần tử đầu tiên
+                        Map<String, Object> districtData = districtDataList.get(0);
                         customerInfo.setDistrictName((String) districtData.get("DistrictName"));
                         Integer apiProvinceId = (Integer) districtData.get("ProvinceID");
                         if (!apiProvinceId.equals(customerInfo.getProvinceId())) {
@@ -219,7 +224,7 @@ public class DeliveryBillService {
                 if (provinceResponseBody != null && provinceResponseBody.containsKey("data")) {
                     List<Map<String, Object>> provinceDataList = (List<Map<String, Object>>) provinceResponseBody.get("data");
                     if (!provinceDataList.isEmpty()) {
-                        Map<String, Object> provinceData = provinceDataList.get(0); // Lấy phần tử đầu tiên
+                        Map<String, Object> provinceData = provinceDataList.get(0);
                         customerInfo.setProvinceName((String) provinceData.get("ProvinceName"));
                     } else {
                         throw new RuntimeException("Danh sách tỉnh/thành phố rỗng từ GHN API cho province_id " + customerInfo.getProvinceId());
@@ -234,21 +239,20 @@ public class DeliveryBillService {
         }
     }
 
-    private BigDecimal calculateShippingFee(CustomerInformation customerInfo) {
+    BigDecimal calculateShippingFee(CustomerInformation customerInfo) {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.set("Token", ghnToken);
             headers.set("Content-Type", "application/json");
 
-            // Prepare request body for fee calculation
             Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("service_type_id", 2); // Standard service
-            requestBody.put("from_district_id", 1444); // Example: Ho Chi Minh City
+            requestBody.put("service_type_id", 2);
+            requestBody.put("from_district_id", 1444);
             requestBody.put("to_district_id", customerInfo.getDistrictId());
             requestBody.put("to_ward_code", customerInfo.getWardCode());
             requestBody.put("height", 10);
             requestBody.put("length", 20);
-            requestBody.put("weight", 1000); // 1kg
+            requestBody.put("weight", 1000);
             requestBody.put("width", 20);
             requestBody.put("insurance_value", 0);
 

@@ -32,6 +32,7 @@ public interface ProductDetailRepository extends JpaRepository<ProductDetail, In
 
     @Query("SELECT pd FROM ProductDetail pd " +
             "WHERE pd.deleted = false " +
+            "AND pd.status = 'AVAILABLE'" +
             "AND (:code IS NULL OR LOWER(pd.code) LIKE LOWER(CONCAT('%', :code, '%'))) " +
             "AND (:name IS NULL OR LOWER(pd.product.name) LIKE LOWER(CONCAT('%', :name, '%'))) " +
             "AND (:price IS NULL OR pd.price = :price) " +
