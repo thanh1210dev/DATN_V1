@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { HiOutlinePlus, HiOutlinePencilAlt, HiOutlineTrash, HiOutlineArrowLeft } from 'react-icons/hi';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Select from 'react-select';
-import { useNavigate } from 'react-router-dom';
+
 import UserService from '../../../Service/AdminAccountService/UserService';
 
 
@@ -29,10 +29,10 @@ const AccountAdmin = () => {
   const [deleteId, setDeleteId] = useState(null);
   const [searchCode, setSearchCode] = useState('');
   const [searchName, setSearchName] = useState('');
-  const navigate = useNavigate();
+
 
   // Fetch users
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const data = await UserService.findByCodeAndName(searchCode, searchName, page, size);
       setUsers(data.content);
@@ -40,11 +40,11 @@ const AccountAdmin = () => {
     } catch (error) {
       toast.error(error);
     }
-  };
+  }, [searchCode, searchName, page, size]);
 
   useEffect(() => {
     fetchUsers();
-  }, [page, size, searchCode, searchName]);
+  }, [fetchUsers]);
 
   // Handle search input changes
   const handleSearchChange = (e) => {
