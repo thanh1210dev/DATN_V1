@@ -20,6 +20,7 @@ public class BillResponseDTO {
     private String code;
     private OrderStatus status;
 
+    private Integer customerId;
     private String customerName;
     private String phoneNumber;
     private String address;

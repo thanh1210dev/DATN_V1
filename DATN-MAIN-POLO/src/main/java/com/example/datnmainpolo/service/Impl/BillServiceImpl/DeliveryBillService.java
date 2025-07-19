@@ -72,37 +72,22 @@ public class DeliveryBillService {
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
         billService.validateBillForDelivery(request.getBillId());
 
-        // Create or update CustomerInformation
-        CustomerInformation customerInfo;
-        if (bill.getCustomerInfor() != null) {
-            customerInfo = bill.getCustomerInfor();
-        } else {
-            customerInfo = new CustomerInformation();
-            customerInfo.setCreatedAt(Instant.now());
-            customerInfo.setDeleted(false);
-            customerInfo.setCustomer(bill.getCustomer());
-        }
-
-        // Update customer information with provided details
+        // Create temporary CustomerInformation for GHN API calls
+        CustomerInformation customerInfo = new CustomerInformation();
         customerInfo.setName(request.getCustomerName());
         customerInfo.setPhoneNumber(request.getPhoneNumber());
         customerInfo.setProvinceId(request.getProvinceId());
         customerInfo.setDistrictId(request.getDistrictId());
         customerInfo.setWardCode(request.getWardCode());
         customerInfo.setAddress(request.getAddressDetail());
-        customerInfo.setUpdatedAt(Instant.now());
 
         // Fetch address details from GHN API
         updateCustomerAddressFromGHN(customerInfo);
 
-        // Save customer information
-        customerInfo = customerInformationRepository.save(customerInfo);
-
         // Calculate shipping fee
         BigDecimal shippingFee = calculateShippingFee(customerInfo);
 
-        // Update bill with customer information and shipping fee
-        bill.setCustomerInfor(customerInfo);
+        // Update bill with customer details and shipping fee
         bill.setCustomerName(customerInfo.getName());
         bill.setPhoneNumber(customerInfo.getPhoneNumber());
         bill.setAddress(String.format("%s, %s, %s, %s",
@@ -117,6 +102,7 @@ public class DeliveryBillService {
         bill.setUpdatedAt(Instant.now());
         bill.setUpdatedBy("system");
 
+        // Save the bill without linking to CustomerInformation
         Bill savedBill = billRepository.save(bill);
 
         // Update order history

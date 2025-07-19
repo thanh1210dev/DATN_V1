@@ -36,6 +36,54 @@ public class CustomerInformationImpl implements CustomerInformationService {
     }
 
     @Override
+    public CustomerInformationResponseDTO getDefaultAddressByUserId(Integer userId) {
+        LOGGER.info("Fetching default address for user {}", userId);
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy người dùng với ID: " + userId));
+        List<CustomerInformation> defaultAddresses = customerInformationRepository
+                .findByCustomerIdAndIsDefaultTrueAndDeletedFalse(userId);
+        if (defaultAddresses.isEmpty()) {
+            throw new EntityNotFoundException("Không tìm thấy địa chỉ mặc định cho người dùng với ID: " + userId);
+        }
+        return toResponse(defaultAddresses.get(0));
+    }
+
+    @Override
+    public CustomerInformationResponseDTO setDefaultAddress(Integer userId, Integer addressId) {
+        LOGGER.info("Setting default address with ID {} for user {}", addressId, userId);
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy người dùng với ID: " + userId));
+
+        CustomerInformation newDefaultAddress = customerInformationRepository.findById(addressId)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy địa chỉ với ID: " + addressId));
+
+        if (newDefaultAddress.getDeleted()) {
+            throw new IllegalStateException("Địa chỉ đã bị xóa");
+        }
+
+        if (!newDefaultAddress.getCustomer().getId().equals(userId)) {
+            throw new IllegalStateException("Địa chỉ không thuộc về người dùng này");
+        }
+
+        // Unset default for all other addresses
+        List<CustomerInformation> existingAddresses = customerInformationRepository
+                .findByCustomerIdAndDeletedFalse(userId);
+        existingAddresses.forEach(addr -> {
+            if (!addr.getId().equals(addressId) && addr.getIsDefault()) {
+                addr.setIsDefault(false);
+                addr.setUpdatedAt(Instant.now());
+                customerInformationRepository.save(addr);
+            }
+        });
+
+        // Set new default address
+        newDefaultAddress.setIsDefault(true);
+        newDefaultAddress.setUpdatedAt(Instant.now());
+        CustomerInformation savedEntity = customerInformationRepository.save(newDefaultAddress);
+        return toResponse(savedEntity);
+    }
+
+    @Override
     public CustomerInformationResponseDTO saveAddress(CustomerInformationRequestDTO requestDTO, Integer userId) {
         LOGGER.info("Saving new address for user {}", userId);
         validateCustomerInformation(requestDTO);

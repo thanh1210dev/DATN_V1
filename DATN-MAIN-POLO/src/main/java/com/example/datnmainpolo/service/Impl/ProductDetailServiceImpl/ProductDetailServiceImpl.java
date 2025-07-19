@@ -3,9 +3,12 @@ package com.example.datnmainpolo.service.Impl.ProductDetailServiceImpl;
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.dto.ProductDetailDTO.ProductDetailRequestDTO;
 import com.example.datnmainpolo.dto.ProductDetailDTO.ProductDetailResponseDTO;
+import com.example.datnmainpolo.dto.ProductDetailDTO.ImportRequestDTO;
+import com.example.datnmainpolo.dto.ProductDetailDTO.ImportHistoryResponseDTO;
 import com.example.datnmainpolo.entity.Image;
 import com.example.datnmainpolo.entity.Product;
 import com.example.datnmainpolo.entity.ProductDetail;
+import com.example.datnmainpolo.entity.ImportHistory;
 import com.example.datnmainpolo.enums.ProductStatus;
 import com.example.datnmainpolo.repository.*;
 import com.example.datnmainpolo.service.ProductDetailService;
@@ -34,6 +37,7 @@ public class ProductDetailServiceImpl implements ProductDetailService {
     private final ImageRepository imageRepository;
     private final SizeRepository sizeRepository;
     private final ColorRepository colorRepository;
+    private final ImportHistoryRepository importHistoryRepository;
 
     private static final String CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -71,9 +75,20 @@ public class ProductDetailServiceImpl implements ProductDetailService {
                 entity.setCode(code);
                 entity.setQuantity(requestDTO.getQuantity());
                 entity.setPrice(requestDTO.getPrice());
+                entity.setImportPrice(requestDTO.getImportPrice());
                 entity.setStatus(ProductStatus.AVAILABLE);
                 entity.setCreatedAt(Instant.now());
                 entity.setDeleted(false);
+
+                // Log import history
+                if (requestDTO.getQuantity() > 0) {
+                    ImportHistory importHistory = new ImportHistory();
+                    importHistory.setProductDetail(entity);
+                    importHistory.setImportQuantity(requestDTO.getQuantity());
+                    importHistory.setImportPrice(requestDTO.getImportPrice());
+                    importHistory.setImportDate(Instant.now());
+                    entity.getImportHistories().add(importHistory);
+                }
 
                 ProductDetail saved = productDetailRepository.save(entity);
                 responses.add(toResponse(saved));
@@ -120,11 +135,70 @@ public class ProductDetailServiceImpl implements ProductDetailService {
             }
         }
 
+        // Log import history if quantity or importPrice changes
+        if (!entity.getQuantity().equals(requestDTO.getQuantity()) ||
+                (entity.getImportPrice() != null && !entity.getImportPrice().equals(requestDTO.getImportPrice()))) {
+            ImportHistory importHistory = new ImportHistory();
+            importHistory.setProductDetail(entity);
+            importHistory.setImportQuantity(requestDTO.getQuantity());
+            importHistory.setImportPrice(requestDTO.getImportPrice());
+            importHistory.setImportDate(entity.getImportHistories().isEmpty() ? Instant.now() : entity.getImportHistories().get(0).getImportDate());
+            entity.getImportHistories().add(importHistory);
+        }
+
         mapToEntity(entity, requestDTO);
         entity.setUpdatedAt(Instant.now());
         entity.setCode(generateRandomCode(requestDTO.getCode()));
         ProductDetail saved = productDetailRepository.save(entity);
         return toResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public ProductDetailResponseDTO importProduct(Integer id, ImportRequestDTO requestDTO) {
+        ProductDetail entity = productDetailRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy chi tiết sản phẩm với ID: " + id));
+        if (entity.getDeleted()) {
+            throw new IllegalStateException("Chi tiết sản phẩm đã bị xóa");
+        }
+
+        // Update quantity
+        entity.setQuantity(entity.getQuantity() + requestDTO.getImportQuantity());
+        entity.setImportPrice(requestDTO.getImportPrice());
+        entity.setUpdatedAt(Instant.now());
+
+        // Log import history
+        ImportHistory importHistory = new ImportHistory();
+        importHistory.setProductDetail(entity);
+        importHistory.setImportQuantity(requestDTO.getImportQuantity());
+        importHistory.setImportPrice(requestDTO.getImportPrice());
+        importHistory.setImportDate(Instant.now());
+        entity.getImportHistories().add(importHistory);
+
+        ProductDetail saved = productDetailRepository.save(entity);
+        return toResponse(saved);
+    }
+
+    @Override
+    public PaginationResponse<ImportHistoryResponseDTO> getImportHistoryByProductDetailId(Integer productDetailId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("importDate").descending());
+        Page<ImportHistory> pageData = importHistoryRepository.findByProductDetailId(productDetailId, pageable);
+        return new PaginationResponse<>(pageData.map(this::toImportHistoryResponse));
+    }
+
+    @Override
+    public PaginationResponse<ImportHistoryResponseDTO> findImportHistoryWithFilters(
+            Instant startDate,
+            Instant endDate,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,
+            String code,
+            int page,
+            int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("importDate").descending());
+        Page<ImportHistory> pageData = importHistoryRepository.findAllWithFilters(
+                startDate, endDate, minPrice, maxPrice, code, pageable);
+        return new PaginationResponse<>(pageData.map(this::toImportHistoryResponse));
     }
 
     @Override
@@ -233,6 +307,7 @@ public class ProductDetailServiceImpl implements ProductDetailService {
 
         entity.setQuantity(requestDTO.getQuantity());
         entity.setPrice(requestDTO.getPrice());
+        entity.setImportPrice(requestDTO.getImportPrice());
         entity.setStatus(requestDTO.getStatus());
     }
 
@@ -258,10 +333,22 @@ public class ProductDetailServiceImpl implements ProductDetailService {
         response.setColorCode(entity.getColor().getCode());
         response.setQuantity(entity.getQuantity());
         response.setPrice(entity.getPrice());
+        response.setImportPrice(entity.getImportPrice());
         response.setPromotionalPrice(entity.getPromotionalPrice());
         response.setStatus(entity.getStatus());
         response.setCreatedAt(entity.getCreatedAt());
         response.setUpdatedAt(entity.getUpdatedAt());
+        return response;
+    }
+
+    private ImportHistoryResponseDTO toImportHistoryResponse(ImportHistory importHistory) {
+        ImportHistoryResponseDTO response = new ImportHistoryResponseDTO();
+        response.setId(importHistory.getId());
+        response.setProductDetailId(importHistory.getProductDetail().getId());
+        response.setProductDetailCode(importHistory.getProductDetail().getCode());
+        response.setImportQuantity(importHistory.getImportQuantity());
+        response.setImportPrice(importHistory.getImportPrice());
+        response.setImportDate(importHistory.getImportDate());
         return response;
     }
 }

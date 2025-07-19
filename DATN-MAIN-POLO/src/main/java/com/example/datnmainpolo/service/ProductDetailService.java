@@ -2,10 +2,13 @@ package com.example.datnmainpolo.service;
 
 
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
+import com.example.datnmainpolo.dto.ProductDetailDTO.ImportRequestDTO;
 import com.example.datnmainpolo.dto.ProductDetailDTO.ProductDetailRequestDTO;
 import com.example.datnmainpolo.dto.ProductDetailDTO.ProductDetailResponseDTO;
+import com.example.datnmainpolo.dto.ProductDetailDTO.ImportHistoryResponseDTO;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 
 public interface ProductDetailService {
@@ -19,4 +22,17 @@ public interface ProductDetailService {
     List<com.example.datnmainpolo.entity.Size> getAvailableSizes(Integer productId);
     List<com.example.datnmainpolo.entity.Color> getAvailableColors(Integer productId, Integer sizeId);
     ProductDetailResponseDTO getProductDetailBySizeAndColor(Integer productId, Integer sizeId, Integer colorId);
+    ProductDetailResponseDTO importProduct(Integer id, ImportRequestDTO requestDTO);
+    PaginationResponse<ImportHistoryResponseDTO> getImportHistoryByProductDetailId(Integer productDetailId, int page, int size);
+
+
+
+    PaginationResponse<ImportHistoryResponseDTO> findImportHistoryWithFilters(
+            Instant startDate,
+            Instant endDate,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,
+            String code,
+            int page,
+            int size);
 }

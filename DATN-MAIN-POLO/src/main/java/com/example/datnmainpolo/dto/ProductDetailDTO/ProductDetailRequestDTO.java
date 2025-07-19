@@ -1,6 +1,5 @@
 package com.example.datnmainpolo.dto.ProductDetailDTO;
 
-
 import com.example.datnmainpolo.enums.ProductStatus;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
@@ -34,8 +33,9 @@ public class ProductDetailRequestDTO {
     @DecimalMin(value = "0.0", inclusive = false, message = "Giá phải lớn hơn 0")
     private BigDecimal price;
 
+    @NotNull(message = "Giá nhập không được để trống")
+    @DecimalMin(value = "0.0", inclusive = false, message = "Giá nhập phải lớn hơn 0")
+    private BigDecimal importPrice;
+
     private ProductStatus status;
 }
-
-
-

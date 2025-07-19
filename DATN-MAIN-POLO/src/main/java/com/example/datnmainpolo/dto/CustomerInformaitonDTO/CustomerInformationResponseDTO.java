@@ -11,7 +11,7 @@ import java.time.Instant;
 @Builder
 @Getter
 @Setter
-@JsonIgnoreProperties(ignoreUnknown = true)
+//@JsonIgnoreProperties(ignoreUnknown = true)
 public class CustomerInformationResponseDTO {
     private Integer id;
     private String name;

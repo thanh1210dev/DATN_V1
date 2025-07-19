@@ -1,5 +1,6 @@
 package com.example.datnmainpolo.dto.ProductDetailDTO;
 import com.example.datnmainpolo.enums.ProductStatus;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -23,8 +24,10 @@ public class ProductDetailResponseDTO {
     private String colorCode;
     private Integer quantity;
     private BigDecimal price;
+    private BigDecimal importPrice;
     private BigDecimal promotionalPrice;
     private ProductStatus status;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "Asia/Ho_Chi_Minh")
     private Instant createdAt;
     private Instant updatedAt;
 

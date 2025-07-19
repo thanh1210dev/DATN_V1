@@ -21,6 +21,16 @@ const ProductDetailService = {
       throw error.response?.data?.message || 'Không thể tải danh sách chi tiết sản phẩm';
     }
   },
+  getAllImportHistory: async (page, size, startDate, endDate, minPrice, maxPrice, code) => {
+    try {
+      const response = await axiosInstance.get(`/product-details/import-history/filter`, {
+        params: { page, size, startDate, endDate, minPrice, maxPrice, code },
+      });
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || 'Không thể tải lịch sử nhập hàng';
+    }
+  },
   getAllPage: async (page, size, code, name, price, sizeId, colorId) => {
     try {
       const response = await axiosInstance.get(`/product-details/all`, {
@@ -41,7 +51,19 @@ const ProductDetailService = {
   },
   update: async (id, productDetailData) => {
     try {
-      const response = await axiosInstance.put(`/product-details/${id}`, productDetailData);
+      // Chỉ gửi các thuộc tính cần thiết để cập nhật
+      const payload = {
+        productId: productDetailData.productId,
+        imageIds: productDetailData.imageIds,
+        sizeIds: productDetailData.sizeIds,
+        colorIds: productDetailData.colorIds,
+        code: productDetailData.code,
+        quantity: productDetailData.quantity,
+        price: productDetailData.price,
+        importPrice: productDetailData.importPrice,
+        status: productDetailData.status,
+      };
+      const response = await axiosInstance.put(`/product-details/${id}`, payload);
       return response.data;
     } catch (error) {
       throw error.response?.data?.message || 'Có lỗi xảy ra khi cập nhật chi tiết sản phẩm';
@@ -88,6 +110,24 @@ const ProductDetailService = {
       return response.data;
     } catch (error) {
       throw error.response?.data?.message || 'Không thể tải chi tiết sản phẩm';
+    }
+  },
+  importProduct: async (id, importData) => {
+    try {
+      const response = await axiosInstance.post(`/product-details/${id}/import`, importData);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || 'Có lỗi xảy ra khi nhập hàng';
+    }
+  },
+  getImportHistory: async (productDetailId, page, size) => {
+    try {
+      const response = await axiosInstance.get(`/product-details/${productDetailId}/import-history`, {
+        params: { page, size },
+      });
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || 'Không thể tải lịch sử nhập hàng';
     }
   },
 };

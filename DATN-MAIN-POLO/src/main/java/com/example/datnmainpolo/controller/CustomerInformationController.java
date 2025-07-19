@@ -30,6 +30,32 @@ public class CustomerInformationController {
         }
     }
 
+    @GetMapping("/user/{userId}/default")
+    public ResponseEntity<CustomerInformationResponseDTO> getDefaultAddress(@PathVariable Integer userId) {
+        LOGGER.info("Fetching default address for user {}", userId);
+        try {
+            CustomerInformationResponseDTO defaultAddress = customerInformationService.getDefaultAddressByUserId(userId);
+            return ResponseEntity.ok(defaultAddress);
+        } catch (Exception e) {
+            LOGGER.error("Error fetching default address for user {}: {}", userId, e.getMessage());
+            throw new RuntimeException("Lỗi khi lấy địa chỉ mặc định: " + e.getMessage());
+        }
+    }
+
+    @PutMapping("/user/{userId}/default/{addressId}")
+    public ResponseEntity<CustomerInformationResponseDTO> setDefaultAddress(
+            @PathVariable Integer userId,
+            @PathVariable Integer addressId) {
+        LOGGER.info("Setting default address with ID {} for user {}", addressId, userId);
+        try {
+            CustomerInformationResponseDTO updatedAddress = customerInformationService.setDefaultAddress(userId, addressId);
+            return ResponseEntity.ok(updatedAddress);
+        } catch (Exception e) {
+            LOGGER.error("Error setting default address with ID {} for user {}: {}", addressId, userId, e.getMessage());
+            throw new RuntimeException("Lỗi khi đặt địa chỉ mặc định: " + e.getMessage());
+        }
+    }
+
     @PostMapping
     public ResponseEntity<CustomerInformationResponseDTO> addAddress(
             @RequestParam Integer userId,
