@@ -1,14 +1,14 @@
 package com.example.datnmainpolo.dto.CartDetailResponseDTO;
 
 
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
-@Builder
 @Getter
 @Setter
-public class CustomerInformationRequestDTO {
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class CustomerInformationOnlineRequestDTO {
     private Integer id;
     private String name;
     private String phoneNumber;
@@ -20,4 +20,6 @@ public class CustomerInformationRequestDTO {
     private String wardName;
     private String wardCode;
     private Boolean isDefault;
+
+
 }

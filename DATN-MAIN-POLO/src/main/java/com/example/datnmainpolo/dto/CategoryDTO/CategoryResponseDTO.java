@@ -11,6 +11,7 @@ public class CategoryResponseDTO {
     private Integer id;
     private String code;
     private String name;
+    private String imageUrl;
     private Instant createdAt;
     private Instant updatedAt;
 }

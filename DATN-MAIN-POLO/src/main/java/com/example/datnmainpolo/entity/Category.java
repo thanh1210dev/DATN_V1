@@ -7,6 +7,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -32,7 +33,9 @@ public class Category {
     @Column(name = "name", columnDefinition = "NVARCHAR(255)")
     private String name;
 
-
+    @Lob
+    @Column(name = "image_url")
+    private String imageUrl;
 
     @Column(name = "created_at")
     private Instant createdAt;

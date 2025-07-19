@@ -36,8 +36,61 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
     );
 
 
-
     @Query("SELECT new map(MIN(pd.price) as minPrice, MAX(pd.price) as maxPrice) " +
             "FROM ProductDetail pd WHERE pd.product.id = :productId AND pd.deleted = false")
     Map<String, BigDecimal> findMinMaxPriceByProductId(@Param("productId") Integer productId);
+
+    // 1. Sản phẩm mới nhất
+    @Query(
+            value = "SELECT * FROM product WHERE deleted = 0 ORDER BY created_at DESC",
+            countQuery = "SELECT count(*) FROM product WHERE deleted = 0",
+            nativeQuery = true
+    )
+    Page<Product> findNewestProducts(Pageable pageable);
+
+    // 2. Sản phẩm khuyến mãi
+    @Query(
+            value = """
+        SELECT DISTINCT p.* FROM product p
+        JOIN product_detail pd ON p.id = pd.product_id
+        WHERE p.deleted = 0
+          AND pd.deleted = 0
+          AND pd.promotional_price IS NOT NULL
+          AND pd.promotional_price < pd.price
+        ORDER BY p.created_at DESC
+        """,
+            countQuery = """
+        SELECT count(DISTINCT p.id) FROM product p
+        JOIN product_detail pd ON p.id = pd.product_id
+        WHERE p.deleted = 0
+          AND pd.deleted = 0
+          AND pd.promotional_price IS NOT NULL
+          AND pd.promotional_price < pd.price
+        """,
+            nativeQuery = true
+    )
+    Page<Product> findSaleProducts(Pageable pageable);
+
+    // 3. Sản phẩm bán chạy
+    @Query(
+            value = """
+        SELECT p.id, p.code, p.created_at, p.deleted, p.description, p.name, p.updated_at, p.brand_id, p.category_id, p.material_id
+        FROM product p
+        JOIN product_detail pd ON p.id = pd.product_id
+        JOIN bill_detail bd ON pd.id = bd.detail_product_id
+        WHERE p.deleted = 0 AND pd.deleted = 0 AND bd.deleted = 0
+        GROUP BY p.id, p.code, p.created_at, p.deleted, p.description, p.name, p.updated_at, p.brand_id, p.category_id, p.material_id
+        ORDER BY SUM(bd.quantity) DESC
+        """,
+            countQuery = """
+        SELECT count(DISTINCT p.id)
+        FROM product p
+        JOIN product_detail pd ON p.id = pd.product_id
+        JOIN bill_detail bd ON pd.id = bd.detail_product_id
+        WHERE p.deleted = 0 AND pd.deleted = 0 AND bd.deleted = 0
+        """,
+            nativeQuery = true
+    )
+    Page<Product> findBestSellerProducts(Pageable pageable);
+
 }

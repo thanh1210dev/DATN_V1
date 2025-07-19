@@ -13,7 +13,7 @@ const CartItem = ({ item, onUpdateQuantity, onRemoveItem }) => {
   return (
     <div className="flex items-center bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition duration-300">
       <img
-        src={item.images?.[0]?.url || 'https://via.placeholder.com/100'}
+        src={item.images?.[0]?.url ? `http://localhost:8080${item.images[0].url}` : 'https://via.placeholder.com/100'}
         alt={item.productName}
         className="w-24 h-24 object-cover rounded-lg"
       />
@@ -21,7 +21,7 @@ const CartItem = ({ item, onUpdateQuantity, onRemoveItem }) => {
         <h3 className="text-lg font-semibold text-gray-900">{item.productName}</h3>
         <p className="text-sm text-gray-600">Màu: {item.productColor}</p>
         <p className="text-sm text-gray-600">Kích cỡ: {item.productSize}</p>
-        <p className="text-sm text-gray-600">Trọng lượng: {item.weight ? `${item.weight}g` : 'Chưa xác định'}</p>
+        
         <p className="text-lg font-medium text-indigo-600">{item.price.toLocaleString('vi-VN')} VND</p>
         <div className="flex items-center mt-4 space-x-2">
           <button

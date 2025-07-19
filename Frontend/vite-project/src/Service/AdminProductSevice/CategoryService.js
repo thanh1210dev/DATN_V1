@@ -16,7 +16,13 @@ const CategoryService = {
   // Create a new category
   create: async (categoryData) => {
     try {
-      const response = await axiosInstance.post('/categories', categoryData);
+      let config = {};
+      // Đừng tự set Content-Type khi dùng FormData!
+      if (categoryData instanceof FormData) {
+        config.withCredentials = true; // nếu backend dùng session/cookie
+        // Không set headers['Content-Type'] ở đây!
+      }
+      const response = await axiosInstance.post('/categories', categoryData, config);
       return response.data;
     } catch (error) {
       throw error.response?.data?.message || 'Có lỗi xảy ra khi thêm danh mục';

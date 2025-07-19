@@ -89,9 +89,9 @@ const Checkout = () => {
       if (paymentMethod === 'BANKING' || paymentMethod === 'VNPAY') {
         window.location.href = response.data.paymentUrl;
       } else {
-        const confirmResponse = await axiosInstance.post(`/cart-checkout/confirm-payment/${currentBillId}`);
+        // COD: Không gọi confirm-payment nữa, chuyển luôn sang trang chi tiết đơn hàng
         toast.success('Đặt hàng thành công!', { position: 'top-right', autoClose: 3000 });
-        navigate(`/order/${confirmResponse.data.id}`);
+        navigate(`/order/${currentBillId}`);
       }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Lỗi khi thanh toán', { position: 'top-right', autoClose: 3000 });

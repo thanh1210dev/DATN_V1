@@ -4,8 +4,8 @@ spring:
 
   datasource:
     url: jdbc:sqlserver://localhost;databaseName=DATN4;trustServerCertificate=true;useUnicode=true;characterEncoding=UTF-8
-    username: sa
-    password: 123
+    username: sa1
+    password: 123456
 
   jpa:
     generate-ddl: true
@@ -83,3 +83,15 @@ springdoc:
     operationsSorter: method # Sắp xếp theo GET, POST,...
     tagsSorter: alpha # Sắp xếp thẻ theo thứ tự alphabet
     display-request-duration: true # Hiển thị thời gian phản hồi
+  # VNPAY Configuration
+vnpay:
+  tmnCode: 3YD65FRT
+  hashSecret: Z75NENU7XVDDUA6CUMQFWJCIKK3G7P16
+  payUrl: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+  returnUrl: http://localhost:8080/api/bills/vnpay-callback
+  apiVersion: 2.1.0
+  command: pay
+  orderType: other
+  currCode: VND
+  locale: vn
+  paymentBackReturnUrl: http://localhost:3000/payment-result

@@ -53,4 +53,25 @@ public class ProductController {
             @RequestParam(required = false) BigDecimal maxPrice) {
         return ResponseEntity.ok(productService.getAll(page, size, code, name, materialId, brandId, categoryId, minPrice, maxPrice));
     }
+    //client
+    @GetMapping("/newest")
+    public PaginationResponse<ProductResponseDTO> getNewestProducts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return productService.getNewestProducts(page, size);
+    }
+
+    @GetMapping("/sale")
+    public PaginationResponse<ProductResponseDTO> getSaleProducts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return productService.getSaleProducts(page, size);
+    }
+
+    @GetMapping("/best-seller")
+    public PaginationResponse<ProductResponseDTO> getBestSellerProducts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return productService.getBestSellerProducts(page, size);
+    }
 }

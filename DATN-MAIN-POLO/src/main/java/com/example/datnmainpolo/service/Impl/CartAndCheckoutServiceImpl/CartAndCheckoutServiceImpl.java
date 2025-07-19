@@ -4,7 +4,7 @@ import com.example.datnmainpolo.dto.BillDTO.BillResponseDTO;
 import com.example.datnmainpolo.dto.BillDTO.PaymentResponseDTO;
 
 import com.example.datnmainpolo.dto.CartDetailResponseDTO.CartDetailResponseDTO;
-import com.example.datnmainpolo.dto.CartDetailResponseDTO.CustomerInformationRequestDTO;
+import com.example.datnmainpolo.dto.CartDetailResponseDTO.CustomerInformationOnlineRequestDTO;
 import com.example.datnmainpolo.entity.*;
 import com.example.datnmainpolo.enums.*;
 import com.example.datnmainpolo.repository.*;
@@ -340,7 +340,7 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
 
     @Override
     @Transactional
-    public PaymentResponseDTO processOnlinePayment(Integer billId, PaymentType paymentType, BigDecimal amount) {
+    public PaymentResponseDTO processOnlinePayment(Integer billId, PaymentType paymentType) {
         LOGGER.info("Processing online payment for bill {} with type {}", billId, paymentType);
 
         Bill bill = billRepository.findById(billId)
@@ -354,30 +354,9 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
             throw new RuntimeException("Phương thức thanh toán không được hỗ trợ");
         }
 
-        if (paymentType == PaymentType.COD) {
-            bill.setStatus(OrderStatus.CONFIRMING);
-            bill.setUpdatedAt(Instant.now());
-            bill.setUpdatedBy("system");
-            billRepository.save(bill);
-
-            List<BillDetail> billDetails = billDetailRepository.findByBillId(billId);
-            for (BillDetail billDetail : billDetails) {
-                billDetail.setTypeOrder(OrderStatus.CONFIRMING);
-                billDetail.setUpdatedAt(Instant.now());
-                billDetail.setUpdatedBy("system");
-                billDetailRepository.save(billDetail);
-            }
-
-            Transaction transaction = transactionRepository.findByBillId(billId)
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch"));
-            transaction.setType(TransactionType.PAYMENT);
-            transaction.setStatus(TransactionStatus.PENDING);
-            transaction.setNote("Khởi tạo giao dịch COD");
-            transaction.setUpdatedAt(Instant.now());
-            transactionRepository.save(transaction);
-        }
-
-        return billService.processPayment(billId, paymentType, amount);
+        // Không cần cập nhật trạng thái bill thủ công cho COD nữa
+        // Gọi xử lý thanh toán (đã có COD riêng trong BillServiceImpl)
+        return billService.processPayment(billId, paymentType, null);
     }
 
     @Override
@@ -440,6 +419,44 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
         LOGGER.info("Applying fixed shipping cost of 22000 VND for district {} and ward {}", toDistrictId, toWardCode);
         return FIXED_SHIPPING_COST;
     }
+    @Override
+    @Transactional
+    public BigDecimal calculateShippingFee(Integer toDistrictId, String toWardCode, Integer weight, Integer length, Integer width, Integer height) {
+        try {
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.set("Token", System.getenv("GHN_API_TOKEN")); // Hoặc lấy từ cấu hình nếu có @Value
+            headers.set("Content-Type", "application/json");
+
+            java.util.Map<String, Object> requestBody = new java.util.HashMap<>();
+            requestBody.put("service_type_id", 2);
+            requestBody.put("from_district_id", 1444); // Có thể cho vào config
+            requestBody.put("to_district_id", toDistrictId);
+            requestBody.put("to_ward_code", toWardCode);
+            requestBody.put("height", height);
+            requestBody.put("length", length);
+            requestBody.put("weight", weight);
+            requestBody.put("width", width);
+            requestBody.put("insurance_value", 0);
+
+            org.springframework.http.HttpEntity<java.util.Map<String, Object>> request = new org.springframework.http.HttpEntity<>(requestBody, headers);
+            String ghnBaseUrl = System.getenv("GHN_API_BASE_URL"); // Hoặc lấy từ cấu hình nếu có @Value
+            String url = ghnBaseUrl + "/v2/shipping-order/fee";
+
+            org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+            org.springframework.http.ResponseEntity<java.util.Map> response = restTemplate.exchange(url, org.springframework.http.HttpMethod.POST, request, java.util.Map.class);
+            java.util.Map responseBody = response.getBody();
+
+            if (responseBody != null && responseBody.containsKey("data")) {
+                java.util.Map<String, Object> data = (java.util.Map<String, Object>) responseBody.get("data");
+                Integer fee = (Integer) data.get("total");
+                return new java.math.BigDecimal(fee).setScale(2, java.math.RoundingMode.HALF_UP);
+            }
+            throw new RuntimeException("Không thể tính phí vận chuyển");
+        } catch (Exception e) {
+            LOGGER.error("Error calculating shipping fee: {}", e.getMessage());
+            throw new RuntimeException("Lỗi khi tính phí vận chuyển: " + e.getMessage());
+        }
+    }
 
     private BigDecimal calculateReductionAmount(Voucher voucher, BigDecimal totalMoney) {
         BigDecimal reductionAmount = ZERO;
@@ -454,7 +471,7 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
         return reductionAmount;
     }
 
-    private void validateCustomerInformation(CustomerInformationRequestDTO customerInfo) {
+    private void validateCustomerInformation(CustomerInformationOnlineRequestDTO customerInfo) {
         if (customerInfo.getProvinceId() == null) {
             throw new RuntimeException("Thông tin tỉnh/thành phố không được để trống");
         }
@@ -469,8 +486,8 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
         }
     }
 
-    private CustomerInformationRequestDTO convertToCustomerInfoDTO(CustomerInformation customerInfo) {
-        return CustomerInformationRequestDTO.builder()
+    private CustomerInformationOnlineRequestDTO convertToCustomerInfoDTO(CustomerInformation customerInfo) {
+        return CustomerInformationOnlineRequestDTO.builder()
                 .id(customerInfo.getId())
                 .name(customerInfo.getName())
                 .phoneNumber(customerInfo.getPhoneNumber())

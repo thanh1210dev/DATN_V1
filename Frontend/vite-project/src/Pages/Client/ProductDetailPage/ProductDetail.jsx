@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import ProductImageGallery from './ProductImageGallery';
 import ProductInfo from './ProductInfo';
+import ProductCard from '../ProductPage/ProductCard';
 import ProductService from '../../../Service/AdminProductSevice/ProductService';
 import ProductDetailService from '../../../Service/AdminProductSevice/ProductDetailService';
+import HomeService from '../../../Service/ClientHomeService/HomeService';
 import axiosInstance from '../../../Service/axiosInstance';
 
 const ProductDetail = () => {
@@ -16,14 +18,16 @@ const ProductDetail = () => {
   const [selectedSizeId, setSelectedSizeId] = useState('');
   const [selectedColorId, setSelectedColorId] = useState('');
   const [selectedDetail, setSelectedDetail] = useState(null);
+  const [newestProducts, setNewestProducts] = useState([]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [productResponse, sizesResponse, detailsResponse] = await Promise.all([
+        const [productResponse, sizesResponse, detailsResponse, newestResponse] = await Promise.all([
           ProductService.getById(id),
           ProductDetailService.getAvailableSizes(id),
           ProductDetailService.getAll(id, 0, 1),
+          HomeService.getNewest(0, 8),
         ]);
         setProduct(productResponse);
         setSizes(sizesResponse);
@@ -33,6 +37,7 @@ const ProductDetail = () => {
           setSelectedSizeId(firstDetail.sizeId);
           setSelectedColorId(firstDetail.colorId);
         }
+        setNewestProducts(newestResponse.content || []);
       } catch (error) {
         toast.error(error.message || 'Lỗi khi tải thông tin sản phẩm', { position: 'top-right', autoClose: 3000 });
       }
@@ -41,40 +46,67 @@ const ProductDetail = () => {
   }, [id]);
 
   useEffect(() => {
-    if (selectedSizeId) {
-      const fetchColors = async () => {
-        try {
-          const colorsResponse = await ProductDetailService.getAvailableColors(id, selectedSizeId);
-          setColors(colorsResponse);
-          if (!colorsResponse.some((color) => color.id === selectedColorId)) {
-            setSelectedColorId('');
-            setSelectedDetail(null);
-          }
-        } catch (error) {
-          toast.error(error.message || 'Lỗi khi tải màu sắc', { position: 'top-right', autoClose: 3000 });
-        }
-      };
-      fetchColors();
-    } else {
-      setColors([]);
-      setSelectedColorId('');
-      setSelectedDetail(null);
+    if (sizes.length === 1) {
+      setSelectedSizeId(sizes[0].id);
+    } else if (sizes.length > 1 && !selectedSizeId) {
+      setSelectedSizeId(sizes[0].id);
     }
-  }, [selectedSizeId, id, selectedColorId]);
+  }, [sizes]);
 
-  useEffect(() => {
-    if (selectedSizeId && selectedColorId) {
-      const fetchProductDetail = async () => {
-        try {
-          const detailResponse = await ProductDetailService.getProductDetailBySizeAndColor(id, selectedSizeId, selectedColorId);
-          setSelectedDetail(detailResponse);
-        } catch (error) {
-          toast.error(error.message || 'Lỗi khi tải chi tiết sản phẩm', { position: 'top-right', autoClose: 3000 });
+ // Khi đổi size, luôn set selectedColorId là màu đầu tiên của size mới (nếu có)
+// Khi đổi size, fetch colors và set selectedColorId là màu đầu tiên (nếu có)
+useEffect(() => {
+  if (selectedSizeId) {
+    const fetchColors = async () => {
+      try {
+        const colorsResponse = await ProductDetailService.getAvailableColors(id, selectedSizeId);
+        setColors(colorsResponse);
+
+        // Luôn set selectedColorId là màu đầu tiên (nếu có)
+        if (colorsResponse.length > 0) {
+          setSelectedColorId(colorsResponse[0].id);
+        } else {
+          setSelectedColorId('');
+          setSelectedDetail(null);
         }
-      };
-      fetchProductDetail();
-    }
-  }, [selectedSizeId, selectedColorId, id]);
+      } catch (error) {
+        toast.error(error.message || 'Lỗi khi tải màu sắc', { position: 'top-right', autoClose: 3000 });
+      }
+    };
+    fetchColors();
+  } else {
+    setColors([]);
+    setSelectedColorId('');
+    setSelectedDetail(null);
+  }
+}, [selectedSizeId, id]);
+
+// Khi selectedColorId thay đổi (và chắc chắn hợp lệ), mới fetch ProductDetail
+useEffect(() => {
+  if (
+    selectedSizeId &&
+    selectedColorId &&
+    colors.length > 0 &&
+    colors.some((color) => color.id === selectedColorId)
+  ) {
+    const fetchProductDetail = async () => {
+      try {
+        const detailResponse = await ProductDetailService.getProductDetailBySizeAndColor(
+          id,
+          selectedSizeId,
+          selectedColorId
+        );
+        setSelectedDetail(detailResponse);
+      } catch (error) {
+        setSelectedDetail(null);
+      }
+    };
+    fetchProductDetail();
+  } else {
+    setSelectedDetail(null);
+  }
+  // CHỈ theo dõi selectedColorId, selectedSizeId, colors, id
+}, [selectedColorId, selectedSizeId, colors, id]);
 
   const handleAddToCart = async () => {
     if (!selectedDetail || selectedDetail.status !== 'AVAILABLE') {
@@ -107,22 +139,41 @@ const ProductDetail = () => {
   }
 
   return (
-    <div className="p-4 sm:p-6 bg-white min-h-screen w-full">
+    <div className="min-h-screen bg-gray-50">
       <ToastContainer />
-      <div className="bg-white shadow-xl rounded-2xl p-6 sm:p-8 w-full">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
-          <ProductImageGallery images={selectedDetail?.images || []} />
-          <ProductInfo
-            product={product}
-            productDetail={selectedDetail}
-            sizes={sizes}
-            colors={colors}
-            selectedSizeId={selectedSizeId}
-            setSelectedSizeId={setSelectedSizeId}
-            selectedColorId={selectedColorId}
-            setSelectedColorId={setSelectedColorId}
-            onAddToCart={handleAddToCart}
-          />
+      <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        <div className="bg-white rounded-lg shadow-sm">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 p-8">
+            <ProductImageGallery images={selectedDetail?.images || []} />
+            <ProductInfo
+              product={product}
+              productDetail={selectedDetail}
+              sizes={sizes}
+              colors={colors}
+              selectedSizeId={selectedSizeId}
+              setSelectedSizeId={setSelectedSizeId}
+              selectedColorId={selectedColorId}
+              setSelectedColorId={setSelectedColorId}
+              onAddToCart={handleAddToCart}
+            />
+          </div>
+        </div>
+        {/* Sản phẩm mới nhất */}
+        <div className="mt-12 bg-white rounded-lg shadow-sm p-8">
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="text-2xl font-bold text-gray-900">Sản phẩm mới nhất</h2>
+            <Link 
+              to="/products" 
+              className="px-6 py-2 bg-red-600 text-white font-semibold rounded hover:bg-red-700 transition duration-300"
+            >
+              Xem thêm
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {newestProducts.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
         </div>
       </div>
     </div>
