@@ -13,4 +13,8 @@ public interface ProductService {
     void softDelete(Integer id);
     ProductResponseDTO getById(Integer id);
     PaginationResponse<ProductResponseDTO> getAll(int page, int size, String code, String name, Integer materialId, Integer brandId, Integer categoryId, BigDecimal minPrice, BigDecimal maxPrice);
+
+    PaginationResponse<ProductResponseDTO> getNewestProducts(int page, int size);
+    PaginationResponse<ProductResponseDTO> getSaleProducts(int page, int size);
+    PaginationResponse<ProductResponseDTO> getBestSellerProducts(int page, int size);
 }

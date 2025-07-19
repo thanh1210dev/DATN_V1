@@ -37,8 +37,8 @@ public class Product {
     @JoinColumn(name = "category_id")
     private Category category;
 
-    @Size(max = 100)
-    @Column(name = "code", length = 100)
+    @Size(max = 200)
+    @Column(name = "code", length = 200)
     private String code;
 
     @Size(max = 100)

@@ -126,4 +126,26 @@ public class ProductServiceImpl implements ProductService {
 
         return response;
     }
+
+    //client
+    @Override
+    public PaginationResponse<ProductResponseDTO> getNewestProducts(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Product> pageData = productRepository.findNewestProducts(pageable);
+        return new PaginationResponse<>(pageData.map(this::toResponse));
+    }
+
+    @Override
+    public PaginationResponse<ProductResponseDTO> getSaleProducts(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Product> pageData = productRepository.findSaleProducts(pageable);
+        return new PaginationResponse<>(pageData.map(this::toResponse));
+    }
+
+    @Override
+    public PaginationResponse<ProductResponseDTO> getBestSellerProducts(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Product> pageData = productRepository.findBestSellerProducts(pageable);
+        return new PaginationResponse<>(pageData.map(this::toResponse));
+    }
 }

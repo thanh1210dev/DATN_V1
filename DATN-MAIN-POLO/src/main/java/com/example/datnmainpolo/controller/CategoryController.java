@@ -7,8 +7,11 @@ import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.service.CategoryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+
+import org.eclipse.angus.mail.handlers.multipart_mixed;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/categories")
@@ -17,13 +20,21 @@ public class CategoryController {
     private final CategoryService categoryService;
 
     @PostMapping
-    public ResponseEntity<CategoryResponseDTO> create(@Valid @RequestBody CategoryRequestDTO requestDTO) {
-        return ResponseEntity.ok(categoryService.create(requestDTO));
+    public ResponseEntity<CategoryResponseDTO> create(
+        @Valid @RequestPart("category") CategoryRequestDTO requestDTO,
+        @RequestPart(value = "image", required = false) MultipartFile image
+    ) {
+  
+        return ResponseEntity.ok(categoryService.create(requestDTO,image));
     }
-
+    
     @PutMapping("/{id}")
-    public ResponseEntity<CategoryResponseDTO> update(@PathVariable Integer id, @Valid @RequestBody CategoryRequestDTO requestDTO) {
-        return ResponseEntity.ok(categoryService.update(id, requestDTO));
+    public ResponseEntity<CategoryResponseDTO> update(
+        @PathVariable Integer id,
+        @Valid @RequestPart("category") CategoryRequestDTO requestDTO,
+        @RequestPart(value = "image", required = false) MultipartFile image
+    ) {
+        return ResponseEntity.ok(categoryService.update(id, requestDTO,image));
     }
 
     @DeleteMapping("/{id}")

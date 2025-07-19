@@ -286,8 +286,6 @@ public class BillServiceImpl implements BillService {
                 Bill bill = billRepository.findById(billId)
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
 
-
-
                 BigDecimal finalAmount = calculateFinalAmount(bill);
                 if (finalAmount == null) {
                         LOGGER.error("Final amount is null for bill {}", billId);
@@ -308,7 +306,7 @@ public class BillServiceImpl implements BillService {
                                 response = processVNPayPayment(bill, finalAmount, hasCustomerInfo);
                                 break;
                         case COD:
-                                response = processVNPayPayment(bill, finalAmount, hasCustomerInfo);
+                                response = processCODPayment(bill, finalAmount, hasCustomerInfo);
                                 break;
                         default:
                                 throw new RuntimeException("Loại thanh toán không hợp lệ");
@@ -480,6 +478,44 @@ public class BillServiceImpl implements BillService {
                 transaction.setTotalMoney(finalAmount.setScale(2, RoundingMode.HALF_UP));
                 transaction.setStatus(TransactionStatus.PENDING);
                 transaction.setNote("Đang chờ thanh toán VNPay" + (hasCustomerInfo ? " (xử lý như ONLINE)" : ""));
+                transaction.setUpdatedAt(Instant.now());
+                transactionRepository.save(transaction);
+
+                return PaymentResponseDTO.builder()
+                        .bill(convertToBillResponseDTO(savedBill))
+                        .paymentType(bill.getType())
+                        .amount(finalAmount.setScale(2, RoundingMode.HALF_UP))
+                        .build();
+        }
+
+        private PaymentResponseDTO processCODPayment(Bill bill, BigDecimal finalAmount, boolean hasCustomerInfo) {
+                LOGGER.info("Processing COD payment for bill {} with amount {}", bill.getId(), finalAmount);
+
+                bill.setType(PaymentType.COD);
+                bill.setCustomerPayment(finalAmount.setScale(2, RoundingMode.HALF_UP));
+                bill.setFinalAmount(finalAmount.setScale(2, RoundingMode.HALF_UP));
+                bill.setStatus(hasCustomerInfo ? OrderStatus.CONFIRMING : OrderStatus.PENDING);
+                bill.setUpdatedAt(Instant.now());
+                bill.setUpdatedBy("system");
+                Bill savedBill = billRepository.save(bill);
+
+                List<BillDetail> billDetails = billDetailRepository.findByBillId(savedBill.getId());
+                for (BillDetail billDetail : billDetails) {
+                        billDetail.setStatus(BillDetailStatus.PAID);
+                        if (bill.getStatus() == OrderStatus.PENDING) {
+                                billDetail.setTypeOrder(hasCustomerInfo ? OrderStatus.CONFIRMING : OrderStatus.PAID);
+                        }
+                        billDetail.setUpdatedAt(Instant.now());
+                        billDetail.setUpdatedBy("system");
+                        billDetailRepository.save(billDetail);
+                }
+
+                Transaction transaction = transactionRepository.findByBillId(bill.getId())
+                        .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch"));
+                transaction.setType(TransactionType.ONLINE);
+                transaction.setTotalMoney(finalAmount.setScale(2, RoundingMode.HALF_UP));
+                transaction.setStatus(TransactionStatus.PENDING);
+                transaction.setNote("Đang chờ thanh toán COD" + (hasCustomerInfo ? " (xử lý như ONLINE)" : ""));
                 transaction.setUpdatedAt(Instant.now());
                 transactionRepository.save(transaction);
 

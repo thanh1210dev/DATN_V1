@@ -3,7 +3,7 @@ package com.example.datnmainpolo.controller;
 import com.example.datnmainpolo.dto.BillDTO.BillResponseDTO;
 import com.example.datnmainpolo.dto.BillDTO.PaymentResponseDTO;
 import com.example.datnmainpolo.dto.CartDetailResponseDTO.CartDetailResponseDTO;
-import com.example.datnmainpolo.dto.CartDetailResponseDTO.CustomerInformationRequestDTO;
+import com.example.datnmainpolo.dto.CartDetailResponseDTO.CustomerInformationOnlineRequestDTO;
 import com.example.datnmainpolo.entity.CustomerInformation;
 import com.example.datnmainpolo.enums.PaymentType;
 import com.example.datnmainpolo.service.AddressService;
@@ -74,11 +74,10 @@ public class CartAndCheckoutController {
     @PostMapping("/process-payment/{billId}")
     public ResponseEntity<PaymentResponseDTO> processOnlinePayment(
             @PathVariable Integer billId,
-            @RequestParam PaymentType paymentType,
-            @RequestParam BigDecimal amount) {
-        PaymentResponseDTO response = cartAndCheckoutService.processOnlinePayment(billId, paymentType, amount);
+            @RequestParam PaymentType paymentType) {
+        PaymentResponseDTO response = cartAndCheckoutService.processOnlinePayment(billId, paymentType);
         return ResponseEntity.ok(response);
-    }
+    }   
 
     @PostMapping("/confirm-payment/{billId}")
     public ResponseEntity<BillResponseDTO> confirmOnlinePayment(@PathVariable Integer billId) {
@@ -95,11 +94,12 @@ public class CartAndCheckoutController {
         Page<BillResponseDTO> bills = cartAndCheckoutService.getUserBills(userId, pageable);
         return ResponseEntity.ok(bills);
     }
+    
 
     @PostMapping("/address/add")
     public ResponseEntity<CustomerInformation> addAddress(
             @RequestParam Integer userId,
-            @RequestBody CustomerInformationRequestDTO addressDTO) {
+            @RequestBody CustomerInformationOnlineRequestDTO addressDTO) {
         CustomerInformation response = addressService.addAddress(userId, addressDTO);
         return ResponseEntity.ok(response);
     }
@@ -107,7 +107,7 @@ public class CartAndCheckoutController {
     @PutMapping("/address/update/{addressId}")
     public ResponseEntity<CustomerInformation> updateAddress(
             @PathVariable Integer addressId,
-            @RequestBody CustomerInformationRequestDTO addressDTO) {
+            @RequestBody CustomerInformationOnlineRequestDTO addressDTO) {
         CustomerInformation response = addressService.updateAddress(addressId, addressDTO);
         return ResponseEntity.ok(response);
     }
@@ -130,5 +130,17 @@ public class CartAndCheckoutController {
             @RequestParam Integer userId) {
         CustomerInformation response = addressService.setDefaultAddress(userId, addressId);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/calculate-shipping")
+    public ResponseEntity<BigDecimal> calculateShipping(
+            @RequestParam Integer toDistrictId,
+            @RequestParam String toWardCode,
+            @RequestParam Integer weight,
+            @RequestParam Integer length,
+            @RequestParam Integer width,
+            @RequestParam Integer height) {
+        BigDecimal fee = cartAndCheckoutService.calculateShippingFee(toDistrictId, toWardCode, weight, length, width, height);
+        return ResponseEntity.ok(fee);
     }
 }

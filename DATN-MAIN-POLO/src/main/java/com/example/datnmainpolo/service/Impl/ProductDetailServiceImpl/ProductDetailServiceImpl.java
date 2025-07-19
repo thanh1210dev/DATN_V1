@@ -86,7 +86,7 @@ public class ProductDetailServiceImpl implements ProductDetailService {
     private String generateUniqueCode(String baseCode, Integer sizeId, Integer colorId) {
         if (baseCode != null && !baseCode.isEmpty()) {
             String suffix = "-" + sizeId + colorId;
-            int maxBaseLength = 5 - suffix.length();
+            int maxBaseLength = 10 - suffix.length();
             if (maxBaseLength < 1) {
                 throw new IllegalArgumentException("Mã cơ sở quá dài để thêm hậu tố size/color");
             }
