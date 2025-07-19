@@ -3,14 +3,31 @@ import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import axiosInstance from '../../../Service/axiosInstance';
 
-const ProductCard = ({ product }) => {
+const ProductCard = ({ product, isNew }) => {
   const [productDetail, setProductDetail] = useState(null);
+  const [allProductDetails, setAllProductDetails] = useState([]);
 
   useEffect(() => {
     const fetchProductDetail = async () => {
       try {
-        const response = await axiosInstance.get(`/product-details/all/${product.id}?page=0&size=1`);
-        setProductDetail(response.data.content[0] || null);
+        // Lấy tất cả chi tiết sản phẩm
+        const response = await axiosInstance.get(`/product-details/all/${product.id}?page=0&size=100`);
+        const details = response.data.content || [];
+        setAllProductDetails(details);
+        
+        // Tìm chi tiết có giá khuyến mãi tốt nhất (giá thấp nhất)
+        let bestDetail = null;
+        let lowestPrice = Infinity;
+        
+        details.forEach(detail => {
+          const currentPrice = detail.promotionalPrice || detail.price;
+          if (currentPrice < lowestPrice) {
+            lowestPrice = currentPrice;
+            bestDetail = detail;
+          }
+        });
+        
+        setProductDetail(bestDetail || details[0] || null);
       } catch (error) {
         console.error(error);
       }
@@ -45,10 +62,33 @@ const ProductCard = ({ product }) => {
     return productDetail.price - productDetail.promotionalPrice;
   };
 
+  // Tính toán khoảng giá nếu có nhiều chi tiết
+  const getPriceRange = () => {
+    if (allProductDetails.length <= 1) return null;
+    
+    const prices = allProductDetails
+      .filter(detail => detail.status === 'AVAILABLE')
+      .map(detail => detail.promotionalPrice || detail.price);
+    
+    if (prices.length === 0) return null;
+    
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+    
+    return { minPrice, maxPrice };
+  };
+
+  const priceRange = getPriceRange();
+
   return (
-    <div className="group relative bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition duration-300">
+    <div className="group relative bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition duration-300">
+      {isNew && (
+        <span className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded z-20">
+          NEW
+        </span>
+      )}
       {calculateSavings() > 0 && (
-        <div className="absolute top-2 left-2 bg-blue-900 text-white text-xs font-bold px-2 py-1 rounded z-10">
+        <div className="absolute top-2 right-2 bg-blue-900 text-white text-xs font-bold px-2 py-1 rounded z-10">
           Tiết kiệm {calculateSavings().toLocaleString('vi-VN')}₫
         </div>
       )}
@@ -57,43 +97,39 @@ const ProductCard = ({ product }) => {
           src={
             productDetail?.images?.[0]?.url
               ? `http://localhost:8080${productDetail.images[0].url}`
-              : 'https://via.placeholder.com/300?text=Không+có+ảnh'
+              : '/no-image.jpg'
           }
           alt={product.name}
-          className="w-full h-72 object-cover transition-transform duration-300 group-hover:scale-105"
+          className="w-full h-64 object-cover transition-transform duration-300 group-hover:scale-105"
         />
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            handleAddToCart();
-          }}
-          className="absolute bottom-3 right-3 bg-white text-gray-800 px-3 py-1 text-xs font-semibold rounded shadow-md opacity-0 group-hover:opacity-100 transition duration-300"
-        >
-          + Thêm nhanh
-        </button>
       </Link>
-      <div className="p-4">
+      <div className="p-3">
         <Link to={`/products/${product.id}`}>
-          <h3 className="text-sm font-bold text-gray-900 line-clamp-2">{product.name}</h3>
+          <h3 className="text-sm font-medium text-gray-900 line-clamp-2 leading-tight">{product.name}</h3>
         </Link>
         <div className="flex gap-2 mt-2 items-center">
-          {productDetail?.promotionalPrice ? (
+          {priceRange ? (
+            // Hiển thị khoảng giá nếu có nhiều chi tiết
+            <span className="text-red-600 font-semibold text-sm">
+              {priceRange.minPrice.toLocaleString('vi-VN')}₫ - {priceRange.maxPrice.toLocaleString('vi-VN')}₫
+            </span>
+          ) : productDetail?.promotionalPrice ? (
+            // Hiển thị giá khuyến mãi nếu chỉ có 1 chi tiết
             <>
-              <span className="text-indigo-600 font-semibold text-[15px]">
+              <span className="text-red-600 font-semibold text-sm">
                 {productDetail.promotionalPrice.toLocaleString('vi-VN')}₫
               </span>
-              <span className="line-through text-gray-400 text-sm">
+              <span className="line-through text-gray-400 text-xs">
                 {productDetail.price.toLocaleString('vi-VN')}₫
               </span>
             </>
           ) : (
-            <span className="text-indigo-600 font-semibold text-[15px]">
+            // Hiển thị giá gốc
+            <span className="text-red-600 font-semibold text-sm">
               {(productDetail?.price || 100000).toLocaleString('vi-VN')}₫
             </span>
           )}
         </div>
-        <p className="text-xs text-gray-600 mt-1">Trọng lượng: {productDetail?.weight ? `${productDetail.weight}g` : 'Chưa xác định'}</p>
       </div>
     </div>
   );

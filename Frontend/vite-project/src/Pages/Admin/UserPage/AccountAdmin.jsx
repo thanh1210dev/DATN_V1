@@ -1,13 +1,9 @@
-<<<<<<< HEAD
-=======
-
->>>>>>> b40b5adc0c09f76af5142cac40e188037654fa66
 import React, { useState, useEffect, useCallback } from 'react';
 import { HiOutlinePlus, HiOutlinePencilAlt, HiOutlineTrash, HiOutlineArrowLeft } from 'react-icons/hi';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Select from 'react-select';
-
+import { useNavigate } from 'react-router-dom';
 import UserService from '../../../Service/AdminAccountService/UserService';
 
 // Error Boundary Component
@@ -59,19 +55,12 @@ const AccountAdmin = () => {
   const [deleteId, setDeleteId] = useState(null);
   const [searchCode, setSearchCode] = useState('');
   const [searchName, setSearchName] = useState('');
-<<<<<<< HEAD
-
-
-  // Fetch users
-  const fetchUsers = useCallback(async () => {
-=======
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
   // Debounced fetch users
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
->>>>>>> b40b5adc0c09f76af5142cac40e188037654fa66
     try {
       const data = await UserService.findByCodeAndName(searchCode, searchName, page, size);
       setUsers(data.content || []);
@@ -81,11 +70,7 @@ const AccountAdmin = () => {
     } finally {
       setIsLoading(false);
     }
-<<<<<<< HEAD
-  }, [searchCode, searchName, page, size]);
-=======
   }, [page, size, searchCode, searchName]);
->>>>>>> b40b5adc0c09f76af5142cac40e188037654fa66
 
   useEffect(() => {
     fetchUsers();

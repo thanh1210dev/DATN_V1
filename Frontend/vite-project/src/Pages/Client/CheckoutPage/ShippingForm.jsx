@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import axiosInstance from '../../../Service/axiosInstance';
 
-const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel }) => {
+const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel, isEdit }) => {
   const [provinces, setProvinces] = useState([]);
   const [districts, setDistricts] = useState([]);
   const [wards, setWards] = useState([]);
@@ -18,6 +18,7 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel }) => {
     wardName: shippingInfo.wardName || '',
     wardCode: shippingInfo.wardCode || '',
     shippingFee: 22000, // Fixed shipping fee
+    isDefault: shippingInfo.isDefault || false,
   });
 
   useEffect(() => {
@@ -26,8 +27,6 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel }) => {
         setIsLoading(true);
         const response = await axiosInstance.get('/ghn-address/provinces');
         setProvinces(response.data.data || []);
-      } catch (error) {
-        toast.error('Lỗi khi lấy danh sách tỉnh', { position: 'top-right', autoClose: 3000 });
       } finally {
         setIsLoading(false);
       }
@@ -44,8 +43,6 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel }) => {
           setDistricts(response.data.data || []);
           setWards([]);
           setFormData({ ...formData, districtId: '', districtName: '', wardCode: '', wardName: '' });
-        } catch (error) {
-          toast.error('Lỗi khi lấy danh sách huyện', { position: 'top-right', autoClose: 3000 });
         } finally {
           setIsLoading(false);
         }
@@ -62,8 +59,6 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel }) => {
           const response = await axiosInstance.get(`/ghn-address/wards?districtId=${formData.districtId}`);
           setWards(response.data.data || []);
           setFormData({ ...formData, wardCode: '', wardName: '' });
-        } catch (error) {
-          toast.error('Lỗi khi lấy danh sách xã/phường', { position: 'top-right', autoClose: 3000 });
         } finally {
           setIsLoading(false);
         }
@@ -188,12 +183,35 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel }) => {
             placeholder="Nhập địa chỉ chi tiết"
           />
         </div>
+        {isEdit && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Đặt làm địa chỉ mặc định?</label>
+            <div className="flex gap-4 items-center">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  checked={formData.isDefault === true}
+                  onChange={() => setFormData({ ...formData, isDefault: true })}
+                />
+                Có
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  checked={formData.isDefault === false}
+                  onChange={() => setFormData({ ...formData, isDefault: false })}
+                />
+                Không
+              </label>
+            </div>
+          </div>
+        )}
         <div className="flex gap-4">
           <button
             onClick={handleSubmit}
             className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-300"
           >
-            Lưu địa chỉ
+            {isEdit ? 'Cập nhật địa chỉ' : 'Lưu địa chỉ'}
           </button>
           <button
             onClick={onCancel}

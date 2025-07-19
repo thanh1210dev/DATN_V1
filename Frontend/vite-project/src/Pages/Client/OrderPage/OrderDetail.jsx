@@ -12,17 +12,9 @@ const OrderDetail = () => {
   useEffect(() => {
     const fetchOrder = async () => {
       try {
-        const userId = localStorage.getItem('userId');
-        if (!userId) {
-          toast.error('Vui lòng đăng nhập để xem đơn hàng', { position: 'top-right', autoClose: 3000 });
-          return;
-        }
-        const response = await axiosInstance.get(`/cart-checkout/bills?userId=${userId}&page=0&size=1`);
-        const orderData = response.data.content.find((o) => o.id === parseInt(id));
-        if (!orderData) {
-          throw new Error('Không tìm thấy đơn hàng');
-        }
-        setOrder(orderData);
+        // Gọi trực tiếp API lấy bill theo id
+        const response = await axiosInstance.get(`/cart-checkout/bill/${id}`);
+        setOrder(response.data);
       } catch (error) {
         toast.error(error.response?.data?.message || 'Không tìm thấy đơn hàng', { position: 'top-right', autoClose: 3000 });
       }
@@ -43,16 +35,16 @@ const OrderDetail = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div>
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Thông Tin Giao Hàng</h2>
-            <p className="text-sm text-gray-600">Tên: {order.customerInfor?.name}</p>
+            <p className="text-sm text-gray-600">Tên: {order.customerName}</p>
             <p className="text-sm text-gray-600">
-              Địa chỉ: {order.customerInfor?.address}, {order.customerInfor?.wardName}, {order.customerInfor?.districtName}, {order.customerInfor?.provinceName}
+              Địa chỉ: {order.address}, {order.wardName}, {order.districtName}, {order.provinceName}
             </p>
-            <p className="text-sm text-gray-600">Số điện thoại: {order.customerInfor?.phoneNumber}</p>
-            <p className="text-sm text-gray-600">Phương thức thanh toán: {order.paymentMethod}</p>
+            <p className="text-sm text-gray-600">Số điện thoại: {order.phoneNumber}</p>
+            <p className="text-sm text-gray-600">Phương thức thanh toán: {order.paymentType || order.type}</p>
           </div>
           <div>
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Sản Phẩm</h2>
-            {order.items.map((item) => (
+            {order.items && order.items.length > 0 ? order.items.map((item) => (
               <div key={item.id} className="flex justify-between border-b py-3 text-sm text-gray-600">
                 <span>
                   {item.productName} ({item.productColor}, {item.productSize}) x {item.quantity}
@@ -61,7 +53,7 @@ const OrderDetail = () => {
                 </span>
                 <span>{(item.price * item.quantity).toLocaleString('vi-VN')} VND</span>
               </div>
-            ))}
+            )) : <p className="text-sm text-gray-500">Không có sản phẩm</p>}
             <div className="flex justify-between text-sm text-gray-600 mt-4">
               <span>Tạm tính:</span>
               <span>{order.totalMoney.toLocaleString('vi-VN')} VND</span>

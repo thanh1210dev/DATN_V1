@@ -11,7 +11,8 @@ const CategoryAdmin = () => {
   const [size, setSize] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState({ code: '', name: '' });
+  const [formData, setFormData] = useState({ code: '', name: '', image: null });
+  const [previewImage, setPreviewImage] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -48,11 +49,23 @@ const CategoryAdmin = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // Handle image file change
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    // Thu hồi object URL cũ nếu có
+    if (previewImage && previewImage.startsWith('blob:')) {
+      URL.revokeObjectURL(previewImage);
+    }
+    setFormData((prev) => ({ ...prev, image: file }));
+    setPreviewImage(file ? URL.createObjectURL(file) : null);
+  };
+
   // Handle add new category
   const handleAdd = () => {
     setIsModalOpen(true);
     setIsEditing(false);
-    setFormData({ code: generateRandomCode(), name: '' });
+    setFormData({ code: generateRandomCode(), name: '', image: null });
+    setPreviewImage(null);
   };
 
   // Handle update category
@@ -60,22 +73,35 @@ const CategoryAdmin = () => {
     setIsModalOpen(true);
     setIsEditing(true);
     setEditingId(category.id);
-    setFormData({ code: category.code, name: category.name });
+    setFormData({ code: category.code, name: category.name, image: category.imageUrl || null });
+    setPreviewImage(category.imageUrl ? `http://localhost:8080${category.imageUrl}` : null);
   };
 
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      let data = new FormData();
+      data.append(
+        'category',
+        new Blob([JSON.stringify({
+          code: formData.code,
+          name: formData.name
+        })], { type: 'application/json' })
+      );
+      if (formData.image && typeof formData.image !== 'string') {
+        data.append('image', formData.image);
+      }
       if (isEditing) {
-        await CategoryService.update(editingId, formData);
+        await CategoryService.update(editingId, data);
         toast.success('Cập nhật danh mục thành công!');
       } else {
-        await CategoryService.create(formData);
+        await CategoryService.create(data);
         toast.success('Thêm danh mục thành công!');
       }
       setIsModalOpen(false);
       fetchCategories();
+      setPreviewImage(null);
     } catch (error) {
       toast.error(error);
     }
@@ -101,6 +127,7 @@ const CategoryAdmin = () => {
   // Close modal
   const closeModal = () => {
     setIsModalOpen(false);
+    setPreviewImage(null);
   };
 
   return (
@@ -124,13 +151,14 @@ const CategoryAdmin = () => {
               <th className="px-6 py-3 w-16 rounded-tl-lg">#</th>
               <th className="px-6 py-3 w-32">Mã</th>
               <th className="px-6 py-3">Tên</th>
+              <th className="px-6 py-3 w-24">Ảnh</th>
               <th className="px-6 py-3 w-32 rounded-tr-lg">Hành động</th>
             </tr>
           </thead>
           <tbody>
             {categories.length === 0 ? (
               <tr>
-                <td colSpan="4" className="px-6 py-4 text-center text-gray-500 text-sm">
+                <td colSpan="5" className="px-6 py-4 text-center text-gray-500 text-sm">
                   Không có dữ liệu
                 </td>
               </tr>
@@ -143,6 +171,17 @@ const CategoryAdmin = () => {
                   <td className="px-6 py-3 text-center">{page * size + index + 1}</td>
                   <td className="px-6 py-3">{item.code}</td>
                   <td className="px-6 py-3">{item.name}</td>
+                  <td className="px-6 py-3 text-center">
+                    {item.imageUrl ? (
+                      <img
+                        src={`http://localhost:8080${item.imageUrl}`}
+                        alt="Ảnh danh mục"
+                        className="h-12 w-12 object-cover rounded-md border border-gray-300 mx-auto"
+                      />
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
+                  </td>
                   <td className="px-6 py-3 text-center flex justify-center gap-2">
                     <button
                       onClick={() => handleUpdate(item)}
@@ -230,6 +269,47 @@ const CategoryAdmin = () => {
                   required
                   maxLength={100}
                 />
+              </div>
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ảnh danh mục</label>
+                <div className="flex gap-2 items-center mb-2">
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById('category-image-input').click()}
+                    className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+                  >
+                    Chọn ảnh
+                  </button>
+                  <input
+                    id="category-image-input"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                  {previewImage && (
+                    <img
+                      src={previewImage}
+                      alt="Preview"
+                      className="h-16 w-16 object-cover rounded-md border border-gray-300"
+                    />
+                  )}
+                </div>
+                {previewImage && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (previewImage && previewImage.startsWith('blob:')) {
+                        URL.revokeObjectURL(previewImage);
+                      }
+                      setFormData((prev) => ({ ...prev, image: null }));
+                      setPreviewImage(null);
+                    }}
+                    className="text-xs text-red-500 hover:underline mt-1"
+                  >
+                    Xóa ảnh đã chọn
+                  </button>
+                )}
               </div>
               <div className="flex justify-end gap-3">
                 <button
