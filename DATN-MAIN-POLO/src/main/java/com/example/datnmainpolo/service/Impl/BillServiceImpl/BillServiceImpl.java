@@ -492,7 +492,7 @@ public class BillServiceImpl implements BillService {
                 LOGGER.info("Processing COD payment for bill {} with amount {}", bill.getId(), finalAmount);
 
                 bill.setType(PaymentType.COD);
-                bill.setCustomerPayment(finalAmount.setScale(2, RoundingMode.HALF_UP));
+//                bill.setCustomerPayment(finalAmount.setScale(2, RoundingMode.HALF_UP));
                 bill.setFinalAmount(finalAmount.setScale(2, RoundingMode.HALF_UP));
                 bill.setStatus(hasCustomerInfo ? OrderStatus.CONFIRMING : OrderStatus.PENDING);
                 bill.setUpdatedAt(Instant.now());
@@ -653,7 +653,7 @@ public class BillServiceImpl implements BillService {
                         bill.setVoucherName(null);
                         bill.setReductionAmount(ZERO);
                         bill.setFinalAmount(calculateFinalAmount(bill));
-                        bill.setCustomerPayment(ZERO);
+
                 }
         }
 

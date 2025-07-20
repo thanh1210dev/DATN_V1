@@ -1,4 +1,5 @@
-package com.example.datnmainpolo.dto.ProductDetailDTO;
+
+        package com.example.datnmainpolo.dto.ProductDetailDTO;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Getter;
@@ -14,7 +15,9 @@ public class ImportHistoryResponseDTO {
     private Integer productDetailId;
     private String productDetailCode;
     private Integer importQuantity;
+    private Integer soldQuantity; // Included for frontend display
     private BigDecimal importPrice;
+    private BigDecimal publicImportPrice; // Included for frontend display
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "Asia/Ho_Chi_Minh")
     private Instant importDate;
 }

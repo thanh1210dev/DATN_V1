@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { HiOutlinePlus, HiOutlinePencilAlt, HiOutlineTrash, HiOutlineArrowLeft, HiChevronLeft, HiChevronRight, HiOutlineQrcode, HiOutlineDocumentAdd } from 'react-icons/hi';
@@ -71,6 +72,7 @@ const ProductDetail = () => {
   const initializeImportForm = (detailId) => ({
     importQuantity: '',
     importPrice: '',
+    publicImportPrice: '', // Added publicImportPrice
     isSubmitting: false,
   });
 
@@ -126,7 +128,7 @@ const ProductDetail = () => {
     }
   };
 
-  // Handle filter form input changes
+  // Handle filter form input changes  Giá công khai
   const handleFilterInputChange = (e) => {
     const { name, value } = e.target;
     setFilterForm(prev => ({ ...prev, [name]: value }));
@@ -269,8 +271,8 @@ const ProductDetail = () => {
   const handleImportSubmit = async (detailId, e) => {
     e.preventDefault();
     const form = importForms[detailId];
-    if (!form.importQuantity || form.importQuantity <= 0 || !form.importPrice || form.importPrice <= 0) {
-      toast.error('Vui lòng nhập số lượng và giá nhập hợp lệ', { position: 'top-right', autoClose: 3000 });
+    if (!form.importQuantity || form.importQuantity <= 0 || !form.importPrice || form.importPrice <= 0 || !form.publicImportPrice || form.publicImportPrice <= 0) {
+      toast.error('Vui lòng nhập số lượng, giá nhập và giá công khai hợp lệ', { position: 'top-right', autoClose: 3000 });
       return;
     }
 
@@ -283,6 +285,7 @@ const ProductDetail = () => {
       const importData = {
         importQuantity: parseInt(form.importQuantity),
         importPrice: parseFloat(form.importPrice),
+        publicImportPrice: parseFloat(form.publicImportPrice), // Added publicImportPrice
       };
       await ProductDetailService.importProduct(detailId, importData);
       toast.success('Nhập hàng thành công!', { position: 'top-right', autoClose: 3000 });
@@ -404,29 +407,32 @@ const ProductDetail = () => {
     setNewImages([]);
   };
 
+  // Fixed handleUpdate function
   const handleUpdate = async (detail) => {
     try {
       const data = await ProductDetailService.getById(detail.id);
+      if (!data) {
+        throw new Error('Không tìm thấy chi tiết sản phẩm');
+      }
       setIsModalOpen(true);
       setIsEditing(true);
       setEditingId(detail.id);
-      const imageIds = data.images ? data.images.map(img => img.id) : [];
       setFormData({
-        productId: data.productId,
-        imageIds: imageIds,
-        sizeIds: [data.sizeId],
-        colorIds: [data.colorId],
-        code: data.code,
-        quantity: data.quantity,
-        price: data.price || '',
-        importPrice: data.importPrice || '',
+        productId: data.productId || parseInt(id),
+        imageIds: Array.isArray(data.images) ? data.images.map(img => img.id) : [],
+        sizeIds: data.sizeId ? [data.sizeId] : [], // Ensure single value for editing
+        colorIds: data.colorId ? [data.colorId] : [], // Ensure single value for editing
+        code: data.code || '',
+        quantity: data.quantity || 0,
+        price: data.price ? data.price.toString() : '',
+        importPrice: data.importPrice ? data.importPrice.toString() : '',
         status: data.status || 'AVAILABLE',
       });
-      setSelectedImages(imageIds);
-      setTempSelectedImages(imageIds);
+      setSelectedImages(Array.isArray(data.images) ? data.images.map(img => img.id) : []);
+      setTempSelectedImages(Array.isArray(data.images) ? data.images.map(img => img.id) : []);
       setNewImages([]);
     } catch (error) {
-      toast.error(error.message || 'Không thể tải chi tiết sản phẩm');
+      toast.error(error.message || 'Không thể tải chi tiết sản phẩm', { position: 'top-right', autoClose: 3000 });
     }
   };
 
@@ -750,6 +756,19 @@ const ProductDetail = () => {
                                   required
                                 />
                               </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600">Giá công khai (VND)</label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={importForms[item.id]?.publicImportPrice || ''}
+                                  onChange={(e) => handleImportInputChange(item.id, 'publicImportPrice', e.target.value)}
+                                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                  placeholder="Nhập giá công khai"
+                                  min="0.01"
+                                  required
+                                />
+                              </div>
                               <button
                                 type="submit"
                                 disabled={importForms[item.id]?.isSubmitting}
@@ -772,7 +791,9 @@ const ProductDetail = () => {
                                     <thead className="text-xs font-semibold uppercase bg-indigo-50 text-indigo-700">
                                       <tr>
                                         <th className="px-4 py-2">Số lượng nhập</th>
+                                        <th className="px-4 py-2">Số lượng đã bán</th>
                                         <th className="px-4 py-2">Giá nhập</th>
+                                        <th className="px-4 py-2">Giá công khai</th>
                                         <th className="px-4 py-2">Ngày nhập</th>
                                       </tr>
                                     </thead>
@@ -784,7 +805,9 @@ const ProductDetail = () => {
                                           className="border-b hover:bg-indigo-50 transition-colors cursor-pointer"
                                         >
                                           <td className="px-4 py-2">{history.importQuantity}</td>
+                                          <td className="px-4 py-2">{history.soldQuantity || 0}</td>
                                           <td className="px-4 py-2">{history.importPrice.toLocaleString('vi-VN') + ' VND'}</td>
+                                          <td className="px-4 py-2">{history.publicImportPrice ? history.publicImportPrice.toLocaleString('vi-VN') + ' VND' : '-'}</td>
                                           <td className="px-4 py-2">{formatDate(history.importDate)}</td>
                                         </tr>
                                       ))}
@@ -945,7 +968,9 @@ const ProductDetail = () => {
                   <tr>
                     <th className="px-6 py-3">Mã sản phẩm</th>
                     <th className="px-6 py-3">Số lượng nhập</th>
+                    <th className="px-6 py-3">Số lượng đã bán</th>
                     <th className="px-6 py-3">Giá nhập</th>
+                    <th className="px-6 py-3">Giá công khai</th>
                     <th className="px-6 py-3">Ngày nhập</th>
                   </tr>
                 </thead>
@@ -958,7 +983,9 @@ const ProductDetail = () => {
                     >
                       <td className="px-6 py-3">{history.productDetailCode}</td>
                       <td className="px-6 py-3">{history.importQuantity}</td>
+                      <td className="px-6 py-3">{history.soldQuantity || 0}</td>
                       <td className="px-6 py-3">{history.importPrice.toLocaleString('vi-VN') + ' VND'}</td>
+                      <td className="px-6 py-3">{history.publicImportPrice ? history.publicImportPrice.toLocaleString('vi-VN') + ' VND' : '-'}</td>
                       <td className="px-6 py-3">{formatDate(history.importDate)}</td>
                     </tr>
                   ))}
@@ -1317,8 +1344,16 @@ const ProductDetail = () => {
                   <td className="px-4 py-2">{selectedHistory.importQuantity}</td>
                 </tr>
                 <tr>
+                  <td className="px-4 py-2 font-medium">Số lượng đã bán</td>
+                  <td className="px-4 py-2">{selectedHistory.soldQuantity || 0}</td>
+                </tr>
+                <tr>
                   <td className="px-4 py-2 font-medium">Giá nhập</td>
                   <td className="px-4 py-2">{selectedHistory.importPrice.toLocaleString('vi-VN') + ' VND'}</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-2 font-medium">Giá công khai</td>
+                  <td className="px-4 py-2">{selectedHistory.publicImportPrice ? selectedHistory.publicImportPrice.toLocaleString('vi-VN') + ' VND' : '-'}</td>
                 </tr>
                 <tr>
                   <td className="px-4 py-2 font-medium">Ngày nhập</td>
@@ -1342,3 +1377,4 @@ const ProductDetail = () => {
 };
 
 export default ProductDetail;
+////Toàn bộ lịch sử nhập hàng

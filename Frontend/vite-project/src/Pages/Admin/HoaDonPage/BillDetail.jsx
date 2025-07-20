@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ToastContainer, toast } from 'react-toastify';
@@ -152,8 +153,8 @@ const BillDetail = () => {
   };
 
   const handleFilterChange = (e) => {
-    const { name, value } = e.target;
-    setProductFilters((prev) => ({ ...prev, [name]: value }));
+    const { name, item, value } = e.target;
+    setProductFilters((prev) => ({ ...prev, [item]: value }));
     setPagination((prev) => ({ ...prev, page: 0 }));
   };
 
@@ -186,21 +187,6 @@ const BillDetail = () => {
       fetchData();
     } catch (error) {
       toast.error('Lỗi khi xóa sản phẩm: ' + error.message);
-    }
-  };
-
-  const handleUpdateCODPayment = async () => {
-    const amount = prompt('Nhập số tiền thanh toán COD:');
-    if (!amount || isNaN(amount) || Number(amount) <= 0) {
-      toast.error('Số tiền không hợp lệ');
-      return;
-    }
-    try {
-      await HoaDonApi.updateCODPayment(id, Number(amount));
-      toast.success('Cập nhật số tiền COD thành công');
-      fetchData();
-    } catch (error) {
-      toast.error('Lỗi khi cập nhật số tiền COD: ' + error.message);
     }
   };
 
@@ -554,16 +540,6 @@ const BillDetail = () => {
                   <span className="font-medium text-gray-700 w-40">Tổng tiền cuối cùng:</span>
                   <span className="text-red-700 font-semibold">{formatMoney(bill?.finalAmount)}</span>
                 </div>
-                {bill?.type === 'COD' && (
-                  <div className="flex items-center">
-                    <button
-                      onClick={handleUpdateCODPayment}
-                      className="flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-                    >
-                      <HiCurrencyDollar className="mr-2" /> Cập nhật COD
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
             <div className="bg-gradient-to-br from-white to-gray-50 p-6 rounded-lg">
@@ -1091,3 +1067,4 @@ const BillDetail = () => {
 };
 
 export default BillDetail;
+// Thêm sản phẩm

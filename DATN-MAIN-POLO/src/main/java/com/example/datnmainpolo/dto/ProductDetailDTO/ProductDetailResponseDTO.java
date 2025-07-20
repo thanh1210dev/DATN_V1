@@ -26,6 +26,8 @@ public class ProductDetailResponseDTO {
     private BigDecimal price;
     private BigDecimal importPrice;
     private BigDecimal promotionalPrice;
+
+    private Integer soldQuantity = 0;
     private ProductStatus status;
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "Asia/Ho_Chi_Minh")
     private Instant createdAt;

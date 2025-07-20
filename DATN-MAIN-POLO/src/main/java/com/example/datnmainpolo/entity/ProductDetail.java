@@ -65,6 +65,8 @@ public class ProductDetail {
 
     @Column(name = "created_at")
     private Instant createdAt;
+    @Column(name = "sold_quantity")
+    private Integer soldQuantity = 0;
 
     @Column(name = "updated_at")
     private Instant updatedAt;

@@ -30,6 +30,10 @@ public class ImportHistory {
 
     @Column(name = "import_quantity")
     private Integer importQuantity;
+    @Column(name = "sold_quatity")
+    private Integer soldQuantity;
+    @Column(name = "public_import_price")
+    private BigDecimal publicImportPrice;
 
     @Column(name = "import_price", precision = 10, scale = 2)
     private BigDecimal importPrice;

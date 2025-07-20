@@ -1593,4 +1593,4 @@ const CartAndPayment = ({
 
 export default CartAndPayment;
 
-// Xác nhận thanh toán chuyển khoản thành công
+// Xác nhận thanh toán chuyển khoản thành công   

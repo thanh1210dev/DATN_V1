@@ -11,7 +11,7 @@ const HoaDonApi = {
     }
   },
 
-  // Fetch bill details by bill ID
+  // Fetch bill details by bill ID  /online-orders
   getBill: async (billId) => {
     try {
       const response = await axiosInstance.get(`/bills/${billId}`);

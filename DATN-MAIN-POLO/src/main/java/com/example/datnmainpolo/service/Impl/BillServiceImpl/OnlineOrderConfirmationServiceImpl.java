@@ -96,8 +96,8 @@ public class OnlineOrderConfirmationServiceImpl implements OnlineOrderConfirmati
         if (bill.getStatus() != OrderStatus.CONFIRMING) {
             throw new RuntimeException("Chỉ có thể thêm sản phẩm khi hóa đơn ở trạng thái CONFIRMING");
         }
-
         BillDetailResponseDTO billDetailResponse = billDetailService.createBillDetail(billId, request);
+
 
         OrderHistory orderHistory = new OrderHistory();
         orderHistory.setBill(bill);
@@ -163,13 +163,7 @@ public class OnlineOrderConfirmationServiceImpl implements OnlineOrderConfirmati
             }
         }
 
-        if (newStatus == OrderStatus.COMPLETED && bill.getType() == PaymentType.COD) {
-            Transaction transaction = transactionRepository.findByBillId(billId)
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch"));
-            if (transaction.getTotalMoney() == null || transaction.getTotalMoney().compareTo(bill.getFinalAmount()) < 0) {
-                throw new RuntimeException("Số tiền thanh toán COD chưa được cập nhật hoặc không đủ để hoàn thành đơn hàng");
-            }
-        }
+
 
         // Update BillDetail typeOrder using the service method
         billDetailService.updateBillDetailTypeOrder(billId, newStatus);

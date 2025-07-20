@@ -1,5 +1,6 @@
 package com.example.datnmainpolo.service.Impl.ProductDetailServiceImpl;
 
+
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.dto.ProductDetailDTO.ProductDetailRequestDTO;
 import com.example.datnmainpolo.dto.ProductDetailDTO.ProductDetailResponseDTO;
@@ -26,7 +27,6 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 import java.util.stream.Collectors;
 
 @Service
@@ -86,6 +86,7 @@ public class ProductDetailServiceImpl implements ProductDetailService {
                     importHistory.setProductDetail(entity);
                     importHistory.setImportQuantity(requestDTO.getQuantity());
                     importHistory.setImportPrice(requestDTO.getImportPrice());
+                    importHistory.setPublicImportPrice(requestDTO.getImportPrice()); // Use importPrice as default
                     importHistory.setImportDate(Instant.now());
                     entity.getImportHistories().add(importHistory);
                 }
@@ -101,7 +102,7 @@ public class ProductDetailServiceImpl implements ProductDetailService {
     private String generateUniqueCode(String baseCode, Integer sizeId, Integer colorId) {
         if (baseCode != null && !baseCode.isEmpty()) {
             String suffix = "-" + sizeId + colorId;
-            int maxBaseLength = 10 - suffix.length();
+            int maxBaseLength = 5 - suffix.length();
             if (maxBaseLength < 1) {
                 throw new IllegalArgumentException("Mã cơ sở quá dài để thêm hậu tố size/color");
             }
@@ -142,7 +143,8 @@ public class ProductDetailServiceImpl implements ProductDetailService {
             importHistory.setProductDetail(entity);
             importHistory.setImportQuantity(requestDTO.getQuantity());
             importHistory.setImportPrice(requestDTO.getImportPrice());
-            importHistory.setImportDate(entity.getImportHistories().isEmpty() ? Instant.now() : entity.getImportHistories().get(0).getImportDate());
+            importHistory.setPublicImportPrice(requestDTO.getImportPrice()); // Use importPrice as default
+            importHistory.setImportDate(Instant.now());
             entity.getImportHistories().add(importHistory);
         }
 
@@ -162,7 +164,7 @@ public class ProductDetailServiceImpl implements ProductDetailService {
             throw new IllegalStateException("Chi tiết sản phẩm đã bị xóa");
         }
 
-        // Update quantity
+        // Update quantity and import price
         entity.setQuantity(entity.getQuantity() + requestDTO.getImportQuantity());
         entity.setImportPrice(requestDTO.getImportPrice());
         entity.setUpdatedAt(Instant.now());
@@ -172,6 +174,7 @@ public class ProductDetailServiceImpl implements ProductDetailService {
         importHistory.setProductDetail(entity);
         importHistory.setImportQuantity(requestDTO.getImportQuantity());
         importHistory.setImportPrice(requestDTO.getImportPrice());
+        importHistory.setPublicImportPrice(requestDTO.getPublicImportPrice());
         importHistory.setImportDate(Instant.now());
         entity.getImportHistories().add(importHistory);
 
@@ -247,7 +250,6 @@ public class ProductDetailServiceImpl implements ProductDetailService {
     public PaginationResponse<ProductDetailResponseDTO> getAllWithZeroPromotionalPrice(
             String code, String name, BigDecimal price, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
-
         Page<ProductDetail> pageData = productDetailRepository.findByFilters(
                 code != null && !code.trim().isEmpty() ? code : null,
                 name != null && !name.trim().isEmpty() ? name : null,
@@ -277,6 +279,37 @@ public class ProductDetailServiceImpl implements ProductDetailService {
                     ", sizeId: " + sizeId + ", colorId: " + colorId);
         }
         return toResponse(entity);
+    }
+
+    @Override
+    @Transactional
+    public void updateProductPriceIfNeeded(Integer productDetailId, Integer quantitySold) {
+        ProductDetail productDetail = productDetailRepository.findById(productDetailId)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy chi tiết sản phẩm với ID: " + productDetailId));
+
+        // Update sold quantity in ProductDetail
+        productDetail.setSoldQuantity(productDetail.getSoldQuantity() + quantitySold);
+
+        // Find the latest import history
+        List<ImportHistory> importHistories = importHistoryRepository.findByProductDetailId(
+                productDetail.getId(), PageRequest.of(0, 2, Sort.by("importDate").descending())).getContent();
+
+        if (!importHistories.isEmpty()) {
+            ImportHistory latestImport = importHistories.get(0);
+            latestImport.setSoldQuantity(latestImport.getSoldQuantity() + quantitySold);
+
+            // Check if sold quantity equals import quantity
+            if (latestImport.getSoldQuantity() >= latestImport.getImportQuantity()) {
+                // If there is a previous import history, update price to its public import price
+                if (importHistories.size() > 1) {
+                    ImportHistory previousImport = importHistories.get(1);
+                    productDetail.setPrice(previousImport.getPublicImportPrice());
+                }
+            }
+
+            importHistoryRepository.save(latestImport);
+            productDetailRepository.save(productDetail);
+        }
     }
 
     private String generateRandomCode(String providedCode) {
@@ -338,6 +371,7 @@ public class ProductDetailServiceImpl implements ProductDetailService {
         response.setStatus(entity.getStatus());
         response.setCreatedAt(entity.getCreatedAt());
         response.setUpdatedAt(entity.getUpdatedAt());
+        response.setSoldQuantity(entity.getSoldQuantity()); // Include sold quantity
         return response;
     }
 
@@ -347,7 +381,9 @@ public class ProductDetailServiceImpl implements ProductDetailService {
         response.setProductDetailId(importHistory.getProductDetail().getId());
         response.setProductDetailCode(importHistory.getProductDetail().getCode());
         response.setImportQuantity(importHistory.getImportQuantity());
+        response.setSoldQuantity(importHistory.getSoldQuantity());
         response.setImportPrice(importHistory.getImportPrice());
+        response.setPublicImportPrice(importHistory.getPublicImportPrice());
         response.setImportDate(importHistory.getImportDate());
         return response;
     }

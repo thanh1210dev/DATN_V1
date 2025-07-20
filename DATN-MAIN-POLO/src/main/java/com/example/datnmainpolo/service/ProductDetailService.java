@@ -1,5 +1,5 @@
-package com.example.datnmainpolo.service;
 
+        package com.example.datnmainpolo.service;
 
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.dto.ProductDetailDTO.ImportRequestDTO;
@@ -24,9 +24,6 @@ public interface ProductDetailService {
     ProductDetailResponseDTO getProductDetailBySizeAndColor(Integer productId, Integer sizeId, Integer colorId);
     ProductDetailResponseDTO importProduct(Integer id, ImportRequestDTO requestDTO);
     PaginationResponse<ImportHistoryResponseDTO> getImportHistoryByProductDetailId(Integer productDetailId, int page, int size);
-
-
-
     PaginationResponse<ImportHistoryResponseDTO> findImportHistoryWithFilters(
             Instant startDate,
             Instant endDate,
@@ -35,4 +32,5 @@ public interface ProductDetailService {
             String code,
             int page,
             int size);
+    void updateProductPriceIfNeeded(Integer productDetailId, Integer quantitySold); // Updated to use ID
 }
