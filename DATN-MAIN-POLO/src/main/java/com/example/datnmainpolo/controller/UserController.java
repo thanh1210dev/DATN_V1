@@ -29,8 +29,11 @@ public class UserController {
     @GetMapping("/search")
     public PaginationResponse<UserResponseDTO> findByCodeAndName(
             @RequestParam(required = false) String code,
+
             @RequestParam(required = false) String name,
+
             @RequestParam(defaultValue = "0") int page,
+
             @RequestParam(defaultValue = "10") int size) {
         return userService.findByCodeAndName(code, name, page, size);
     }
@@ -43,8 +46,11 @@ public class UserController {
             @RequestParam(required = false) String email,
             @RequestParam(required = false) Integer minLoyaltyPoints,
             @RequestParam(required = false) Integer maxLoyaltyPoints,
+
             @RequestParam(required = false) LocalDate birthDate,
+
             @RequestParam(required = false) Instant startDate,
+
             @RequestParam(required = false) Instant endDate,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
@@ -57,6 +63,7 @@ public class UserController {
     public PaginationResponse<UserResponseDTO> findTopPurchasers(
             @RequestParam(required = false) String code,
             @RequestParam(required = false) String name,
+
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "5") int size) {
         return userService.findTopPurchasers(code, name, page, size);
