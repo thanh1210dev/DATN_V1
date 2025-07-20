@@ -17,7 +17,7 @@ const MaterialAdmin = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
 
-  // Function to generate random 5-character code
+  // Function to generate random 5-character code   
   const generateRandomCode = () => {
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let result = '';

@@ -110,7 +110,7 @@ const TaiQuayAdmin = () => {
     }
   };
 
-  // Fetch bills
+  // Fetch bills Tạo hóa đơn
   const fetchBills = async () => {
     try {
       setIsLoading(true);
@@ -138,7 +138,7 @@ const TaiQuayAdmin = () => {
     }
   };
 
-  // Fetch product details with filters  Ngày giao mong muốn  desiredDate
+  // Fetch product details with filters  Ngày giao mong muốn  desiredDate   
   const fetchProductDetails = async () => {
     try {
       setIsLoading(true);
@@ -164,7 +164,7 @@ const TaiQuayAdmin = () => {
     }
   };
 
-  // Fetch vouchers Thêm sản phẩm
+  // Fetch vouchers Chọn Địa Chỉ
   const fetchVouchers = async () => {
     try {
       setIsLoading(true);
@@ -230,7 +230,7 @@ const TaiQuayAdmin = () => {
     }
   };
 
-  // Create new bill
+  // Create new bill  Thông Tin Giao Hàng
   const createBill = async () => {
     try {
       setIsLoading(true);

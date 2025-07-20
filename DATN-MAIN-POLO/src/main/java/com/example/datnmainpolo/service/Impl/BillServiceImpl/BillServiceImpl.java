@@ -492,7 +492,7 @@ public class BillServiceImpl implements BillService {
                 LOGGER.info("Processing COD payment for bill {} with amount {}", bill.getId(), finalAmount);
 
                 bill.setType(PaymentType.COD);
-                bill.setCustomerPayment(finalAmount.setScale(2, RoundingMode.HALF_UP));
+//                bill.setCustomerPayment(finalAmount.setScale(2, RoundingMode.HALF_UP));
                 bill.setFinalAmount(finalAmount.setScale(2, RoundingMode.HALF_UP));
                 bill.setStatus(hasCustomerInfo ? OrderStatus.CONFIRMING : OrderStatus.PENDING);
                 bill.setUpdatedAt(Instant.now());
@@ -653,7 +653,7 @@ public class BillServiceImpl implements BillService {
                         bill.setVoucherName(null);
                         bill.setReductionAmount(ZERO);
                         bill.setFinalAmount(calculateFinalAmount(bill));
-                        bill.setCustomerPayment(ZERO);
+
                 }
         }
 
@@ -785,6 +785,7 @@ public class BillServiceImpl implements BillService {
                         .code(bill.getCode())
                         .status(bill.getStatus())
                         .customerName(bill.getCustomerName())
+                        .customerId(bill.getCustomer() != null ? bill.getCustomer().getId() : null) // Handle null customer
                         .phoneNumber(bill.getPhoneNumber())
                         .address(bill.getAddress())
                         .billType(bill.getBillType())
@@ -822,6 +823,7 @@ public class BillServiceImpl implements BillService {
                         .code(bill.getCode())
                         .status(bill.getStatus())
                         .customerName(bill.getCustomerName())
+                        .customerId(bill.getCustomer() != null ? bill.getCustomer().getId() : null) // Handle null customer
                         .phoneNumber(bill.getPhoneNumber())
                         .address(bill.getAddress())
                         .billType(bill.getBillType())
@@ -846,9 +848,7 @@ public class BillServiceImpl implements BillService {
                 LOGGER.info("Adding loyal customer {} to bill {}", customerId, billId);
                 Bill bill = billRepository.findById(billId)
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
-                if (bill.getCustomer() != null) {
-                        throw new RuntimeException("Hóa đơn đã được liên kết với một khách hàng");
-                }
+
                 UserEntity customer = userRepository.findById(customerId)
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng"));
                 bill.setCustomer(customer);
@@ -879,24 +879,23 @@ public class BillServiceImpl implements BillService {
                 LOGGER.info("Adding visiting guest to bill {}", billId);
                 Bill bill = billRepository.findById(billId)
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
-                if (bill.getCustomer() != null) {
-                        throw new RuntimeException("Hóa đơn đã được liên kết với một khách hàng");
-                }
+
                 bill.setCustomerName(requestDTO.getName());
                 bill.setPhoneNumber(requestDTO.getPhoneNumber());
 
                 bill.setUpdatedAt(Instant.now());
                 bill.setUpdatedBy("server");
 
-                Bill savedBill = billRepository.save(bill);
-
                 UserEntity newUser = new UserEntity();
                 newUser.setName(requestDTO.getName());
                 newUser.setPhoneNumber(requestDTO.getPhoneNumber());
                 newUser.setRole(Role.CLIENT);
                 newUser.setDeleted(false);
-
                 userRepository.save(newUser);
+
+                bill.setCustomer(newUser); // Link the new user to the bill
+
+                Bill savedBill = billRepository.save(bill);
 
                 OrderHistory orderHistory = new OrderHistory();
                 orderHistory.setBill(savedBill);
@@ -918,9 +917,7 @@ public class BillServiceImpl implements BillService {
                 LOGGER.info("Adding user to bill {}", billId);
                 Bill bill = billRepository.findById(billId)
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
-                if (bill.getCustomer() != null) {
-                        throw new RuntimeException("Hóa đơn đã được liên kết với một khách hàng");
-                }
+
 
                 userRequestDTO.setRole(Role.CLIENT);
 

@@ -82,6 +82,9 @@ const CartAndPayment = ({
   const [qrCodeUrl, setQrCodeUrl] = useState(null);
   const [isImageViewModalOpen, setIsImageViewModalOpen] = useState(false);
   const [selectedImagesForView, setSelectedImagesForView] = useState([]);
+  const [customerAddresses, setCustomerAddresses] = useState([]);
+  const [selectedAddressId, setSelectedAddressId] = useState(null);
+  const [showConfirmPaymentModal, setShowConfirmPaymentModal] = useState(false);
 
   // QR Scanner Effect
   useEffect(() => {
@@ -112,6 +115,7 @@ const CartAndPayment = ({
         scanner.clear().catch((err) => console.error('Failed to clear scanner:', err));
       };
     }
+
   }, [showQRScanner, handleQRScan, setShowQRScanner]);
 
   // Generate QR Code for Banking Details
@@ -142,7 +146,65 @@ const CartAndPayment = ({
     }
   }, [showCustomerModal, customerFilters, customerPagination.page, showVisitingGuestForm]);
 
-  // Fetch Customers
+  // Fetch Customer Addresses when Customer is Selected
+  useEffect(() => {
+    const fetchCustomerAddresses = async () => {
+      if (selectedBill?.customerId) {
+        try {
+          setIsLoading(true);
+          const response = await axiosInstance.get(`/customer-information/user/${selectedBill.customerId}`);
+          setCustomerAddresses(response.data);
+          // Auto-select default address if exists
+          const defaultAddress = response.data.find((addr) => addr.isDefault);
+          if (defaultAddress) {
+            setSelectedAddressId(defaultAddress.id);
+            setDeliveryForm((prev) => ({
+              ...prev,
+              customerName: defaultAddress.name || prev.name,
+              phoneNumber: defaultAddress.phoneNumber || prev.phoneNumber,
+              provinceId: defaultAddress.provinceId || prev.provinceId,
+              provinceName: defaultAddress.provinceName || prev.provinceName,
+              districtId: defaultAddress.districtId || prev.districtId,
+              districtName: defaultAddress.districtName || prev.districtName,
+              wardCode: defaultAddress.wardCode || prev.wardCode,
+              wardName: defaultAddress.wardName || prev.wardName,
+              addressDetail: defaultAddress.address || prev.addressDetail,
+              customerInformationId: defaultAddress.id
+            }));
+          } else {
+            setSelectedAddressId(null);
+            setDeliveryForm((prev) => ({
+              ...prev,
+              customerInformationId: null
+            }));
+          }
+        } catch (error) {
+          console.error('Error fetching customer addresses:', error);
+          setCustomerAddresses([]);
+          setSelectedAddressId(null);
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        setCustomerAddresses([]);
+        setSelectedAddressId(null);
+      }
+    };
+    fetchCustomerAddresses();
+  }, [selectedBill?.customerId, setDeliveryForm, setIsLoading]);
+
+  // Update delivery form when customer is selected
+  useEffect(() => {
+    if (selectedBill && (selectedBill.customerName || selectedBill.phoneNumber)) {
+      setDeliveryForm((prev) => ({
+        ...prev,
+        customerName: selectedBill.customerName || prev.customerName,
+        phoneNumber: selectedBill.phoneNumber || prev.phoneNumber,
+      }));
+    }
+  }, [selectedBill, setDeliveryForm]);
+
+  // Fetch Customers banking
   const fetchCustomers = async () => {
     try {
       setIsLoading(true);
@@ -174,7 +236,7 @@ const CartAndPayment = ({
     setCustomerPagination((prev) => ({ ...prev, page: 0 }));
   };
 
-  // Handle Customer Pagination Change Ngày giao mong muốn
+  // Handle Customer Pagination Change
   const handleCustomerPaginationChange = (page) => {
     setCustomerPagination((prev) => ({ ...prev, page }));
   };
@@ -183,6 +245,41 @@ const CartAndPayment = ({
   const handleVisitingGuestFormChange = (e) => {
     const { name, value } = e.target;
     setVisitingGuestForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // Handle Address Selection
+  const handleAddressSelection = (addressId) => {
+    const selectedAddress = customerAddresses.find((addr) => addr.id === addressId);
+    setSelectedAddressId(addressId);
+    if (selectedAddress) {
+      setDeliveryForm((prev) => ({
+        ...prev,
+        customerName: selectedAddress.name || prev.customerName,
+        phoneNumber: selectedAddress.phoneNumber || prev.phoneNumber,
+        provinceId: selectedAddress.provinceId || prev.provinceId,
+        provinceName: selectedAddress.provinceName || prev.provinceName,
+        districtId: selectedAddress.districtId || prev.districtId,
+        districtName: selectedAddress.districtName || prev.districtName,
+        wardCode: selectedAddress.wardCode || prev.wardCode,
+        wardName: selectedAddress.wardName || prev.wardName,
+        addressDetail: selectedAddress.address || prev.addressDetail,
+        customerInformationId: selectedAddress.id
+      }));
+    } else {
+      setDeliveryForm((prev) => ({
+        ...prev,
+        customerName: selectedBill?.customerName || '',
+        phoneNumber: selectedBill?.phoneNumber || '',
+        provinceId: null,
+        provinceName: '',
+        districtId: null,
+        districtName: '',
+        wardCode: null,
+        wardName: '',
+        addressDetail: '',
+        customerInformationId: null
+      }));
+    }
   };
 
   // Add Loyal Customer to Bill
@@ -266,7 +363,7 @@ const CartAndPayment = ({
         setVoucherCode('');
         setAppliedVoucher(null);
         if (response.invoicePDF) {
-          setInvoicePDF(response.invoicePDF); // Show invoice for cash payment
+          setInvoicePDF(response.invoicePDF);
         }
         toast.success('Thanh toán bằng tiền mặt thành công');
       } catch (error) {
@@ -275,16 +372,11 @@ const CartAndPayment = ({
         setIsLoading(false);
       }
     } else if (paymentType === 'BANKING') {
-      try {
-        setIsLoading(true);
-        const response = await processPayment();
-        setBankingDetails(response); // Store banking details for QR code
-        setShowBankingInfo(true); // Show QR code modal
-      } catch (error) {
-        toast.error(error.response?.data?.message || 'Không thể xử lý thanh toán chuyển khoản');
-      } finally {
-        setIsLoading(false);
-      }
+      setShowConfirmPaymentModal(true);
+      //  const response = await processPayment();
+      // if (response.invoicePDF) {
+      //   setInvoicePDF(response.invoicePDF);
+      // }
     }
   };
 
@@ -303,10 +395,11 @@ const CartAndPayment = ({
       setVoucherCode('');
       setAppliedVoucher(null);
       setQrCodeUrl(null);
+      setShowConfirmPaymentModal(false);
       if (response.invoicePDF) {
-        setInvoicePDF(response.invoicePDF); // Show invoice only after confirmation
+        setInvoicePDF(response.invoicePDF);
       }
-      
+     
     } catch (error) {
       toast.error(error.response?.data?.message || 'Không thể xác nhận thanh toán');
     } finally {
@@ -349,17 +442,6 @@ const CartAndPayment = ({
       </p>
     );
   };
-
-  // Update delivery form when customer is selected
-  useEffect(() => {
-    if (selectedBill && (selectedBill.customerName || selectedBill.phoneNumber)) {
-      setDeliveryForm((prev) => ({
-        ...prev,
-        customerName: selectedBill.customerName || prev.customerName,
-        phoneNumber: selectedBill.phoneNumber || prev.phoneNumber,
-      }));
-    }
-  }, [selectedBill]);
 
   return (
     <>
@@ -1075,6 +1157,54 @@ const CartAndPayment = ({
         </div>
       )}
 
+      {/* Confirm Payment Modal */}
+      {showConfirmPaymentModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">Xác Nhận Thanh Toán</h3>
+              <button
+                onClick={() => setShowConfirmPaymentModal(false)}
+                className="p-1 text-gray-500 hover:bg-gray-200 rounded"
+              >
+                <HiOutlineX size={18} />
+              </button>
+            </div>
+            <div className="space-y-2 text-sm">
+              <p>Bạn có muốn thanh toán hóa đơn này bằng chuyển khoản không?</p>
+              <p><strong>Số tiền:</strong> {(selectedBill.finalAmount || 0).toLocaleString()} đ</p>
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={async () => {
+                  try {
+                    setIsLoading(true);
+                    const response = await processPayment();
+                    setBankingDetails(response);
+                    setShowConfirmPaymentModal(false);
+                    await handleConfirmBankingPayment();
+                  } catch (error) {
+                    toast.error(error.response?.data?.message || 'Không thể xử lý thanh toán chuyển khoản');
+                  } finally {
+                    setIsLoading(false);
+                  }
+                }}
+                className="px-3 py-1.5 bg-yellow-600 text-white text-sm font-medium rounded-md hover:bg-yellow-700 transition-colors disabled:opacity-50"
+                disabled={isLoading}
+              >
+                Xác Nhận
+              </button>
+              <button
+                onClick={() => setShowConfirmPaymentModal(false)}
+                className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 transition-colors"
+              >
+                Hủy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Banking Info Modal */}
       {showBankingInfo && bankingDetails && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
@@ -1175,6 +1305,47 @@ const CartAndPayment = ({
               </button>
             </div>
             <div className="space-y-4">
+              {customerAddresses.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Chọn Địa Chỉ</label>
+                  <Select
+                    options={[
+                      { value: null, label: 'Nhập địa chỉ mới' },
+                      ...customerAddresses.map((addr) => ({
+                        value: addr.id,
+                        label: `${addr.name} - ${addr.address}, ${addr.wardName}, ${addr.districtName}, ${addr.provinceName} ${addr.isDefault ? '(Mặc định)' : ''}`,
+                      })),
+                    ]}
+                    value={
+                      selectedAddressId
+                        ? {
+                            value: selectedAddressId,
+                            label: customerAddresses.find((addr) => addr.id === selectedAddressId)?.name +
+                              ' - ' +
+                              customerAddresses.find((addr) => addr.id === selectedAddressId)?.address +
+                              ', ' +
+                              customerAddresses.find((addr) => addr.id === selectedAddressId)?.wardName +
+                              ', ' +
+                              customerAddresses.find((addr) => addr.id === selectedAddressId)?.districtName +
+                              ', ' +
+                              customerAddresses.find((addr) => addr.id === selectedAddressId)?.provinceName +
+                              (customerAddresses.find((addr) => addr.id === selectedAddressId)?.isDefault ? ' (Mặc định)' : ''),
+                          }
+                        : { value: null, label: 'Nhập địa chỉ mới' }
+                    }
+                    onChange={(option) => handleAddressSelection(option.value)}
+                    className="text-sm"
+                    styles={{
+                      control: (base) => ({
+                        ...base,
+                        borderColor: '#d1d5db',
+                        boxShadow: 'none',
+                        '&:hover': { borderColor: '#6366f1' },
+                      }),
+                    }}
+                  />
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tên Khách Hàng</label>
                 <input
@@ -1197,77 +1368,81 @@ const CartAndPayment = ({
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tỉnh/Thành Phố</label>
-                <Select
-                  options={provinces.map((province) => ({
-                    value: province.ProvinceID,
-                    label: province.ProvinceName,
-                  }))}
-                  value={provinces.find((p) => p.ProvinceID === deliveryForm.provinceId)?.ProvinceName
-                    ? { value: deliveryForm.provinceId, label: provinces.find((p) => p.ProvinceID === deliveryForm.provinceId).ProvinceName }
-                    : null}
-                  onChange={(option) => handleAddressChange('provinceId', option.value)}
-                  placeholder="Chọn tỉnh/thành phố"
-                  className="text-sm"
-                  styles={{
-                    control: (base) => ({
-                      ...base,
-                      borderColor: '#d1d5db',
-                      boxShadow: 'none',
-                      '&:hover': { borderColor: '#6366f1' },
-                    }),
-                  }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Quận/Huyện</label>
-                <Select
-                  options={districts.map((district) => ({
-                    value: district.DistrictID,
-                    label: district.DistrictName,
-                  }))}
-                  value={districts.find((d) => d.DistrictID === deliveryForm.districtId)?.DistrictName
-                    ? { value: deliveryForm.districtId, label: districts.find((d) => d.DistrictID === deliveryForm.districtId).DistrictName }
-                    : null}
-                  onChange={(option) => handleAddressChange('districtId', option.value)}
-                  placeholder="Chọn quận/huyện"
-                  className="text-sm"
-                  isDisabled={!deliveryForm.provinceId}
-                  styles={{
-                    control: (base) => ({
-                      ...base,
-                      borderColor: '#d1d5db',
-                      boxShadow: 'none',
-                      '&:hover': { borderColor: '#6366f1' },
-                    }),
-                  }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Xã/Phường</label>
-                <Select
-                  options={wards.map((ward) => ({
-                    value: ward.WardCode,
-                    label: ward.WardName,
-                  }))}
-                  value={wards.find((w) => w.WardCode === deliveryForm.wardCode)?.WardName
-                    ? { value: deliveryForm.wardCode, label: wards.find((w) => w.WardCode === deliveryForm.wardCode).WardName }
-                    : null}
-                  onChange={(option) => handleAddressChange('wardCode', option.value)}
-                  placeholder="Chọn xã/phường"
-                  className="text-sm"
-                  isDisabled={!deliveryForm.districtId}
-                  styles={{
-                    control: (base) => ({
-                      ...base,
-                      borderColor: '#d1d5db',
-                      boxShadow: 'none',
-                      '&:hover': { borderColor: '#6366f1' },
-                    }),
-                  }}
-                />
-              </div>
+              {selectedAddressId === null && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tỉnh/Thành Phố</label>
+                    <Select
+                      options={provinces.map((province) => ({
+                        value: province.ProvinceID,
+                        label: province.ProvinceName,
+                      }))}
+                      value={provinces.find((p) => p.ProvinceID === deliveryForm.provinceId)?.ProvinceName
+                        ? { value: deliveryForm.provinceId, label: provinces.find((p) => p.ProvinceID === deliveryForm.provinceId).ProvinceName }
+                        : null}
+                      onChange={(option) => handleAddressChange('provinceId', option.value)}
+                      placeholder="Chọn tỉnh/thành phố"
+                      className="text-sm"
+                      styles={{
+                        control: (base) => ({
+                          ...base,
+                          borderColor: '#d1d5db',
+                          boxShadow: 'none',
+                          '&:hover': { borderColor: '#6366f1' },
+                        }),
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Quận/Huyện</label>
+                    <Select
+                      options={districts.map((district) => ({
+                        value: district.DistrictID,
+                        label: district.DistrictName,
+                      }))}
+                      value={districts.find((d) => d.DistrictID === deliveryForm.districtId)?.DistrictName
+                        ? { value: deliveryForm.districtId, label: districts.find((d) => d.DistrictID === deliveryForm.districtId).DistrictName }
+                        : null}
+                      onChange={(option) => handleAddressChange('districtId', option.value)}
+                      placeholder="Chọn quận/huyện"
+                      className="text-sm"
+                      isDisabled={!deliveryForm.provinceId}
+                      styles={{
+                        control: (base) => ({
+                          ...base,
+                          borderColor: '#d1d5db',
+                          boxShadow: 'none',
+                          '&:hover': { borderColor: '#6366f1' },
+                        }),
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Xã/Phường</label>
+                    <Select
+                      options={wards.map((ward) => ({
+                        value: ward.WardCode,
+                        label: ward.WardName,
+                      }))}
+                      value={wards.find((w) => w.WardCode === deliveryForm.wardCode)?.WardName
+                        ? { value: deliveryForm.wardCode, label: wards.find((w) => w.WardCode === deliveryForm.wardCode).WardName }
+                        : null}
+                      onChange={(option) => handleAddressChange('wardCode', option.value)}
+                      placeholder="Chọn xã/phường"
+                      className="text-sm"
+                      isDisabled={!deliveryForm.districtId}
+                      styles={{
+                        control: (base) => ({
+                          ...base,
+                          borderColor: '#d1d5db',
+                          boxShadow: 'none',
+                          '&:hover': { borderColor: '#6366f1' },
+                        }),
+                      }}
+                    />
+                  </div>
+                </>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Địa Chỉ Chi Tiết</label>
                 <input
@@ -1418,5 +1593,4 @@ const CartAndPayment = ({
 
 export default CartAndPayment;
 
-
-///  desiredDate  Thanh toán
+// Xác nhận thanh toán chuyển khoản thành công   

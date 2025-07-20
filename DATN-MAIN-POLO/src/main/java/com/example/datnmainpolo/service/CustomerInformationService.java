@@ -9,6 +9,8 @@ import java.util.List;
 
 public interface CustomerInformationService {
     List<CustomerInformationResponseDTO> getAddressesByUserId(Integer userId);
+    CustomerInformationResponseDTO getDefaultAddressByUserId(Integer userId);
+    CustomerInformationResponseDTO setDefaultAddress(Integer userId, Integer addressId);
     CustomerInformationResponseDTO saveAddress(CustomerInformationRequestDTO requestDTO, Integer userId);
     CustomerInformationResponseDTO updateAddress(Integer id, CustomerInformationRequestDTO requestDTO);
     void softDelete(Integer id);

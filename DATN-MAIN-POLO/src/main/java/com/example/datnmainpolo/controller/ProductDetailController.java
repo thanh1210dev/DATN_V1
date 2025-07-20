@@ -1,9 +1,10 @@
 package com.example.datnmainpolo.controller;
 
-
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.dto.ProductDetailDTO.ProductDetailRequestDTO;
 import com.example.datnmainpolo.dto.ProductDetailDTO.ProductDetailResponseDTO;
+import com.example.datnmainpolo.dto.ProductDetailDTO.ImportRequestDTO;
+import com.example.datnmainpolo.dto.ProductDetailDTO.ImportHistoryResponseDTO;
 import com.example.datnmainpolo.entity.Color;
 import com.example.datnmainpolo.entity.Size;
 import com.example.datnmainpolo.service.ProductDetailService;
@@ -13,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 
 @RestController
@@ -22,13 +24,38 @@ public class ProductDetailController {
     private final ProductDetailService productDetailService;
 
     @PostMapping
-    public ResponseEntity<List<ProductDetailResponseDTO> > create(@Valid @RequestBody ProductDetailRequestDTO requestDTO) {
+    public ResponseEntity<List<ProductDetailResponseDTO>> create(@Valid @RequestBody ProductDetailRequestDTO requestDTO) {
         return ResponseEntity.ok(productDetailService.create(requestDTO));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ProductDetailResponseDTO> update(@PathVariable Integer id, @Valid @RequestBody ProductDetailRequestDTO requestDTO) {
         return ResponseEntity.ok(productDetailService.update(id, requestDTO));
+    }
+
+    @PostMapping("/{id}/import")
+    public ResponseEntity<ProductDetailResponseDTO> importProduct(@PathVariable Integer id, @Valid @RequestBody ImportRequestDTO requestDTO) {
+        return ResponseEntity.ok(productDetailService.importProduct(id, requestDTO));
+    }
+
+    @GetMapping("/{id}/import-history")
+    public ResponseEntity<PaginationResponse<ImportHistoryResponseDTO>> getImportHistory(
+            @PathVariable Integer id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size) {
+        return ResponseEntity.ok(productDetailService.getImportHistoryByProductDetailId(id, page, size));
+    }
+    @GetMapping("/import-history/filter")
+    public ResponseEntity<PaginationResponse<ImportHistoryResponseDTO>> findImportHistoryWithFilters(
+            @RequestParam(required = false) Instant startDate,
+            @RequestParam(required = false) Instant endDate,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) String code,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size) {
+        return ResponseEntity.ok(productDetailService.findImportHistoryWithFilters(
+                startDate, endDate, minPrice, maxPrice, code, page, size));
     }
 
     @DeleteMapping("/{id}")
@@ -47,9 +74,8 @@ public class ProductDetailController {
             @PathVariable Integer id,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "5") int size) {
-        return ResponseEntity.ok(productDetailService.getAll( id,page, size));
+        return ResponseEntity.ok(productDetailService.getAll(id, page, size));
     }
-
 
     @GetMapping("/all")
     public ResponseEntity<PaginationResponse<ProductDetailResponseDTO>> getAllPage(

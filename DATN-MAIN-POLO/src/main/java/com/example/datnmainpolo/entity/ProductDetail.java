@@ -39,6 +39,14 @@ public class ProductDetail {
     private Color color;
 
 
+    @Column(name = "import_price", precision = 10, scale = 2)
+    private BigDecimal importPrice;
+
+    @OneToMany(mappedBy = "productDetail", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ImportHistory> importHistories = new ArrayList<>();
+
+
+
     @Column(name = "code")
     private String code;
 
@@ -57,6 +65,8 @@ public class ProductDetail {
 
     @Column(name = "created_at")
     private Instant createdAt;
+    @Column(name = "sold_quantity")
+    private Integer soldQuantity = 0;
 
     @Column(name = "updated_at")
     private Instant updatedAt;

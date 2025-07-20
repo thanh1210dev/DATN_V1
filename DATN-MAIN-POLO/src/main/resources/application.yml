@@ -4,8 +4,8 @@ spring:
 
   datasource:
     url: jdbc:sqlserver://localhost;databaseName=DATN4;trustServerCertificate=true;useUnicode=true;characterEncoding=UTF-8
-    username: sa1
-    password: 123456
+    username: sa
+    password: 123
 
   jpa:
     generate-ddl: true
