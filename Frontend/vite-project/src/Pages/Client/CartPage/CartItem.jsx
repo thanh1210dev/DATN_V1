@@ -4,9 +4,13 @@ const CartItem = ({ item, onUpdateQuantity, onRemoveItem }) => {
   const [quantity, setQuantity] = useState(item.quantity);
 
   const handleQuantityChange = (newQuantity) => {
-    if (newQuantity >= 1) {
+    const maxQuantity = item.availableQuantity || 1;
+    if (newQuantity >= 1 && newQuantity <= maxQuantity) {
       setQuantity(newQuantity);
       onUpdateQuantity(item.id, newQuantity);
+    } else if (newQuantity > maxQuantity) {
+      setQuantity(maxQuantity);
+      onUpdateQuantity(item.id, maxQuantity);
     }
   };
 
@@ -21,18 +25,25 @@ const CartItem = ({ item, onUpdateQuantity, onRemoveItem }) => {
         <h3 className="text-lg font-semibold text-gray-900">{item.productName}</h3>
         <p className="text-sm text-gray-600">Màu: {item.productColor}</p>
         <p className="text-sm text-gray-600">Kích cỡ: {item.productSize}</p>
+        <p className="text-sm text-gray-500">
+          Còn lại: <span className="font-medium text-green-600">
+            {item.availableQuantity || 0} sản phẩm
+          </span>
+        </p>
         
         <p className="text-lg font-medium text-indigo-600">{item.price.toLocaleString('vi-VN')} VND</p>
         <div className="flex items-center mt-4 space-x-2">
           <button
             onClick={() => handleQuantityChange(quantity - 1)}
             className="px-3 py-1 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition duration-200"
+            disabled={quantity <= 1}
           >
             -
           </button>
           <input
             type="number"
             min="1"
+            max={item.availableQuantity || 1}
             value={quantity}
             onChange={(e) => handleQuantityChange(parseInt(e.target.value) || 1)}
             className="w-16 px-2 py-1 border border-gray-200 rounded-lg text-center text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -40,9 +51,15 @@ const CartItem = ({ item, onUpdateQuantity, onRemoveItem }) => {
           <button
             onClick={() => handleQuantityChange(quantity + 1)}
             className="px-3 py-1 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition duration-200"
+            disabled={quantity >= (item.availableQuantity || 1)}
           >
             +
           </button>
+          {item.availableQuantity && item.availableQuantity < 10 && (
+            <span className="text-xs text-orange-600 ml-2">
+              ⚠️ Sắp hết hàng
+            </span>
+          )}
         </div>
       </div>
       <button

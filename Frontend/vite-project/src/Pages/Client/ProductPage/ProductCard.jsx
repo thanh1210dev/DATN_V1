@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import axiosInstance from '../../../Service/axiosInstance';
+import AuthService from '../../../Service/AuthService';
 
 const ProductCard = ({ product, isNew }) => {
   const [productDetail, setProductDetail] = useState(null);
@@ -45,9 +46,34 @@ const ProductCard = ({ product, isNew }) => {
     }
 
     try {
-      const userId = localStorage.getItem('userId');
-      if (!userId) {
+      // Kiểm tra authentication trước khi thêm vào giỏ hàng
+      const user = AuthService.getCurrentUser();
+      const token = localStorage.getItem('token');
+      
+      if (!user || !token) {
         toast.error('Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng', { position: 'top-right', autoClose: 3000 });
+        return;
+      }
+      
+      // Kiểm tra token còn hợp lệ không
+      try {
+        const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+        const currentTime = Date.now() / 1000;
+        
+        if (tokenPayload.exp < currentTime) {
+          toast.error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', { position: 'top-right', autoClose: 3000 });
+          AuthService.logout();
+          return;
+        }
+      } catch (error) {
+        toast.error('Phiên đăng nhập không hợp lệ, vui lòng đăng nhập lại', { position: 'top-right', autoClose: 3000 });
+        AuthService.logout();
+        return;
+      }
+      
+      const userId = user.id;
+      if (!userId) {
+        toast.error('Không tìm thấy thông tin người dùng, vui lòng đăng nhập lại', { position: 'top-right', autoClose: 3000 });
         return;
       }
       await axiosInstance.post(`/cart-checkout/cart/add?userId=${userId}&productDetailId=${productDetail.id}&quantity=1`);

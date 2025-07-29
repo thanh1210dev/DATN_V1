@@ -4,6 +4,8 @@ import { toast } from 'react-toastify';
 import CartItem from './CartItem';
 import CartSummary from './CartSummary';
 import axiosInstance from '../../../Service/axiosInstance';
+import AuthService from '../../../Service/AuthService';
+import { getUserIdByEmail } from '../../../utils/userUtils';
 
 const Cart = () => {
   const [cartItems, setCartItems] = useState([]);
@@ -14,8 +16,15 @@ const Cart = () => {
     const fetchCart = async () => {
       setIsLoading(true);
       try {
-        const userId = localStorage.getItem('userId');
-        if (!userId) {
+        // Kiểm tra authentication trước khi load giỏ hàng
+        const user = AuthService.getCurrentUser();
+        const token = localStorage.getItem('token');
+        
+        console.log('🔍 [CART AUTH] User:', user);
+        console.log('🔍 [CART AUTH] Token exists:', !!token);
+        
+        if (!user || !token) {
+          console.log('🔍 [CART AUTH] No auth data, redirecting to login');
           toast.error('Vui lòng đăng nhập để xem giỏ hàng', {
             position: 'top-right',
             autoClose: 3000,
@@ -23,9 +32,76 @@ const Cart = () => {
           navigate('/login');
           return;
         }
-        const response = await axiosInstance.get(`/cart-checkout/cart/${userId}`);
-        setCartItems(response.data || []);
+        
+        // Kiểm tra token còn hợp lệ không
+        try {
+          const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+          const currentTime = Date.now() / 1000;
+          
+          if (tokenPayload.exp < currentTime) {
+            console.log('🔍 [CART AUTH] Token expired, redirecting to login');
+            toast.error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', {
+              position: 'top-right',
+              autoClose: 3000,
+            });
+            AuthService.logout();
+            navigate('/login');
+            return;
+          }
+        } catch (error) {
+          console.log('🔍 [CART AUTH] Invalid token, redirecting to login');
+          toast.error('Phiên đăng nhập không hợp lệ, vui lòng đăng nhập lại', {
+            position: 'top-right',
+            autoClose: 3000,
+          });
+          AuthService.logout();
+          navigate('/login');
+          return;
+        }
+        
+        const userId = user.id;
+        console.log('🔍 [CART AUTH] Using userId:', userId);
+        
+        let finalUserId = userId;
+        
+        // Nếu userId là email, convert sang số
+        if (typeof userId === 'string' && userId.includes('@')) {
+          console.log('🔍 [CART AUTH] Converting email to numeric ID...');
+          try {
+            finalUserId = await getUserIdByEmail(userId);
+            console.log('🔍 [CART AUTH] Got numeric userId:', finalUserId);
+          } catch (error) {
+            console.log('🔍 [CART AUTH] Failed to get numeric userId:', error.message);
+            toast.error('Không thể tải giỏ hàng, vui lòng thử lại', {
+              position: 'top-right',
+              autoClose: 3000,
+            });
+            return;
+          }
+        }
+        
+        if (!finalUserId) {
+          toast.error('Không tìm thấy thông tin người dùng, vui lòng đăng nhập lại', {
+            position: 'top-right',
+            autoClose: 3000,
+          });
+          AuthService.logout();
+          navigate('/login');
+          return;
+        }
+        const response = await axiosInstance.get(`/cart-checkout/cart/${finalUserId}`);
+        
+        // Đảm bảo cartItems luôn là array
+        const data = response.data;
+        if (Array.isArray(data)) {
+          setCartItems(data);
+        } else {
+          console.warn('Cart data is not an array:', data);
+          setCartItems([]);
+        }
       } catch (error) {
+        console.error('Cart fetch error:', error);
+        setCartItems([]); // Reset to empty array on error
         toast.error(error.response?.data?.message || 'Lỗi khi lấy giỏ hàng', {
           position: 'top-right',
           autoClose: 3000,
@@ -40,7 +116,12 @@ const Cart = () => {
   const handleUpdateQuantity = async (cartDetailId, quantity) => {
     try {
       const response = await axiosInstance.put(`/cart-checkout/cart/update-quantity/${cartDetailId}?quantity=${quantity}`);
-      setCartItems(cartItems.map((item) => (item.id === cartDetailId ? response.data : item)));
+      
+      // Đảm bảo cartItems là array trước khi map
+      if (Array.isArray(cartItems)) {
+        setCartItems(cartItems.map((item) => (item.id === cartDetailId ? response.data : item)));
+      }
+      
       toast.success('Cập nhật số lượng thành công', {
         position: 'top-right',
         autoClose: 3000,
@@ -56,7 +137,12 @@ const Cart = () => {
   const handleRemoveItem = async (cartDetailId) => {
     try {
       await axiosInstance.delete(`/cart-checkout/cart/remove/${cartDetailId}`);
-      setCartItems(cartItems.filter((item) => item.id !== cartDetailId));
+      
+      // Đảm bảo cartItems là array trước khi filter
+      if (Array.isArray(cartItems)) {
+        setCartItems(cartItems.filter((item) => item.id !== cartDetailId));
+      }
+      
       toast.success('Đã xóa sản phẩm khỏi giỏ hàng', {
         position: 'top-right',
         autoClose: 3000,
@@ -78,7 +164,7 @@ const Cart = () => {
             <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
             <p className="mt-2 text-lg text-gray-500">Đang tải giỏ hàng...</p>
           </div>
-        ) : cartItems.length === 0 ? (
+        ) : !Array.isArray(cartItems) || cartItems.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-xl shadow-md p-6">
             <p className="text-lg text-gray-500">Giỏ hàng của bạn đang trống</p>
             <Link

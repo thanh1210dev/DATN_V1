@@ -35,7 +35,20 @@ const VoucherAdmin = () => {
     percentageDiscountValue: "",
     maxDiscountValue: "",
     minOrderValue: "",
-    createdByUserId: localStorage.getItem("id") || "",
+    createdByUserId: (() => {
+      const userId = localStorage.getItem("id");
+      // Nếu userId là email (chứa @), gán ID mặc định là 1 (admin)
+      if (userId && userId.includes("@")) {
+        console.log('⚠️ [VoucherAdmin] Initial state - UserId is email, using default admin ID 1');
+        return "1";
+      }
+      const numericUserId = parseInt(userId || "1");
+      if (isNaN(numericUserId) || numericUserId <= 0) {
+        console.log('⚠️ [VoucherAdmin] Initial state - Invalid userId, using default admin ID 1');
+        return "1";
+      }
+      return numericUserId.toString();
+    })(),
     typeUser: VoucherTypeUser.PUBLIC,
   });
   const [formErrors, setFormErrors] = useState({});
@@ -109,7 +122,20 @@ const VoucherAdmin = () => {
       percentageDiscountValue: "",
       maxDiscountValue: "",
       minOrderValue: "",
-      createdByUserId: localStorage.getItem("id") || "",
+      createdByUserId: (() => {
+        const userId = localStorage.getItem("id");
+        // Nếu userId là email (chứa @), gán ID mặc định là 1 (admin)
+        if (userId && userId.includes("@")) {
+          console.log('⚠️ [VoucherAdmin] HandleAdd - UserId is email, using default admin ID 1');
+          return "1";
+        }
+        const numericUserId = parseInt(userId || "1");
+        if (isNaN(numericUserId) || numericUserId <= 0) {
+          console.log('⚠️ [VoucherAdmin] HandleAdd - Invalid userId, using default admin ID 1');
+          return "1";
+        }
+        return numericUserId.toString();
+      })(),
       typeUser: VoucherTypeUser.PUBLIC,
     });
     setFormErrors({});
@@ -138,7 +164,20 @@ const VoucherAdmin = () => {
       percentageDiscountValue: voucher.percentageDiscountValue?.toString() || "",
       maxDiscountValue: voucher.maxDiscountValue?.toString() || "",
       minOrderValue: voucher.minOrderValue?.toString() || "",
-      createdByUserId: localStorage.getItem("id") || "",
+      createdByUserId: (() => {
+        const userId = localStorage.getItem("id");
+        // Nếu userId là email (chứa @), gán ID mặc định là 1 (admin)
+        if (userId && userId.includes("@")) {
+          console.log('⚠️ [VoucherAdmin] HandleUpdate - UserId is email, using default admin ID 1');
+          return "1";
+        }
+        const numericUserId = parseInt(userId || "1");
+        if (isNaN(numericUserId) || numericUserId <= 0) {
+          console.log('⚠️ [VoucherAdmin] HandleUpdate - Invalid userId, using default admin ID 1');
+          return "1";
+        }
+        return numericUserId.toString();
+      })(),
       typeUser: voucher.typeUser || VoucherTypeUser.PUBLIC,
     });
     setFormErrors({});
@@ -224,6 +263,24 @@ const VoucherAdmin = () => {
       errors.quantity = "Số lượng phải không âm";
     }
 
+    // Validate createdByUserId
+    if (!formData.createdByUserId) {
+      errors.createdByUserId = "ID người tạo là bắt buộc";
+    } else {
+      let userId = formData.createdByUserId;
+      // Nếu userId là email (chứa @), gán ID mặc định là 1 (admin)
+      if (userId && userId.includes("@")) {
+        console.log('⚠️ [VoucherAdmin] Validation - UserId is email, using default admin ID 1');
+        userId = "1";
+        // Cập nhật lại formData để hiển thị đúng
+        setFormData(prev => ({ ...prev, createdByUserId: userId }));
+      }
+      const numericUserId = parseInt(userId);
+      if (isNaN(numericUserId) || numericUserId <= 0) {
+        errors.createdByUserId = "ID người tạo phải là số nguyên dương";
+      }
+    }
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -246,7 +303,20 @@ const VoucherAdmin = () => {
       percentageDiscountValue: formData.percentageDiscountValue ? Number(parseFloat(formData.percentageDiscountValue).toFixed(2)) : null,
       maxDiscountValue: formData.maxDiscountValue ? Number(parseFloat(formData.maxDiscountValue).toFixed(2)) : null,
       minOrderValue: formData.minOrderValue ? Number(parseFloat(formData.minOrderValue).toFixed(2)) : null,
-      createdByUserId: formData.createdByUserId ? parseInt(formData.createdByUserId) : null,
+      createdByUserId: (() => {
+        let userId = formData.createdByUserId;
+        // Nếu userId là email (chứa @), gán ID mặc định là 1 (admin)
+        if (userId && userId.includes("@")) {
+          console.log('⚠️ [VoucherAdmin] Submit - UserId is email, using default admin ID 1');
+          userId = "1";
+        }
+        const numericUserId = parseInt(userId);
+        if (isNaN(numericUserId) || numericUserId <= 0) {
+          console.log('⚠️ [VoucherAdmin] Submit - Invalid userId, using default admin ID 1');
+          return 1;
+        }
+        return numericUserId;
+      })(),
       typeUser: formData.typeUser,
     };
 

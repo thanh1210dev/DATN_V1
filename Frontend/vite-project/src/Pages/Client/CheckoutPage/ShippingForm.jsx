@@ -3,11 +3,20 @@ import { toast } from 'react-toastify';
 import axiosInstance from '../../../Service/axiosInstance';
 
 const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel, isEdit }) => {
+  // Debug log để kiểm tra dữ liệu truyền vào
+  useEffect(() => {
+    console.log('=== SHIPPING FORM DEBUG ===');
+    console.log('isEdit:', isEdit);
+    console.log('shippingInfo:', shippingInfo);
+    console.log('shippingInfo.id:', shippingInfo.id);
+  }, [isEdit, shippingInfo]);
+
   const [provinces, setProvinces] = useState([]);
   const [districts, setDistricts] = useState([]);
   const [wards, setWards] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
+    id: shippingInfo.id || null, // Thêm ID để cập nhật
     name: shippingInfo.name || '',
     phoneNumber: shippingInfo.phoneNumber || '',
     address: shippingInfo.address || '',
@@ -18,7 +27,8 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel, isEdit }) => {
     wardName: shippingInfo.wardName || '',
     wardCode: shippingInfo.wardCode || '',
     shippingFee: 22000, // Fixed shipping fee
-    isDefault: shippingInfo.isDefault || false,
+    // CHỈ SET DEFAULT CHO ĐỊA CHỈ MỚI, KHÔNG TỰ ĐỘNG SET CHO UPDATE
+    isDefault: isEdit ? (shippingInfo.isDefault || false) : false,
   });
 
   useEffect(() => {
@@ -41,8 +51,12 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel, isEdit }) => {
           setIsLoading(true);
           const response = await axiosInstance.get(`/ghn-address/districts?provinceId=${formData.provinceId}`);
           setDistricts(response.data.data || []);
-          setWards([]);
-          setFormData({ ...formData, districtId: '', districtName: '', wardCode: '', wardName: '' });
+          
+          // Chỉ reset district và ward nếu KHÔNG phải đang edit hoặc provinceId thay đổi
+          if (!isEdit || !shippingInfo.districtId) {
+            setWards([]);
+            setFormData(prev => ({ ...prev, districtId: '', districtName: '', wardCode: '', wardName: '' }));
+          }
         } finally {
           setIsLoading(false);
         }
@@ -58,7 +72,11 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel, isEdit }) => {
           setIsLoading(true);
           const response = await axiosInstance.get(`/ghn-address/wards?districtId=${formData.districtId}`);
           setWards(response.data.data || []);
-          setFormData({ ...formData, wardCode: '', wardName: '' });
+          
+          // Chỉ reset ward nếu KHÔNG phải đang edit hoặc districtId thay đổi
+          if (!isEdit || !shippingInfo.wardCode) {
+            setFormData(prev => ({ ...prev, wardCode: '', wardName: '' }));
+          }
         } finally {
           setIsLoading(false);
         }
@@ -67,12 +85,69 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel, isEdit }) => {
     fetchWards();
   }, [formData.districtId]);
 
+  // Load districts và wards khi edit và có dữ liệu sẵn
+  useEffect(() => {
+    const loadEditData = async () => {
+      if (isEdit && shippingInfo.provinceId && shippingInfo.districtId) {
+        try {
+          setIsLoading(true);
+          
+          // Load districts
+          const districtResponse = await axiosInstance.get(`/ghn-address/districts?provinceId=${shippingInfo.provinceId}`);
+          setDistricts(districtResponse.data.data || []);
+          
+          // Load wards nếu có districtId
+          if (shippingInfo.districtId) {
+            const wardResponse = await axiosInstance.get(`/ghn-address/wards?districtId=${shippingInfo.districtId}`);
+            setWards(wardResponse.data.data || []);
+          }
+        } catch (error) {
+          console.error('Lỗi khi load dữ liệu edit:', error);
+          toast.error('Lỗi khi tải dữ liệu địa chỉ');
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+    
+    loadEditData();
+  }, [isEdit, shippingInfo.provinceId, shippingInfo.districtId]);
+
   const handleSubmit = () => {
+    console.log('=== SUBMIT DEBUG ===');
+    console.log('isEdit:', isEdit);
+    console.log('formData being submitted:', formData);
+    console.log('formData.id:', formData.id);
+    console.log('formData.isDefault:', formData.isDefault);
+    
     if (!formData.name || !formData.phoneNumber || !formData.address || !formData.provinceId || !formData.districtId || !formData.wardCode) {
       toast.error('Vui lòng điền đầy đủ thông tin giao hàng', { position: 'top-right', autoClose: 3000 });
       return;
     }
-    setShippingInfo(formData);
+    
+    if (isEdit && !formData.id) {
+      toast.error('Không tìm thấy ID địa chỉ để cập nhật!');
+      console.error('Missing ID for edit operation');
+      return;
+    }
+    
+    // Tạo data để gửi
+    const dataToSubmit = {
+      name: formData.name,
+      phoneNumber: formData.phoneNumber,
+      address: formData.address,
+      provinceId: formData.provinceId,
+      provinceName: formData.provinceName,
+      districtId: formData.districtId,
+      districtName: formData.districtName,
+      wardCode: formData.wardCode,
+      wardName: formData.wardName,
+      // ❌ LOẠI BỎ isDefault khỏi update - chỉ gửi khi thêm mới
+      ...(isEdit ? { id: formData.id } : { isDefault: formData.isDefault || false })
+    };
+    
+    console.log('Final data to submit (no isDefault in edit):', dataToSubmit);
+    setShippingInfo(dataToSubmit);
   };
 
   return (
@@ -183,29 +258,8 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel, isEdit }) => {
             placeholder="Nhập địa chỉ chi tiết"
           />
         </div>
-        {isEdit && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Đặt làm địa chỉ mặc định?</label>
-            <div className="flex gap-4 items-center">
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  checked={formData.isDefault === true}
-                  onChange={() => setFormData({ ...formData, isDefault: true })}
-                />
-                Có
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  checked={formData.isDefault === false}
-                  onChange={() => setFormData({ ...formData, isDefault: false })}
-                />
-                Không
-              </label>
-            </div>
-          </div>
-        )}
+        {/* ❌ LOẠI BỎ phần "Đặt làm địa chỉ mặc định" khỏi form update */}
+        {/* Logic set mặc định sẽ được tách riêng thành nút riêng */}
         <div className="flex gap-4">
           <button
             onClick={handleSubmit}

@@ -4,6 +4,9 @@ const VoucherApi = {
   searchVouchers: (params) =>
     axiosInstance.get("/vouchers/search", { params }),
 
+  getVoucherByCode: (code) =>
+    axiosInstance.get(`/vouchers/by-code/${code}`),
+
   createVoucher: (data) =>
     axiosInstance.post("/vouchers", data),
 

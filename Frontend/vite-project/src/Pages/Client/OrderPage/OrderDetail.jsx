@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import OrderStatus from './OrderStatus';
 import axiosInstance from '../../../Service/axiosInstance';
+import AuthService from '../../../Service/AuthService';
 
 const OrderDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [order, setOrder] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -22,6 +25,41 @@ const OrderDetail = () => {
     fetchOrder();
   }, [id]);
 
+  const handleCancelOrder = async () => {
+    if (!window.confirm('Bạn có chắc chắn muốn hủy đơn hàng này?')) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      
+      const user = AuthService.getCurrentUser();
+      if (!user || !user.id) {
+        toast.error('Vui lòng đăng nhập để tiếp tục', { position: 'top-right', autoClose: 3000 });
+        navigate('/login');
+        return;
+      }
+
+      await axiosInstance.post(`/cart-checkout/cancel-order/${id}?userId=${user.id}`);
+      
+      toast.success('Hủy đơn hàng thành công!', { position: 'top-right', autoClose: 3000 });
+      
+      // Reload order data để cập nhật trạng thái
+      const response = await axiosInstance.get(`/cart-checkout/bill/${id}`);
+      setOrder(response.data);
+      
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Lỗi khi hủy đơn hàng', { position: 'top-right', autoClose: 3000 });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Kiểm tra xem có thể hủy đơn hàng không
+  const canCancelOrder = () => {
+    return order && (order.status === 'PENDING' || order.status === 'CONFIRMING');
+  };
+
   if (!order) {
     return <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-500 text-lg">Đang tải...</div>;
   }
@@ -30,7 +68,22 @@ const OrderDetail = () => {
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <ToastContainer />
       <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-md p-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Chi Tiết Đơn Hàng #{order.code}</h1>
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Chi Tiết Đơn Hàng #{order.code}</h1>
+          {canCancelOrder() && (
+            <button
+              onClick={handleCancelOrder}
+              disabled={isLoading}
+              className={`px-6 py-2 rounded-lg font-medium ${
+                isLoading 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-red-600 hover:bg-red-700 text-white'
+              } transition-colors`}
+            >
+              {isLoading ? 'Đang hủy...' : 'Hủy đơn hàng'}
+            </button>
+          )}
+        </div>
         <OrderStatus status={order.status} />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div>

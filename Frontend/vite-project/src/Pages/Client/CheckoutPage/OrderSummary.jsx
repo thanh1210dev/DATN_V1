@@ -37,7 +37,22 @@ const OrderSummary = ({ cartItems, shippingFee, reductionAmount, onPlaceOrder })
           <span>{total.toLocaleString('vi-VN')} VND</span>
         </div>
         <button
-          onClick={onPlaceOrder}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Thêm class để nhận dạng (tránh xung đột)
+            const target = e.currentTarget || e.target;
+            if (target && typeof target.className === 'string') {
+              target.className += ' payment-btn-clicked';
+            }
+            
+            // Gọi hàm xử lý với tham số là sự kiện đã xử lý
+            if (typeof onPlaceOrder === 'function') {
+              onPlaceOrder({...e, preventDefault: () => {}, target});
+            }
+          }}
+          type="button"
           className="w-full px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-300"
         >
           Đặt Hàng

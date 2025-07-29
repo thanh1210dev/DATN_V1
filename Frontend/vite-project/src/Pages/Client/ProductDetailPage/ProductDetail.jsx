@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import ProductImageGallery from './ProductImageGallery';
@@ -9,9 +9,12 @@ import ProductService from '../../../Service/AdminProductSevice/ProductService';
 import ProductDetailService from '../../../Service/AdminProductSevice/ProductDetailService';
 import HomeService from '../../../Service/ClientHomeService/HomeService';
 import axiosInstance from '../../../Service/axiosInstance';
+import AuthService from '../../../Service/AuthService';
+import { getUserIdByEmail } from '../../../utils/userUtils';
 
 const ProductDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [product, setProduct] = useState(null);
   const [sizes, setSizes] = useState([]);
   const [colors, setColors] = useState([]);
@@ -108,7 +111,7 @@ useEffect(() => {
   // CHỈ theo dõi selectedColorId, selectedSizeId, colors, id
 }, [selectedColorId, selectedSizeId, colors, id]);
 
-  const handleAddToCart = async () => {
+  const handleAddToCart = async (quantity = 1) => {
     if (!selectedDetail || selectedDetail.status !== 'AVAILABLE') {
       toast.error(
         selectedDetail?.status === 'OUT_OF_STOCK' ? 'Sản phẩm đã hết hàng!' : 'Sản phẩm không còn kinh doanh!',
@@ -117,14 +120,157 @@ useEffect(() => {
       return;
     }
 
+    if (quantity > selectedDetail.quantity) {
+      toast.error(`Chỉ còn ${selectedDetail.quantity} sản phẩm trong kho!`, { 
+        position: 'top-right', 
+        autoClose: 3000 
+      });
+      return;
+    }
+
     try {
-      const userId = localStorage.getItem('userId');
-      if (!userId) {
+      // Kiểm tra authentication trước khi thêm vào giỏ hàng
+      const user = AuthService.getCurrentUser();
+      const token = localStorage.getItem('token');
+      
+      console.log('🔍 [ADD TO CART] Debug info:');
+      console.log('User:', user);
+      console.log('Token exists:', !!token);
+      console.log('User ID:', user?.id);
+      console.log('Selected detail:', selectedDetail);
+      console.log('Quantity:', quantity);
+      
+      if (!user || !token) {
+        console.log('🔍 [ADD TO CART] No user or token');
         toast.error('Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng', { position: 'top-right', autoClose: 3000 });
         return;
       }
-      await axiosInstance.post(`/cart-checkout/cart/add?userId=${userId}&productDetailId=${selectedDetail.id}&quantity=1`);
-      toast.success('Đã thêm vào giỏ hàng!', { position: 'top-right', autoClose: 3000 });
+      
+      // Kiểm tra token còn hợp lệ không
+      try {
+        const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+        const currentTime = Date.now() / 1000;
+        
+        console.log('🔍 [ADD TO CART] Token payload:', tokenPayload);
+        console.log('🔍 [ADD TO CART] Token exp:', tokenPayload.exp);
+        console.log('🔍 [ADD TO CART] Current time:', currentTime);
+        console.log('🔍 [ADD TO CART] Token valid:', tokenPayload.exp > currentTime);
+        console.log('🔍 [ADD TO CART] Token sub (subject):', tokenPayload.sub);
+        console.log('🔍 [ADD TO CART] Token role:', tokenPayload.role);
+        console.log('🔍 [ADD TO CART] All token properties:', Object.keys(tokenPayload));
+        
+        if (tokenPayload.exp < currentTime) {
+          console.log('🔍 [ADD TO CART] Token expired');
+          toast.error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', { position: 'top-right', autoClose: 3000 });
+          AuthService.logout();
+          return;
+        }
+      } catch (error) {
+        console.log('🔍 [ADD TO CART] Invalid token:', error);
+        toast.error('Phiên đăng nhập không hợp lệ, vui lòng đăng nhập lại', { position: 'top-right', autoClose: 3000 });
+        AuthService.logout();
+        return;
+      }
+      
+      let userId = user.id;
+      console.log('🔍 [ADD TO CART] Initial userId:', userId);
+      console.log('🔍 [ADD TO CART] typeof userId:', typeof userId);
+      
+      // Nếu userId là email (string), lấy user ID số thật từ utility function
+      if (typeof userId === 'string' && userId.includes('@')) {
+        console.log('🔍 [ADD TO CART] userId is email, getting numeric ID...');
+        try {
+          userId = await getUserIdByEmail(userId);
+          console.log('🔍 [ADD TO CART] Got numeric userId:', userId);
+        } catch (error) {
+          console.log('🔍 [ADD TO CART] Failed to get numeric userId:', error.message);
+          toast.error('Không thể xác định thông tin người dùng, vui lòng thử lại', { position: 'top-right', autoClose: 3000 });
+          return;
+        }
+      }
+      
+      if (!userId || userId === 'null' || userId === 'undefined') {
+        console.log('🔍 [ADD TO CART] No valid userId found');
+        toast.error('Không tìm thấy thông tin người dùng, vui lòng đăng nhập lại', { position: 'top-right', autoClose: 3000 });
+        AuthService.logout();
+        return;
+      }
+      
+      const apiUrl = `/cart-checkout/cart/add?userId=${userId}&productDetailId=${selectedDetail.id}&quantity=${quantity}`;
+      console.log('🔍 [ADD TO CART] API URL:', apiUrl);
+      
+      const response = await axiosInstance.post(apiUrl);
+      console.log('🔍 [ADD TO CART] API Response:', response.data);
+      toast.success(`Đã thêm ${quantity} sản phẩm vào giỏ hàng!`, { position: 'top-right', autoClose: 3000 });
+    } catch (error) {
+      console.error('🔍 [ADD TO CART] Error:', error);
+      console.error('🔍 [ADD TO CART] Error response:', error.response?.data);
+      console.error('🔍 [ADD TO CART] Error status:', error.response?.status);
+      toast.error(error.response?.data?.message || 'Lỗi khi thêm vào giỏ hàng', { position: 'top-right', autoClose: 3000 });
+    }
+  };
+
+  const handleBuyNow = async (quantity = 1) => {
+    if (!selectedDetail || selectedDetail.status !== 'AVAILABLE') {
+      toast.error(
+        selectedDetail?.status === 'OUT_OF_STOCK' ? 'Sản phẩm đã hết hàng!' : 'Sản phẩm không còn kinh doanh!',
+        { position: 'top-right', autoClose: 3000 }
+      );
+      return;
+    }
+
+    if (quantity > selectedDetail.quantity) {
+      toast.error(`Chỉ còn ${selectedDetail.quantity} sản phẩm trong kho!`, { 
+        position: 'top-right', 
+        autoClose: 3000 
+      });
+      return;
+    }
+
+    try {
+      // Kiểm tra authentication trước khi mua hàng
+      const user = AuthService.getCurrentUser();
+      const token = localStorage.getItem('token');
+      
+      console.log('🔍 [BUY NOW] Debug info:');
+      console.log('User:', user);
+      console.log('Token exists:', !!token);
+      console.log('User ID:', user?.id);
+      
+      if (!user || !token) {
+        console.log('🔍 [BUY NOW] No user or token');
+        toast.error('Vui lòng đăng nhập để mua hàng', { position: 'top-right', autoClose: 3000 });
+        return;
+      }
+      
+      // Kiểm tra token còn hợp lệ không
+      try {
+        const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+        const currentTime = Date.now() / 1000;
+        
+        if (tokenPayload.exp < currentTime) {
+          toast.error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', { position: 'top-right', autoClose: 3000 });
+          AuthService.logout();
+          return;
+        }
+      } catch (error) {
+        toast.error('Phiên đăng nhập không hợp lệ, vui lòng đăng nhập lại', { position: 'top-right', autoClose: 3000 });
+        AuthService.logout();
+        return;
+      }
+      
+      const userId = user.id;
+      if (!userId) {
+        toast.error('Không tìm thấy thông tin người dùng, vui lòng đăng nhập lại', { position: 'top-right', autoClose: 3000 });
+        return;
+      }
+      
+      // Thêm sản phẩm vào giỏ hàng trước
+      await axiosInstance.post(`/cart-checkout/cart/add?userId=${userId}&productDetailId=${selectedDetail.id}&quantity=${quantity}`);
+      
+      // Chuyển đến trang giỏ hàng
+      navigate('/cart');
+      toast.success(`Đã thêm ${quantity} sản phẩm vào giỏ hàng!`, { position: 'top-right', autoClose: 3000 });
     } catch (error) {
       toast.error(error.response?.data?.message || 'Lỗi khi thêm vào giỏ hàng', { position: 'top-right', autoClose: 3000 });
     }
@@ -155,6 +301,7 @@ useEffect(() => {
               selectedColorId={selectedColorId}
               setSelectedColorId={setSelectedColorId}
               onAddToCart={handleAddToCart}
+              onBuyNow={handleBuyNow}
             />
           </div>
         </div>

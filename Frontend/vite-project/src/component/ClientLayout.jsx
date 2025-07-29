@@ -154,6 +154,7 @@ const ClientLayout = () => {
                     {user ? (
                       <>
                         <NavLink to="/profile" className="block px-4 py-2 text-gray-700 hover:bg-purple-50" onClick={() => setUserMenuOpen(false)}>Cá Nhân</NavLink>
+                        <NavLink to="/my-orders" className="block px-4 py-2 text-gray-700 hover:bg-purple-50" onClick={() => setUserMenuOpen(false)}>Đơn hàng của tôi</NavLink>
                         <button onClick={handleLogout} className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-purple-50">Đăng Xuất</button>
                       </>
                     ) : (
@@ -260,6 +261,22 @@ const ClientLayout = () => {
               >
                 Liên Hệ
               </NavLink>
+              {user && (
+                <NavLink
+                  to="/my-orders"
+                  className={({ isActive }) =>
+                    `text-sm font-semibold px-3 py-2 rounded-lg transition-all duration-300 ${
+                      isActive
+                        ? "text-purple-700 bg-purple-100"
+                        : "text-gray-600 hover:text-purple-600 hover:bg-purple-50"
+                    }`
+                  }
+                  style={{ textDecoration: "none" }}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Đơn hàng của tôi
+                </NavLink>
+              )}
             </div>
           )}
         </div>

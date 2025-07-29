@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import axiosInstance from '../../../Service/axiosInstance';
+import AuthService from '../../../Service/AuthService';
 
 const MyOrders = () => {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(10);
@@ -11,15 +13,46 @@ const MyOrders = () => {
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        const userId = localStorage.getItem('userId');
-        if (!userId) {
+        // Kiểm tra authentication
+        const user = AuthService.getCurrentUser();
+        const token = localStorage.getItem('token');
+        
+        if (!user || !token) {
           toast.error('Vui lòng đăng nhập để xem đơn hàng', { position: 'top-right', autoClose: 3000 });
+          navigate('/login');
           return;
         }
-        const response = await axiosInstance.get(`/cart-checkout/bills?userId=${userId}&page=${page}&size=${size}`);
+        
+        // Kiểm tra token còn hợp lệ không
+        try {
+          const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+          const currentTime = Date.now() / 1000;
+          
+          if (tokenPayload.exp < currentTime) {
+            toast.error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', { position: 'top-right', autoClose: 3000 });
+            AuthService.logout();
+            navigate('/login');
+            return;
+          }
+        } catch (error) {
+          toast.error('Phiên đăng nhập không hợp lệ, vui lòng đăng nhập lại', { position: 'top-right', autoClose: 3000 });
+          AuthService.logout();
+          navigate('/login');
+          return;
+        }
+        
+        const userId = user.id;
+        if (!userId) {
+          toast.error('Không tìm thấy thông tin người dùng, vui lòng đăng nhập lại', { position: 'top-right', autoClose: 3000 });
+          AuthService.logout();
+          navigate('/login');
+          return;
+        }
+        const response = await axiosInstance.get(`/bills/customer/${userId}?page=${page}&size=${size}`);
         setOrders(response.data.content || []);
       } catch (error) {
-        toast.error(error.response?.data?.message || 'Lỗi khi lấy đơn hàng', { position: 'top-right', autoClose: 3000 });
+        console.error('Lỗi khi lấy đơn hàng:', error);
+        toast.error('Không thể tải danh sách đơn hàng', { position: 'top-right', autoClose: 3000 });
       }
     };
     fetchOrders();

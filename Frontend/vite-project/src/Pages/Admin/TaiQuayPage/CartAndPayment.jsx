@@ -59,6 +59,13 @@ const CartAndPayment = ({
   handleAddressChange,
   createDeliveryBill,
 }) => {
+  // Ensure billDetails is always an array
+  const safeBillDetails = billDetails || [];
+  
+  // State cho voucher preview
+  const [previewVoucher, setPreviewVoucher] = useState(null);
+  const [previewDiscount, setPreviewDiscount] = useState(0);
+  
   const scannerRef = useRef(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [invoicePDF, setInvoicePDF] = useState(null);
@@ -149,47 +156,63 @@ const CartAndPayment = ({
   // Fetch Customer Addresses when Customer is Selected
   useEffect(() => {
     const fetchCustomerAddresses = async () => {
-      if (selectedBill?.customerId) {
-        try {
-          setIsLoading(true);
-          const response = await axiosInstance.get(`/customer-information/user/${selectedBill.customerId}`);
-          setCustomerAddresses(response.data);
-          // Auto-select default address if exists
-          const defaultAddress = response.data.find((addr) => addr.isDefault);
-          if (defaultAddress) {
-            setSelectedAddressId(defaultAddress.id);
-            setDeliveryForm((prev) => ({
-              ...prev,
-              customerName: defaultAddress.name || prev.name,
-              phoneNumber: defaultAddress.phoneNumber || prev.phoneNumber,
-              provinceId: defaultAddress.provinceId || prev.provinceId,
-              provinceName: defaultAddress.provinceName || prev.provinceName,
-              districtId: defaultAddress.districtId || prev.districtId,
-              districtName: defaultAddress.districtName || prev.districtName,
-              wardCode: defaultAddress.wardCode || prev.wardCode,
-              wardName: defaultAddress.wardName || prev.wardName,
-              addressDetail: defaultAddress.address || prev.addressDetail,
-              customerInformationId: defaultAddress.id
-            }));
-          } else {
-            setSelectedAddressId(null);
-            setDeliveryForm((prev) => ({
-              ...prev,
-              customerInformationId: null
-            }));
-          }
-        } catch (error) {
-          console.error('Error fetching customer addresses:', error);
-          setCustomerAddresses([]);
-          setSelectedAddressId(null);
-        } finally {
-          setIsLoading(false);
-        }
-      } else {
+      if (!selectedBill?.customerId) {
         setCustomerAddresses([]);
         setSelectedAddressId(null);
+        return;
+      }
+
+      const customerId = selectedBill.customerId;
+      if (isNaN(customerId) || parseInt(customerId) <= 0) {
+        console.log('CustomerId không hợp lệ:', customerId);
+        setCustomerAddresses([]);
+        setSelectedAddressId(null);
+        return;
+      }
+      
+      try {
+        setIsLoading(true);
+        console.log('Đang lấy địa chỉ người dùng trong admin:', customerId);
+        
+        const response = await axiosInstance.get(`/cart-checkout/address/${customerId}`);
+        const addresses = Array.isArray(response.data) ? response.data : [];
+        console.log('Đã lấy được', addresses.length, 'địa chỉ');
+        
+        setCustomerAddresses(addresses);
+
+        // Tìm và set địa chỉ mặc định
+        const defaultAddress = addresses.find(addr => addr.isDefault);
+        if (defaultAddress) {
+          setSelectedAddressId(defaultAddress.id);
+          setDeliveryForm(prev => ({
+            ...prev,
+            customerName: defaultAddress.name || prev.customerName,
+            phoneNumber: defaultAddress.phoneNumber || prev.phoneNumber,
+            provinceId: defaultAddress.provinceId || prev.provinceId,
+            provinceName: defaultAddress.provinceName || prev.provinceName,
+            districtId: defaultAddress.districtId || prev.districtId,
+            districtName: defaultAddress.districtName || prev.districtName,
+            wardCode: defaultAddress.wardCode || prev.wardCode,
+            wardName: defaultAddress.wardName || prev.wardName,
+            addressDetail: defaultAddress.address || prev.addressDetail,
+            customerInformationId: defaultAddress.id
+          }));
+        } else {
+          setSelectedAddressId(null);
+          setDeliveryForm(prev => ({
+            ...prev,
+            customerInformationId: null
+          }));
+        }
+      } catch (error) {
+        console.error('Lỗi khi lấy địa chỉ khách hàng:', error);
+        setCustomerAddresses([]);
+        setSelectedAddressId(null);
+      } finally {
+        setIsLoading(false);
       }
     };
+    
     fetchCustomerAddresses();
   }, [selectedBill?.customerId, setDeliveryForm, setIsLoading]);
 
@@ -430,17 +453,168 @@ const CartAndPayment = ({
 
   // Format Voucher Message
   const renderVoucherMessage = () => {
-    if (!appliedVoucher || !selectedBill?.voucherCode) return null;
+    console.log('🏷️ [CartAndPayment] renderVoucherMessage called:', {
+      appliedVoucher,
+      voucherCode: selectedBill?.voucherCode,
+      reductionAmount: selectedBill?.reductionAmount
+    });
+    
+    if (!appliedVoucher || !selectedBill?.voucherCode) {
+      console.log('⚠️ [CartAndPayment] No voucher to display');
+      return null;
+    }
+    
     const { code, type, percentageDiscountValue, fixedDiscountValue } = appliedVoucher;
     const discountText =
       type === 'PERCENTAGE'
         ? `${percentageDiscountValue}% (Tối đa ${(appliedVoucher.maxDiscountValue || 0).toLocaleString()} đ)`
         : `${(fixedDiscountValue || 0).toLocaleString()} đ`;
+    
+    // Hiển thị số tiền giảm thực tế từ selectedBill.reductionAmount
+    const actualDiscountAmount = selectedBill?.reductionAmount || 0;
+        
+    console.log('✅ [CartAndPayment] Displaying voucher:', { code, type, discountText, actualDiscountAmount });
+    
     return (
-      <p className="text-sm text-green-600 mt-2">
-        Đã áp dụng voucher <strong>{code}</strong>: Giảm {discountText}
-      </p>
+      <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <h5 className="text-sm font-medium text-green-800">✅ Đã áp dụng voucher {appliedVoucher.name}</h5>
+            <p className="text-xs text-green-600">
+              Mã: <strong>{code}</strong> • Loại: {discountText}
+            </p>
+            <p className="text-sm font-bold text-green-700">
+              💰 Đã giảm: {actualDiscountAmount.toLocaleString('vi-VN')} VND
+            </p>
+          </div>
+          <button
+            onClick={handleRemoveVoucher}
+            className="text-red-600 hover:text-red-800 text-xs font-medium"
+            disabled={isLoading}
+          >
+            Hủy
+          </button>
+        </div>
+      </div>
     );
+  };
+
+  // Calculate total amount for bill
+  const calculateTotalAmount = () => {
+    if (!selectedBill || !safeBillDetails.length) return 0;
+    return safeBillDetails.reduce((sum, detail) => sum + (detail.price * detail.quantity), 0);
+  };
+
+  // Handle select voucher with preview (không tự động áp dụng)
+  const handleSelectVoucher = (voucher) => {
+    const totalAmount = calculateTotalAmount();
+    
+    // Validate voucher conditions
+    const validation = validateVoucherAgainstCart(voucher);
+    if (!validation.isValid) {
+      toast.error(validation.message, { position: 'top-right', autoClose: 3000 });
+      return;
+    }
+
+    // Tính toán số tiền giảm preview
+    let discountAmount = 0;
+    if (voucher.type === 'PERCENTAGE') {
+      discountAmount = Math.floor((totalAmount * voucher.percentageDiscountValue) / 100);
+      if (voucher.maxDiscountValue && discountAmount > voucher.maxDiscountValue) {
+        discountAmount = voucher.maxDiscountValue;
+      }
+    } else {
+      discountAmount = voucher.fixedDiscountValue;
+    }
+
+    if (discountAmount > totalAmount) {
+      discountAmount = totalAmount;
+    }
+
+    // Chỉ preview, không tự động áp dụng
+    setPreviewVoucher(voucher);
+    setPreviewDiscount(discountAmount);
+    setVoucherCode(voucher.code);
+    setShowSelectVoucherModal(false);
+    
+    toast.success(`Đã chọn voucher ${voucher.code}: Sẽ giảm ${discountAmount.toLocaleString('vi-VN')} VND`, { 
+      position: 'top-right', 
+      autoClose: 3000 
+    });
+  };
+
+  // Validate voucher against current cart
+  const validateVoucherAgainstCart = (voucher) => {
+    const totalAmount = calculateTotalAmount();
+    
+    if (voucher.minOrderValue && totalAmount < voucher.minOrderValue) {
+      return {
+        isValid: false,
+        message: `Đơn hàng phải có giá trị tối thiểu ${voucher.minOrderValue.toLocaleString('vi-VN')} VND`
+      };
+    }
+    
+    return { isValid: true, message: '' };
+  };
+
+  // Cancel voucher preview
+  const handleCancelVoucherPreview = () => {
+    setPreviewVoucher(null);
+    setPreviewDiscount(0);
+    setVoucherCode('');
+    toast.info('Đã hủy chọn voucher', { position: 'top-right', autoClose: 3000 });
+  };
+
+  // Validate applied voucher when cart changes and warn if invalid
+  React.useEffect(() => {
+    if (selectedBill?.voucherCode && appliedVoucher) {
+      const validation = validateVoucherAgainstCart(appliedVoucher);
+      if (!validation.isValid) {
+        toast.warning(`Voucher không còn hợp lệ: ${validation.message}. Vui lòng hủy voucher và chọn voucher khác.`, {
+          position: 'top-right',
+          autoClose: 5000
+        });
+        // Không tự động hủy voucher, để user tự quyết định
+      }
+    }
+    
+    // Reset preview voucher khi selectedBill thay đổi
+    if (!selectedBill?.voucherCode) {
+      setPreviewVoucher(null);
+      setPreviewDiscount(0);
+    }
+  }, [safeBillDetails, selectedBill?.totalMoney, appliedVoucher, selectedBill?.voucherCode]);
+
+  // Reset voucher states when selectedBill changes
+  React.useEffect(() => {
+    if (!selectedBill) {
+      setPreviewVoucher(null);
+      setPreviewDiscount(0);
+      setVoucherCode('');
+      setAppliedVoucher(null);
+    }
+  }, [selectedBill?.id, setVoucherCode, setAppliedVoucher]);
+
+  // Handle voucher removal
+  const handleRemoveVoucher = async () => {
+    if (!selectedBill || !selectedBill.voucherCode) return;
+    
+    try {
+      setIsLoading(true);
+      // Call API to remove voucher from bill
+      const response = await axiosInstance.delete(`/bills/${selectedBill.id}/voucher`);
+      setSelectedBill(response.data);
+      setAppliedVoucher(null);
+      setVoucherCode('');
+      setPreviewVoucher(null);
+      setPreviewDiscount(0);
+      toast.success('Đã hủy voucher thành công');
+    } catch (error) {
+      console.error('Error removing voucher:', error);
+      toast.error('Không thể hủy voucher');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -525,8 +699,8 @@ const CartAndPayment = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {billDetails.length > 0 ? (
-                      billDetails.map((item, index) => (
+                    {safeBillDetails && safeBillDetails.length > 0 ? (
+                      safeBillDetails.map((item, index) => (
                         <tr key={item.id} className="border-b hover:bg-indigo-50 transition-colors">
                           <td className="px-4 py-3 text-center">{index + 1}</td>
                           <td className="px-4 py-3 flex items-center space-x-3">
@@ -638,6 +812,13 @@ const CartAndPayment = ({
                   <p className="font-semibold text-base">
                     Thành tiền: {(selectedBill.finalAmount || 0).toLocaleString()} đ
                   </p>
+                  {console.log('💰 [CartAndPayment] Bill totals:', {
+                    totalMoney: selectedBill.totalMoney,
+                    reductionAmount: selectedBill.reductionAmount,
+                    finalAmount: selectedBill.finalAmount,
+                    voucherCode: selectedBill.voucherCode,
+                    appliedVoucher: appliedVoucher
+                  })}
                   {renderVoucherMessage()}
                 </div>
               </div>
@@ -702,24 +883,87 @@ const CartAndPayment = ({
                   <input
                     type="text"
                     value={voucherCode}
-                    onChange={(e) => setVoucherCode(e.target.value)}
+                    onChange={(e) => {
+                      // Lọc và làm sạch input
+                      let value = e.target.value;
+                      // Loại bỏ "null" ở đầu nếu có
+                      value = value.replace(/^null/i, '');
+                      // Chỉ cho phép chữ cái, số và một số ký tự đặc biệt
+                      value = value.replace(/[^a-zA-Z0-9_-]/g, '');
+                      setVoucherCode(value);
+                    }}
                     placeholder="Nhập mã voucher"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    disabled={isLoading}
                   />
                   <button
                     onClick={() => setShowSelectVoucherModal(true)}
-                    className="px-2 py-1.5 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 transition-colors"
+                    className="px-2 py-1.5 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 transition-colors disabled:opacity-50"
+                    disabled={isLoading}
                   >
                     Chọn
                   </button>
-                  <button
-                    onClick={applyVoucher}
-                    className="px-2 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50"
-                    disabled={isLoading}
-                  >
-                    Áp Dụng
-                  </button>
+                  {!selectedBill?.voucherCode && ( // Chỉ hiển thị nút "Áp dụng" khi chưa có voucher được áp dụng
+                    <button
+                      onClick={() => {
+                        applyVoucher();
+                        // Reset preview sau khi apply
+                        setPreviewVoucher(null);
+                        setPreviewDiscount(0);
+                      }}
+                      className="px-2 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                      disabled={isLoading || !voucherCode.trim()}
+                    >
+                      Áp Dụng
+                    </button>
+                  )}
                 </div>
+                
+                {/* Voucher Preview */}
+                {previewVoucher && !selectedBill?.voucherCode && (
+                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h5 className="text-sm font-medium text-blue-800">{previewVoucher.name}</h5>
+                        <p className="text-xs text-blue-600">
+                          Mã: {previewVoucher.code} • 
+                          Giảm: {previewVoucher.type === 'PERCENTAGE' 
+                            ? `${previewVoucher.percentageDiscountValue}%` 
+                            : `${(previewVoucher.fixedDiscountValue || 0).toLocaleString()} VND`
+                          }
+                          {previewVoucher.maxDiscountValue && previewVoucher.type === 'PERCENTAGE' && 
+                            ` (tối đa ${(previewVoucher.maxDiscountValue || 0).toLocaleString()} VND)`
+                          }
+                        </p>
+                        <p className="text-sm font-medium text-blue-700">
+                          💰 Sẽ giảm: {previewDiscount.toLocaleString('vi-VN')} VND
+                        </p>
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => {
+                            applyVoucher();
+                            // Reset preview sau khi apply
+                            setPreviewVoucher(null);
+                            setPreviewDiscount(0);
+                          }}
+                          disabled={isLoading}
+                          className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50"
+                        >
+                          Áp dụng
+                        </button>
+                        <button
+                          onClick={handleCancelVoucherPreview}
+                          className="px-2 py-1 bg-gray-400 text-white text-xs rounded hover:bg-gray-500"
+                        >
+                          Hủy
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Không hiển thị Applied Voucher Display ở phần thanh toán nữa vì bên trái đã có */}
               </div>
               <div className="flex flex-col gap-2">
                 <button
@@ -1091,11 +1335,40 @@ const CartAndPayment = ({
                     <th className="px-4 py-3">Tên</th>
                     <th className="px-4 py-3">Giá Trị</th>
                     <th className="px-4 py-3">Đơn Tối Thiểu</th>
+                    <th className="px-4 py-3">Số Tiền Giảm</th>
                     <th className="px-4 py-3 w-24 rounded-tr-lg">Hành Động</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {vouchers.map((voucher, index) => (
+                  {vouchers.map((voucher, index) => {
+                    // Tính toán số tiền được giảm cho từng voucher
+                    const totalAmount = calculateTotalAmount();
+                    let discountAmount = 0;
+                    let isEligible = true;
+                    let eligibilityMessage = '';
+
+                    // Kiểm tra điều kiện đơn hàng tối thiểu
+                    if (voucher.minOrderValue && totalAmount < voucher.minOrderValue) {
+                      isEligible = false;
+                      eligibilityMessage = 'Chưa đủ đơn tối thiểu';
+                    } else {
+                      // Tính toán số tiền giảm
+                      if (voucher.type === 'PERCENTAGE') {
+                        discountAmount = Math.floor((totalAmount * voucher.percentageDiscountValue) / 100);
+                        if (voucher.maxDiscountValue && discountAmount > voucher.maxDiscountValue) {
+                          discountAmount = voucher.maxDiscountValue;
+                        }
+                      } else {
+                        discountAmount = voucher.fixedDiscountValue;
+                      }
+
+                      // Đảm bảo không vượt quá tổng đơn hàng
+                      if (discountAmount > totalAmount) {
+                        discountAmount = totalAmount;
+                      }
+                    }
+
+                    return (
                     <tr key={voucher.id} className="border-b hover:bg-indigo-50 transition-colors">
                       <td className="px-6 py-3 text-center">
                         {pagination.vouchers.page * pagination.vouchers.size + index + 1}
@@ -1108,21 +1381,30 @@ const CartAndPayment = ({
                           : `${(voucher.fixedDiscountValue || 0).toLocaleString()} đ`}
                       </td>
                       <td className="px-4 py-3">{(voucher.minOrderValue || 0).toLocaleString()} đ</td>
+                      <td className="px-4 py-3">
+                        {isEligible ? (
+                          <span className="text-green-600 font-medium">
+                            -{discountAmount.toLocaleString()} đ
+                          </span>
+                        ) : (
+                          <span className="text-red-500 text-xs">
+                            {eligibilityMessage}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-center">
                         <button
-                          onClick={() => {
-                            setVoucherCode(voucher.code);
-                            setShowSelectVoucherModal(false);
-                            applyVoucher();
-                          }}
-                          className="p-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50"
-                          disabled={isLoading}
+                          onClick={() => handleSelectVoucher(voucher)}
+                          className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                          disabled={isLoading || !isEligible}
+                          title={!isEligible ? eligibilityMessage : "Chọn voucher này"}
                         >
                           Chọn
                         </button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1580,7 +1862,7 @@ const CartAndPayment = ({
                   setSelectedImagesForView([]);
                 }}
                 className="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-400 focus:outline-none transition-colors"
-              >
+                           >
                 Đóng
               </button>
             </div>
@@ -1593,4 +1875,4 @@ const CartAndPayment = ({
 
 export default CartAndPayment;
 
-// Xác nhận thanh toán chuyển khoản thành công   
+// Xác nhận thanh toán chuyển khoản thành công

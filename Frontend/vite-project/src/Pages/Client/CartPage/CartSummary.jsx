@@ -2,48 +2,137 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import axiosInstance from '../../../Service/axiosInstance';
+import AuthService from '../../../Service/AuthService';
 
 const CartSummary = ({ cartItems }) => {
-  const [shippingFee, setShippingFee] = useState(0);
+  const [shippingFee, setShippingFee] = useState(22000);
   const [isLoading, setIsLoading] = useState(false);
 
-  const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  // Đảm bảo cartItems là array trước khi tính toán
+  const safeCartItems = Array.isArray(cartItems) ? cartItems : [];
+  const subtotal = safeCartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   useEffect(() => {
+    let isMounted = true;
+    const controller = new AbortController();
+
     const fetchShippingFee = async () => {
+      // Reset về 0 nếu không có sản phẩm
+      if (!safeCartItems.length) {
+        setShippingFee(0);
+        return;
+      }
+
       try {
         setIsLoading(true);
-        const userId = localStorage.getItem('userId');
-        if (!userId) return;
-        // Fetch default address for shipping cost calculation
-        const addressResponse = await axiosInstance.get(`/customer-information/user/${userId}`);
-        const defaultAddress = addressResponse.data.find((addr) => addr.isDefault);
-        if (!defaultAddress) {
-          setShippingFee(0); // No default address, set to 0
+        
+        // Kiểm tra authentication trước khi lấy địa chỉ
+        const user = AuthService.getCurrentUser();
+        const token = localStorage.getItem('token');
+        
+        if (!user || !token) {
+          console.log('No auth data in CartSummary');
+          if (isMounted) setShippingFee(22000);
           return;
         }
-        const totalWeight = cartItems.reduce((sum, item) => sum + (item.weight || 500) * item.quantity, 0);
-        const response = await axiosInstance.post('/cart-checkout/calculate-shipping', {
+        
+        // Kiểm tra token còn hợp lệ không
+        try {
+          const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+          const currentTime = Date.now() / 1000;
+          
+          if (tokenPayload.exp < currentTime) {
+            console.log('Token expired in CartSummary');
+            if (isMounted) setShippingFee(22000);
+            return;
+          }
+        } catch (error) {
+          console.log('Invalid token in CartSummary');
+          if (isMounted) setShippingFee(22000);
+          return;
+        }
+        
+        const userId = user.id;
+        if (!userId || isNaN(userId) || parseInt(userId) <= 0) {
+          console.log('UserId không hợp lệ:', userId);
+          if (isMounted) setShippingFee(22000);
+          return;
+        }
+
+        // Lấy danh sách địa chỉ với timeout và abort controller
+        const addressResponse = await axiosInstance.get(`/cart-checkout/address/${userId}`, {
+          signal: controller.signal
+        }).catch(error => {
+          console.log('Lỗi khi lấy địa chỉ:', error);
+          return { data: [] };
+        });
+
+        // Kiểm tra component còn mounted không
+        if (!isMounted) return;
+
+        const addresses = Array.isArray(addressResponse.data) ? addressResponse.data : [];
+        console.log('Số địa chỉ nhận được:', addresses.length);
+
+        // Tìm địa chỉ mặc định hợp lệ
+        const defaultAddress = addresses.find(addr => (
+          addr && 
+          addr.isDefault === true && 
+          addr.districtId && 
+          addr.wardCode
+        ));
+
+        // Nếu không có địa chỉ hợp lệ, dùng phí mặc định
+        if (!defaultAddress) {
+          console.log('Không tìm thấy địa chỉ mặc định hợp lệ');
+          if (isMounted) setShippingFee(22000);
+          return;
+        }
+
+        // Tính tổng cân nặng (tối thiểu 500g mỗi sản phẩm)
+        const totalWeight = safeCartItems.reduce((sum, item) => {
+          const weight = item.weight > 0 ? item.weight : 500;
+          return sum + (weight * item.quantity);
+        }, 0);
+
+        // Gọi API tính phí ship
+        const shippingResponse = await axiosInstance.post('/cart-checkout/calculate-shipping', {
           toDistrictId: defaultAddress.districtId,
           toWardCode: defaultAddress.wardCode,
           weight: totalWeight,
           length: 30,
           width: 20,
-          height: 10,
+          height: 10
+        }).catch(error => {
+          console.log('Lỗi khi tính phí ship:', error);
+          return { data: 22000 };
         });
-        setShippingFee(response.data || 0);
+
+        // Kiểm tra component còn mounted không
+        if (!isMounted) return;
+
+        // Xử lý response phí ship
+        const fee = typeof shippingResponse.data === 'number' ? 
+          shippingResponse.data : 22000;
+
+        console.log('Phí vận chuyển:', fee);
+        setShippingFee(fee);
+
       } catch (error) {
-        toast.error(error.response?.data?.message || 'Lỗi khi tính phí vận chuyển', {
-          position: 'top-right',
-          autoClose: 3000,
-        });
-        setShippingFee(0);
+        console.error('Lỗi khi tính phí vận chuyển:', error);
+        if (isMounted) setShippingFee(22000);
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     };
-    if (cartItems.length > 0) fetchShippingFee();
-  }, [cartItems]);
+
+    fetchShippingFee();
+
+    // Cleanup function
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, [safeCartItems]); // Thay đổi dependency từ cartItems sang safeCartItems
 
   const total = subtotal + shippingFee;
 

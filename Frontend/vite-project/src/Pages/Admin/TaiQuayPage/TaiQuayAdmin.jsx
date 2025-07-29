@@ -164,7 +164,7 @@ const TaiQuayAdmin = () => {
     }
   };
 
-  // Fetch vouchers Chọn Địa Chỉ
+  // Fetch vouchers - chỉ load voucher PUBLIC cho admin bán hàng tại quầy
   const fetchVouchers = async () => {
     try {
       setIsLoading(true);
@@ -207,25 +207,63 @@ const TaiQuayAdmin = () => {
 
   // Fetch applied voucher details
   const fetchAppliedVoucher = async (voucherCode) => {
-    if (!voucherCode) {
+    // Kiểm tra và làm sạch voucherCode
+    if (!voucherCode || voucherCode === 'null' || voucherCode === 'undefined' || voucherCode.trim() === '') {
+      console.log('⚠️ [TaiQuay] Invalid voucher code:', voucherCode);
       setAppliedVoucher(null);
       return;
     }
+    
+    // Làm sạch voucherCode - loại bỏ "null" ở đầu nếu có
+    const cleanVoucherCode = voucherCode.replace(/^null/i, '').trim();
+    if (!cleanVoucherCode) {
+      console.log('⚠️ [TaiQuay] Empty voucher code after cleaning:', voucherCode);
+      setAppliedVoucher(null);
+      return;
+    }
+    
     try {
+      console.log('🔍 [TaiQuay] Fetching voucher with code:', cleanVoucherCode);
+      
+      // Thử API mới trước - lấy voucher theo code chính xác
+      try {
+        const directResponse = await VoucherApi.getVoucherByCode(cleanVoucherCode);
+        if (directResponse.data) {
+          console.log('✅ [TaiQuay] Found voucher via direct API:', directResponse.data);
+          setAppliedVoucher(directResponse.data);
+          return;
+        }
+      } catch (directError) {
+        console.log('⚠️ [TaiQuay] Direct API failed, trying search API:', directError.message);
+      }
+      
+      // Fallback: sử dụng search API chỉ cho voucher PUBLIC
       const response = await VoucherApi.searchVouchers({
         page: 0,
-        size: 1,
-        code: voucherCode,
+        size: 10,
+        code: cleanVoucherCode,
         status: 'ACTIVE',
         typeUser: 'PUBLIC',
       });
-      if (response.data.content.length > 0) {
-        setAppliedVoucher(response.data.content[0]);
+      
+      console.log('📋 [TaiQuay] Voucher search response:', response.data);
+      
+      if (response.data.content && response.data.content.length > 0) {
+        // Tìm voucher có code khớp chính xác
+        const exactMatch = response.data.content.find(v => v.code === voucherCode);
+        if (exactMatch) {
+          console.log('✅ [TaiQuay] Found exact voucher match via search:', exactMatch);
+          setAppliedVoucher(exactMatch);
+        } else {
+          console.log('⚠️ [TaiQuay] No exact code match found in search results');
+          setAppliedVoucher(response.data.content[0]); // Fallback to first result
+        }
       } else {
+        console.log('❌ [TaiQuay] No vouchers found');
         setAppliedVoucher(null);
       }
     } catch (error) {
-      console.warn('Failed to fetch voucher details:', error);
+      console.error('❌ [TaiQuay] Failed to fetch voucher details:', error);
       setAppliedVoucher(null);
     }
   };
@@ -315,6 +353,8 @@ const TaiQuayAdmin = () => {
     }
     try {
       setIsLoading(true);
+      console.log('🛒 [TaiQuay] Adding product to bill:', { productDetailId, quantity, billId: selectedBill.id });
+      
       await axiosInstance.post(`/bill-details/${selectedBill.id}`, {
         productDetailId,
         quantity,
@@ -327,6 +367,7 @@ const TaiQuayAdmin = () => {
       setProductQuantities((prev) => ({ ...prev, [productDetailId]: 1 }));
       toast.success('Thêm sản phẩm thành công');
     } catch (error) {
+      console.error('❌ [TaiQuay] Add product failed:', error);
       toast.error(error.response?.data?.message || 'Không thể thêm sản phẩm');
     } finally {
       setIsLoading(false);
@@ -341,11 +382,14 @@ const TaiQuayAdmin = () => {
     }
     try {
       setIsLoading(true);
+      console.log('📝 [TaiQuay] Updating quantity:', { billDetailId, quantity });
+      
       await axiosInstance.put(`/bill-details/${billDetailId}/quantity`, null, { params: { quantity } });
       await fetchBillDetails(selectedBill.id);
       await fetchBills();
       toast.success('Cập nhật số lượng thành công');
     } catch (error) {
+      console.error('❌ [TaiQuay] Update quantity failed:', error);
       toast.error(error.response?.data?.message || 'Không thể cập nhật số lượng');
     } finally {
       setIsLoading(false);
@@ -358,7 +402,7 @@ const TaiQuayAdmin = () => {
       setIsLoading(true);
       await axiosInstance.delete(`/bill-details/${billDetailId}`);
       await fetchBillDetails(selectedBill.id);
-      await fetchBills();
+      await fetchBills(); // fetchBills đã có logic update selectedBill
       toast.success('Xóa sản phẩm thành công');
     } catch (error) {
       toast.error(error.response?.data?.message || 'Không thể xóa sản phẩm');
@@ -373,18 +417,52 @@ const TaiQuayAdmin = () => {
       toast.error('Vui lòng chọn hóa đơn');
       return;
     }
-    const trimmedVoucherCode = voucherCode.trim();
+    
+    // Kiểm tra và làm sạch voucherCode
+    if (!voucherCode || voucherCode === 'null' || voucherCode === 'undefined') {
+      toast.error('Vui lòng nhập mã voucher hợp lệ');
+      return;
+    }
+    
+    // Làm sạch voucherCode - loại bỏ "null" ở đầu nếu có
+    let cleanVoucherCode = voucherCode.replace(/^null/i, '').trim();
+    if (!cleanVoucherCode) {
+      toast.error('Mã voucher không hợp lệ');
+      return;
+    }
+    
+    console.log('🏷️ [TaiQuay] Applying voucher:', { 
+      originalCode: voucherCode, 
+      cleanCode: cleanVoucherCode,
+      billId: selectedBill.id 
+    });
+    
     try {
       setIsLoading(true);
       const response = await axiosInstance.post(`/bills/${selectedBill.id}/voucher`, null, {
-        params: { voucherCode: trimmedVoucherCode || null },
+        params: { voucherCode: cleanVoucherCode },
       });
+      
+      console.log('✅ [TaiQuay] Voucher applied successfully:', response.data);
+      console.log('🔍 [TaiQuay] Response data type:', typeof response.data, Array.isArray(response.data));
+      
+      // Validate response data
+      if (!response.data || Array.isArray(response.data) || typeof response.data !== 'object') {
+        throw new Error('Invalid response format from server');
+      }
+      
       setSelectedBill(response.data);
       setVoucherCode(response.data.voucherCode || '');
       await fetchBills();
-      await fetchAppliedVoucher(response.data.voucherCode);
+      
+      // Only fetch applied voucher if we have a valid voucher code
+      if (response.data.voucherCode) {
+        await fetchAppliedVoucher(response.data.voucherCode);
+      }
+      
       toast.success('Áp dụng voucher thành công');
     } catch (error) {
+      console.error('❌ [TaiQuay] Voucher apply failed:', error);
       toast.error(error.response?.data?.message || 'Không thể áp dụng voucher');
     } finally {
       setIsLoading(false);
@@ -589,9 +667,13 @@ const TaiQuayAdmin = () => {
   // Fetch applied voucher when selectedBill changes
   useEffect(() => {
     if (selectedBill && selectedBill.voucherCode) {
+      setVoucherCode(selectedBill.voucherCode); // Sync voucherCode với selectedBill
       fetchAppliedVoucher(selectedBill.voucherCode);
     } else {
       setAppliedVoucher(null);
+      if (selectedBill) {
+        setVoucherCode(''); // Reset voucherCode khi selectedBill không có voucher
+      }
     }
   }, [selectedBill]);
 
@@ -620,13 +702,15 @@ const TaiQuayAdmin = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6 font-sans">
       <ToastContainer
-        position="top-right"
+        position="top-center"
         autoClose={3000}
         hideProgressBar={false}
         newestOnTop
         closeOnClick
         pauseOnHover
         theme="light"
+        limit={5}
+        containerId="taiQuayToast"
       />
       <BillManagement
         bills={bills}
