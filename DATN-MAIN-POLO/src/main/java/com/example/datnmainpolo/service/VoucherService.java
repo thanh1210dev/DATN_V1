@@ -8,6 +8,7 @@ import com.example.datnmainpolo.enums.VoucherTypeUser;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 public interface VoucherService {
     PaginationResponse<VoucherResponseDTO> findByCodeAndNameAndStartTimeAndEndTimeAndStatusAndPriceAndTypeUser(
@@ -27,4 +28,12 @@ public interface VoucherService {
     void updateExpiredVouchers();
 
     void updateActiveVouchers();
+
+    // Methods for client API
+    List<VoucherResponseDTO> getAvailableVouchersForUser(Integer userId, BigDecimal orderAmount);
+    
+    // Method for client checkout - only PRIVATE vouchers assigned to user
+    List<VoucherResponseDTO> getPrivateVouchersForUser(Integer userId, BigDecimal orderAmount);
+
+    VoucherResponseDTO getVoucherByCodeForUser(String code, Integer userId, BigDecimal orderAmount);
 }

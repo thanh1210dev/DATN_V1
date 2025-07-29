@@ -55,16 +55,24 @@ public interface VoucherRepository extends JpaRepository<Voucher, Integer> {
 
     List<Voucher> findByStatusInAndDeletedFalse(Collection<PromotionStatus> statuses);
 
-    // Enforce uniqueness by adding stricter conditions
-    @Query("SELECT v FROM Voucher v WHERE v.code = :code AND v.deleted = false " +
-            "AND v.typeUser = com.example.datnmainpolo.enums.VoucherTypeUser.PUBLIC " +
-            "AND v.status = com.example.datnmainpolo.enums.PromotionStatus.ACTIVE")
+    // Find voucher by code - only PUBLIC and ACTIVE vouchers - case insensitive
+    @Query("SELECT v FROM Voucher v WHERE UPPER(v.code) = UPPER(:code) AND v.deleted = false AND v.typeUser = com.example.datnmainpolo.enums.VoucherTypeUser.PUBLIC AND v.status = com.example.datnmainpolo.enums.PromotionStatus.ACTIVE")
     Optional<Voucher> findByCodeAndDeletedFalse(@Param("code") String code);
+
+    // Find any voucher by code (both PUBLIC and PRIVATE) - only non-deleted - case insensitive
+    @Query("SELECT v FROM Voucher v WHERE UPPER(v.code) = UPPER(:code) AND v.deleted = false")
+    Optional<Voucher> findByCodeAndNotDeleted(@Param("code") String code);
 
     @Query("SELECT v FROM Voucher v WHERE v.typeUser = :typeUser AND v.status = :status AND v.deleted = false")
     List<Voucher> findByTypeUserAndStatusAndDeletedFalse(VoucherTypeUser typeUser, PromotionStatus status);
 
     List<Voucher> findByTypeUserAndDeletedFalse(VoucherTypeUser typeUser);
 
+    // Method for client API
+    List<Voucher> findByStatusAndEndTimeAfterAndQuantityGreaterThan(PromotionStatus status, Instant endTime, Integer quantity);
+
+    // Find voucher by code - case insensitive
+    @Query("SELECT v FROM Voucher v WHERE UPPER(v.code) = UPPER(:code)")
+    Optional<Voucher> findByCode(@Param("code") String code);
 
 }

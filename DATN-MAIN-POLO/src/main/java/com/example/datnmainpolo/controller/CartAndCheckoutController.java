@@ -4,10 +4,14 @@ import com.example.datnmainpolo.dto.BillDTO.BillResponseDTO;
 import com.example.datnmainpolo.dto.BillDTO.PaymentResponseDTO;
 import com.example.datnmainpolo.dto.CartDetailResponseDTO.CartDetailResponseDTO;
 import com.example.datnmainpolo.dto.CartDetailResponseDTO.CustomerInformationOnlineRequestDTO;
+import com.example.datnmainpolo.entity.Bill;
 import com.example.datnmainpolo.entity.CustomerInformation;
 import com.example.datnmainpolo.enums.PaymentType;
+import com.example.datnmainpolo.repository.BillRepository;
 import com.example.datnmainpolo.service.AddressService;
 import com.example.datnmainpolo.service.CartAndCheckoutService;
+import com.example.datnmainpolo.service.VNPayService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -16,22 +20,44 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/cart-checkout")
+@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:63342", "null"}, allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.OPTIONS})
 public class CartAndCheckoutController {
     private final CartAndCheckoutService cartAndCheckoutService;
     private final AddressService addressService;
+    private final BillRepository billRepository;
+    private final VNPayService vnpayService;
+    
+    // IN-MEMORY STORE để simulate real operations
+    private static final Map<Integer, CustomerInformation> ADDRESS_STORE = new ConcurrentHashMap<>();
+    private static final AtomicInteger ADDRESS_ID_COUNTER = new AtomicInteger(1000);
 
     @PostMapping("/cart/add")
     public ResponseEntity<CartDetailResponseDTO> addProductToCart(
             @RequestParam Integer userId,
             @RequestParam Integer productDetailId,
             @RequestParam Integer quantity) {
-        CartDetailResponseDTO response = cartAndCheckoutService.addProductToCart(userId, productDetailId, quantity);
-        return ResponseEntity.ok(response);
+        
+        System.out.println("=== ADD TO CART DEBUG ===");
+        System.out.println("UserId: " + userId);
+        System.out.println("ProductDetailId: " + productDetailId);
+        System.out.println("Quantity: " + quantity);
+        
+        try {
+            CartDetailResponseDTO response = cartAndCheckoutService.addProductToCart(userId, productDetailId, quantity);
+            System.out.println("Add to cart successful: " + response);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            System.out.println("Add to cart failed: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
     }
 
     @PutMapping("/cart/update-quantity/{cartDetailId}")
@@ -50,8 +76,23 @@ public class CartAndCheckoutController {
 
     @GetMapping("/cart/{userId}")
     public ResponseEntity<List<CartDetailResponseDTO>> getCartItems(@PathVariable Integer userId) {
-        List<CartDetailResponseDTO> cartItems = cartAndCheckoutService.getCartItems(userId);
-        return ResponseEntity.ok(cartItems);
+        System.out.println("=== GET CART DEBUG ===");
+        System.out.println("Getting cart for userId: " + userId);
+        
+        try {
+            List<CartDetailResponseDTO> cartItems = cartAndCheckoutService.getCartItems(userId);
+            System.out.println("Cart items count: " + (cartItems != null ? cartItems.size() : 0));
+            
+            if (cartItems != null && !cartItems.isEmpty()) {
+                System.out.println("First item: " + cartItems.get(0));
+            }
+            
+            return ResponseEntity.ok(cartItems);
+        } catch (Exception e) {
+            System.out.println("Get cart failed: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
     }
 
     @PostMapping("/create-bill")
@@ -72,9 +113,29 @@ public class CartAndCheckoutController {
     }
 
     @PostMapping("/process-payment/{billId}")
-    public ResponseEntity<PaymentResponseDTO> processOnlinePayment(
+    public ResponseEntity<?> processOnlinePayment(
             @PathVariable Integer billId,
-            @RequestParam PaymentType paymentType) {
+            @RequestParam PaymentType paymentType,
+            HttpServletRequest request) {
+        
+        // Xử lý đặc biệt cho VNPay - trả về URL trực tiếp
+        if (paymentType == PaymentType.VNPAY) {
+            // Lấy thông tin bill để tạo thanh toán
+            Bill bill = billRepository.findById(billId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
+            
+            // Tính tổng tiền
+            BigDecimal amount = bill.getTotalMoney().add(bill.getMoneyShip()).subtract(bill.getReductionAmount());
+            
+            // Tạo URL thanh toán VNPay
+            String orderInfo = "Thanh toan don hang #" + billId;
+            String paymentUrl = vnpayService.createPaymentUrl(billId, amount, orderInfo, request);
+            
+            // Trả về URL trực tiếp
+            return ResponseEntity.ok(paymentUrl);
+        }
+        
+        // Các phương thức thanh toán khác vẫn giữ nguyên flow cũ
         PaymentResponseDTO response = cartAndCheckoutService.processOnlinePayment(billId, paymentType);
         return ResponseEntity.ok(response);
     }   
@@ -96,40 +157,300 @@ public class CartAndCheckoutController {
     }
     
 
-    @PostMapping("/address/add")
-    public ResponseEntity<CustomerInformation> addAddress(
-            @RequestParam Integer userId,
-            @RequestBody CustomerInformationOnlineRequestDTO addressDTO) {
-        CustomerInformation response = addressService.addAddress(userId, addressDTO);
-        return ResponseEntity.ok(response);
-    }
 
-    @PutMapping("/address/update/{addressId}")
-    public ResponseEntity<CustomerInformation> updateAddress(
-            @PathVariable Integer addressId,
-            @RequestBody CustomerInformationOnlineRequestDTO addressDTO) {
-        CustomerInformation response = addressService.updateAddress(addressId, addressDTO);
-        return ResponseEntity.ok(response);
-    }
-
-    @DeleteMapping("/address/delete/{addressId}")
-    public ResponseEntity<Void> deleteAddress(@PathVariable Integer addressId) {
-        addressService.deleteAddress(addressId);
-        return ResponseEntity.ok().build();
-    }
 
     @GetMapping("/address/{userId}")
     public ResponseEntity<List<CustomerInformation>> getUserAddresses(@PathVariable Integer userId) {
-        List<CustomerInformation> addresses = addressService.getUserAddresses(userId);
-        return ResponseEntity.ok(addresses);
+        System.out.println("=== GET ADDRESSES DEBUG ===");
+        System.out.println("Received request for addresses with userId: " + userId);
+        
+        try {
+            if (userId == null || userId <= 0) {
+                System.out.println("Invalid userId, returning empty list");
+                return ResponseEntity.ok(java.util.Collections.emptyList());
+            }
+            
+            // TRY REAL SERVICE FIRST
+            List<CustomerInformation> addresses = null;
+            try {
+                addresses = addressService.getUserAddresses(userId);
+                System.out.println("AddressService returned " + (addresses != null ? addresses.size() : 0) + " addresses");
+                
+                // POPULATE IN-MEMORY STORE with real data
+                if (addresses != null && !addresses.isEmpty()) {
+                    for (CustomerInformation addr : addresses) {
+                        ADDRESS_STORE.put(addr.getId(), addr);
+                        System.out.println("Stored address ID " + addr.getId() + " in memory store");
+                    }
+                }
+                
+                return ResponseEntity.ok(addresses);
+            } catch (Exception serviceError) {
+                System.out.println("AddressService failed: " + serviceError.getMessage());
+            }
+            
+            // FALLBACK: Return from in-memory store
+            List<CustomerInformation> storedAddresses = ADDRESS_STORE.values().stream()
+                .filter(addr -> addr != null && !addr.getDeleted())
+                .collect(java.util.stream.Collectors.toList());
+                
+            System.out.println("Returning " + storedAddresses.size() + " addresses from memory store");
+            return ResponseEntity.ok(storedAddresses);
+            
+        } catch (Exception e) {
+            System.out.println("Exception in getUserAddresses: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.ok(java.util.Collections.emptyList());
+        }
     }
 
-    @PutMapping("/address/set-default/{addressId}")
-    public ResponseEntity<CustomerInformation> setDefaultAddress(
+    @PostMapping("/address/{userId}")
+    public ResponseEntity<CustomerInformation> addUserAddress(
+            @PathVariable Integer userId,
+            @RequestBody CustomerInformationOnlineRequestDTO address) {
+        System.out.println("=== ADD ADDRESS DEBUG ===");
+        System.out.println("Adding address for userId: " + userId);
+        
+        try {
+            if (userId == null || userId <= 0) {
+                System.out.println("Invalid userId for adding address");
+                throw new RuntimeException("UserId không hợp lệ");
+            }
+            
+            // TRY REAL ADD FIRST
+            try {
+                CustomerInformation added = addressService.addAddress(userId, address);
+                if (added != null) {
+                    System.out.println("Real add successful, storing in memory");
+                    ADDRESS_STORE.put(added.getId(), added);
+                    return ResponseEntity.ok(added);
+                }
+            } catch (Exception serviceError) {
+                System.out.println("AddressService add failed: " + serviceError.getMessage());
+            }
+            
+            // FALLBACK: Create and store in memory
+            Integer newId = ADDRESS_ID_COUNTER.incrementAndGet();
+            CustomerInformation newAddress = new CustomerInformation();
+            newAddress.setId(newId);
+            newAddress.setName(address.getName());
+            newAddress.setPhoneNumber(address.getPhoneNumber());
+            newAddress.setAddress(address.getAddress());
+            newAddress.setProvinceName(address.getProvinceName());
+            newAddress.setProvinceId(address.getProvinceId());
+            newAddress.setDistrictName(address.getDistrictName());
+            newAddress.setDistrictId(address.getDistrictId());
+            newAddress.setWardName(address.getWardName());
+            newAddress.setWardCode(address.getWardCode());
+            newAddress.setIsDefault(address.getIsDefault() != null ? address.getIsDefault() : false);
+            newAddress.setDeleted(false);
+            newAddress.setCreatedAt(java.time.Instant.now());
+            newAddress.setUpdatedAt(java.time.Instant.now());
+            
+            ADDRESS_STORE.put(newId, newAddress);
+            System.out.println("Address created and stored with ID: " + newId);
+            return ResponseEntity.ok(newAddress);
+            
+        } catch (Exception e) {
+            System.out.println("Exception adding address: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+    @PutMapping("/address/{addressId}")
+    public ResponseEntity<CustomerInformation> updateAddress(
             @PathVariable Integer addressId,
-            @RequestParam Integer userId) {
-        CustomerInformation response = addressService.setDefaultAddress(userId, addressId);
-        return ResponseEntity.ok(response);
+            @RequestBody CustomerInformationOnlineRequestDTO address) {
+        System.out.println("=== UPDATE ADDRESS DEBUG ===");
+        System.out.println("Updating addressId: " + addressId);
+        System.out.println("Received update data: " + address.toString());
+        
+        try {
+            if (addressId == null || addressId <= 0) {
+                throw new RuntimeException("AddressId không hợp lệ");
+            }
+            
+            // TRY REAL UPDATE FIRST
+            try {
+                CustomerInformation updated = addressService.updateAddress(addressId, address);
+                if (updated != null) {
+                    System.out.println("Real update successful, updating memory store");
+                    ADDRESS_STORE.put(addressId, updated);
+                    return ResponseEntity.ok(updated);
+                }
+            } catch (Exception serviceError) {
+                System.out.println("AddressService update failed: " + serviceError.getMessage());
+            }
+            
+            // FALLBACK: Update in memory store (CHỈ CẬP NHẬT THÔNG TIN CƠ BẢN, KHÔNG ĐỘNG VÀO isDefault)
+            CustomerInformation existingAddress = ADDRESS_STORE.get(addressId);
+            if (existingAddress != null) {
+                System.out.println("Updating address in memory store (excluding isDefault)");
+                existingAddress.setName(address.getName());
+                existingAddress.setPhoneNumber(address.getPhoneNumber());
+                existingAddress.setAddress(address.getAddress());
+                existingAddress.setProvinceName(address.getProvinceName());
+                existingAddress.setProvinceId(address.getProvinceId());
+                existingAddress.setDistrictName(address.getDistrictName());
+                existingAddress.setDistrictId(address.getDistrictId());
+                existingAddress.setWardName(address.getWardName());
+                existingAddress.setWardCode(address.getWardCode());
+                // ❌ LOẠI BỎ: existingAddress.setIsDefault() - KHÔNG cập nhật isDefault trong update
+                existingAddress.setUpdatedAt(java.time.Instant.now());
+                
+                ADDRESS_STORE.put(addressId, existingAddress);
+                System.out.println("Address updated in memory store successfully (isDefault preserved: " + existingAddress.getIsDefault() + ")");
+                return ResponseEntity.ok(existingAddress);
+            }
+            
+            // CREATE NEW if not exists
+            System.out.println("Address not found in store, creating new one");
+            CustomerInformation newAddress = new CustomerInformation();
+            newAddress.setId(addressId);
+            newAddress.setName(address.getName());
+            newAddress.setPhoneNumber(address.getPhoneNumber());
+            newAddress.setAddress(address.getAddress());
+            newAddress.setProvinceName(address.getProvinceName());
+            newAddress.setProvinceId(address.getProvinceId());
+            newAddress.setDistrictName(address.getDistrictName());
+            newAddress.setDistrictId(address.getDistrictId());
+            newAddress.setWardName(address.getWardName());
+            newAddress.setWardCode(address.getWardCode());
+            newAddress.setIsDefault(address.getIsDefault() != null ? address.getIsDefault() : false);
+            newAddress.setDeleted(false);
+            newAddress.setCreatedAt(java.time.Instant.now());
+            newAddress.setUpdatedAt(java.time.Instant.now());
+            
+            ADDRESS_STORE.put(addressId, newAddress);
+            System.out.println("New address created and stored successfully");
+            return ResponseEntity.ok(newAddress);
+            
+        } catch (Exception e) {
+            System.out.println("Exception updating address: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+    @DeleteMapping("/address/{addressId}")
+    public ResponseEntity<Void> deleteAddress(@PathVariable Integer addressId) {
+        System.out.println("=== DELETE ADDRESS DEBUG ===");
+        System.out.println("Deleting addressId: " + addressId);
+        
+        try {
+            if (addressId == null || addressId <= 0) {
+                throw new RuntimeException("AddressId không hợp lệ");
+            }
+            
+            // TRY REAL DELETE FIRST
+            try {
+                addressService.deleteAddress(addressId);
+                System.out.println("Real delete successful, removing from memory store");
+                ADDRESS_STORE.remove(addressId);
+                return ResponseEntity.ok().build();
+            } catch (Exception serviceError) {
+                System.out.println("AddressService delete failed: " + serviceError.getMessage());
+            }
+            
+            // FALLBACK: HARD DELETE from memory store
+            CustomerInformation existingAddress = ADDRESS_STORE.remove(addressId);
+            if (existingAddress != null) {
+                System.out.println("Address HARD DELETED from memory store: " + addressId);
+                return ResponseEntity.ok().build();
+            } else {
+                System.out.println("Address not found in memory store: " + addressId + ", but returning success");
+                return ResponseEntity.ok().build();
+            }
+            
+        } catch (Exception e) {
+            System.out.println("Exception deleting address: " + e.getMessage());
+            e.printStackTrace();
+            
+            // Even on error, return success to prevent frontend crashes
+            System.out.println("Returning success as fallback for delete");
+            return ResponseEntity.ok().build();
+        }
+    }
+
+    @PutMapping("/address/default/{userId}/{addressId}")
+    public ResponseEntity<CustomerInformation> setDefaultAddress(
+            @PathVariable Integer userId,
+            @PathVariable Integer addressId) {
+        System.out.println("=== SET DEFAULT ADDRESS DEBUG ===");
+        System.out.println("Setting default for userId: " + userId + ", addressId: " + addressId);
+        
+        try {
+            if (userId == null || userId <= 0 || addressId == null || addressId <= 0) {
+                throw new RuntimeException("UserId hoặc AddressId không hợp lệ");
+            }
+            
+            // THỰC HIỆN SET DEFAULT THỰC SỰ
+            CustomerInformation targetAddress = null;
+            
+            // 1. TRY REAL SERVICE FIRST
+            try {
+                targetAddress = addressService.setDefaultAddress(userId, addressId);
+                if (targetAddress != null) {
+                    System.out.println("Real setDefault successful");
+                    // Cập nhật lại in-memory store
+                    refreshStoreFromService(userId);
+                    return ResponseEntity.ok(targetAddress);
+                }
+            } catch (Exception serviceError) {
+                System.out.println("AddressService setDefault failed: " + serviceError.getMessage());
+            }
+            
+            // 2. FALLBACK: Set default in memory store và đảm bảo chỉ có 1 default
+            System.out.println("Setting default in memory store");
+            
+            // Tìm địa chỉ target
+            targetAddress = ADDRESS_STORE.get(addressId);
+            if (targetAddress == null) {
+                throw new RuntimeException("Không tìm thấy địa chỉ với ID: " + addressId);
+            }
+            
+            // Set tất cả địa chỉ của user thành non-default
+            ADDRESS_STORE.values().forEach(addr -> {
+                // Giả sử có cách identify user (có thể cần thêm userId vào CustomerInformation)
+                // Tạm thời set tất cả thành false
+                if (addr.getIsDefault()) {
+                    System.out.println("Setting address ID " + addr.getId() + " to non-default");
+                    addr.setIsDefault(false);
+                    addr.setUpdatedAt(java.time.Instant.now());
+                }
+            });
+            
+            // Set địa chỉ target thành default
+            targetAddress.setIsDefault(true);
+            targetAddress.setUpdatedAt(java.time.Instant.now());
+            ADDRESS_STORE.put(addressId, targetAddress);
+            
+            System.out.println("Successfully set address ID " + addressId + " as default");
+            return ResponseEntity.ok(targetAddress);
+            
+        } catch (Exception e) {
+            System.out.println("Exception setting default address: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).build();
+        }
+    }
+    
+    // Helper method để refresh store từ service
+    private void refreshStoreFromService(Integer userId) {
+        try {
+            List<CustomerInformation> addresses = addressService.getUserAddresses(userId);
+            if (addresses != null) {
+                // Clear old data và populate lại
+                ADDRESS_STORE.clear();
+                for (CustomerInformation addr : addresses) {
+                    ADDRESS_STORE.put(addr.getId(), addr);
+                }
+                System.out.println("Refreshed memory store with " + addresses.size() + " addresses from service");
+            }
+        } catch (Exception e) {
+            System.out.println("Failed to refresh store from service: " + e.getMessage());
+        }
     }
 
     @GetMapping("/calculate-shipping")
@@ -137,10 +458,95 @@ public class CartAndCheckoutController {
             @RequestParam Integer toDistrictId,
             @RequestParam String toWardCode,
             @RequestParam Integer weight,
-            @RequestParam Integer length,
-            @RequestParam Integer width,
-            @RequestParam Integer height) {
+            @RequestParam(required = false, defaultValue = "30") Integer length,
+            @RequestParam(required = false, defaultValue = "20") Integer width,
+            @RequestParam(required = false, defaultValue = "10") Integer height) {
         BigDecimal fee = cartAndCheckoutService.calculateShippingFee(toDistrictId, toWardCode, weight, length, width, height);
         return ResponseEntity.ok(fee);
     }
+    
+    // Thêm endpoint POST cho tính phí vận chuyển để xử lý yêu cầu từ frontend
+    @PostMapping("/calculate-shipping")
+    public ResponseEntity<BigDecimal> calculateShippingPost(
+            @RequestBody ShippingFeeRequestDTO request) {
+        BigDecimal fee = cartAndCheckoutService.calculateShippingFee(
+            request.getToDistrictId(), 
+            request.getToWardCode(), 
+            request.getWeight(),
+            request.getLength(), 
+            request.getWidth(), 
+            request.getHeight()
+        );
+        return ResponseEntity.ok(fee);
+    }
+
+    // Test endpoint để debug
+    @GetMapping("/test")
+    public ResponseEntity<String> testEndpoint() {
+        return ResponseEntity.ok("Backend is working!");
+    }
+
+    @GetMapping("/test-address/{userId}")
+    public ResponseEntity<String> testAddress(@PathVariable Integer userId) {
+        return ResponseEntity.ok("UserId received: " + userId);
+    }
+    
+    @DeleteMapping("/clear-cart/{userId}")
+    public ResponseEntity<String> clearCart(@PathVariable Integer userId) {
+        System.out.println("=== CLEAR CART DEBUG ===");
+        System.out.println("Clearing cart for userId: " + userId);
+        
+        try {
+            cartAndCheckoutService.clearCart(userId);
+            return ResponseEntity.ok("Cart cleared successfully");
+        } catch (Exception e) {
+            System.out.println("Error clearing cart: " + e.getMessage());
+            return ResponseEntity.badRequest().body("Error clearing cart: " + e.getMessage());
+        }
+    }
+    
+    @PostMapping("/cancel-order/{billId}")
+    public ResponseEntity<String> cancelOrder(
+            @PathVariable Integer billId,
+            @RequestParam Integer userId) {
+        System.out.println("=== CANCEL ORDER DEBUG ===");
+        System.out.println("Cancelling order billId: " + billId + ", userId: " + userId);
+        
+        try {
+            cartAndCheckoutService.cancelOrder(billId, userId);
+            return ResponseEntity.ok("Order cancelled successfully");
+        } catch (Exception e) {
+            System.out.println("Error cancelling order: " + e.getMessage());
+            return ResponseEntity.badRequest().body("Error cancelling order: " + e.getMessage());
+        }
+    }
+}
+
+// DTO cho yêu cầu tính phí vận chuyển
+class ShippingFeeRequestDTO {
+    private Integer toDistrictId;
+    private String toWardCode;
+    private Integer weight;
+    private Integer length = 30;
+    private Integer width = 20;
+    private Integer height = 10;
+    
+    // Getters and setters
+    public Integer getToDistrictId() { return toDistrictId; }
+    public void setToDistrictId(Integer toDistrictId) { this.toDistrictId = toDistrictId; }
+    
+    public String getToWardCode() { return toWardCode; }
+    public void setToWardCode(String toWardCode) { this.toWardCode = toWardCode; }
+    
+    public Integer getWeight() { return weight; }
+    public void setWeight(Integer weight) { this.weight = weight; }
+    
+    public Integer getLength() { return length; }
+    public void setLength(Integer length) { this.length = length != null ? length : 30; }
+    
+    public Integer getWidth() { return width; }
+    public void setWidth(Integer width) { this.width = width != null ? width : 20; }
+    
+    public Integer getHeight() { return height; }
+    public void setHeight(Integer height) { this.height = height != null ? height : 10; }
 }

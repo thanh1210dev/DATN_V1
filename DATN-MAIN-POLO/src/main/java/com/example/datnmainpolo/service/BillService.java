@@ -19,11 +19,13 @@ public interface BillService {
                                                             Instant startDate, Instant endDate, BigDecimal minPrice,
                                                             BigDecimal maxPrice, int page, int size);
     BillResponseDTO addVoucherToBill(Integer billId, String voucherCode);
+    BillResponseDTO removeVoucherFromBill(Integer billId);
     BillResponseDTO updateBillStatus(Integer billId, OrderStatus newStatus);
     PaymentResponseDTO processPayment(Integer billId, PaymentType paymentType, BigDecimal amount);
     BillResponseDTO confirmBankingPayment(Integer billId);
     String generateInvoice(Integer billId);
     BillResponseDTO getDetail(Integer billId);
+    PaginationResponse<BillResponseDTO> getCustomerBills(Integer customerId, OrderStatus status, int page, int size);
     BillResponseDTO addLoyalCustomerToBill(Integer billId, Integer customerId);
     BillResponseDTO addVisitingGuests(Integer billId, CustomerRequestDTO requestDTO);
     BillResponseDTO addUserToBill(Integer billId, UserRequestDTO userRequestDTO);

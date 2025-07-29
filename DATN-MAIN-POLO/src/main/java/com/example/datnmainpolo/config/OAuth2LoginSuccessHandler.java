@@ -33,11 +33,11 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
         UserEntity user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        String jwtToken = jwtUtil.generateToken(user.getEmail(), user.getRole().name());
+        String jwtToken = jwtUtil.generateToken(user.getEmail(), user.getRole().name(), user.getId());
 
 
         String fullName = user.getName() != null ? user.getName() : "";
-        Long userId = user.getId() != null ? user.getId() : 0L; // Giả sử id là Long
+        Integer userId = user.getId() != null ? user.getId() : 0; // Use Integer not Long
         String role = user.getRole() != null ? user.getRole().name() : "";
 
 

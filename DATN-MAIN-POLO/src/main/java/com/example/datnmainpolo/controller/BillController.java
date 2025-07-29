@@ -90,6 +90,12 @@ public class BillController {
         return ResponseEntity.ok(billService.addVoucherToBill(billId, voucherCode));
     }
 
+    @DeleteMapping("/{billId}/voucher")
+    public ResponseEntity<BillResponseDTO> removeVoucherFromBill(@PathVariable Integer billId) {
+        LOGGER.info("Removing voucher from bill {}", billId);
+        return ResponseEntity.ok(billService.removeVoucherFromBill(billId));
+    }
+
     @PutMapping("/{billId}/status")
     public ResponseEntity<BillResponseDTO> updateBillStatus(
             @PathVariable Integer billId,
@@ -132,6 +138,16 @@ public class BillController {
     public ResponseEntity<BillResponseDTO> getBillDetail(@PathVariable Integer billId) {
         LOGGER.info("Fetching details for bill {}", billId);
         return ResponseEntity.ok(billService.getDetail(billId));
+    }
+
+    @GetMapping("/customer/{customerId}")
+    public ResponseEntity<PaginationResponse<BillResponseDTO>> getCustomerBills(
+            @PathVariable Integer customerId,
+            @RequestParam(required = false) OrderStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        LOGGER.info("Fetching bills for customer {} with status: {}, page: {}, size: {}", customerId, status, page, size);
+        return ResponseEntity.ok(billService.getCustomerBills(customerId, status, page, size));
     }
 
     @GetMapping("/{billId}/details")

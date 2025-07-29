@@ -37,7 +37,7 @@ public class AuthService {
                 .orElseThrow(() -> new RuntimeException("Tài khoản không tồn tại"));
 
         String identifier = user.getEmail() != null ? user.getEmail() : user.getPhoneNumber();
-        String token = jwtUtil.generateToken(identifier, user.getRole().name());
+        String token = jwtUtil.generateToken(identifier, user.getRole().name(), user.getId());
 
         return new LoginResponse(token, user.getName(), user.getRole().name(), user.getId());
     }

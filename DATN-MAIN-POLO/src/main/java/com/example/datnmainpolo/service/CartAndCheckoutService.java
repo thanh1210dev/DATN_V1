@@ -17,6 +17,8 @@ public interface CartAndCheckoutService {
     CartDetailResponseDTO addProductToCart(Integer userId, Integer productDetailId, Integer quantity);
     CartDetailResponseDTO updateCartItemQuantity(Integer cartDetailId, Integer quantity);
     void removeProductFromCart(Integer cartDetailId);
+    void clearCart(Integer userId);
+    void cancelOrder(Integer billId, Integer userId);
     List<CartDetailResponseDTO> getCartItems(Integer userId);
     BillResponseDTO createBillFromCart(Integer userId, Integer addressId, PaymentType paymentType);
     void updateCustomerInformation(Integer billId, Integer addressId);

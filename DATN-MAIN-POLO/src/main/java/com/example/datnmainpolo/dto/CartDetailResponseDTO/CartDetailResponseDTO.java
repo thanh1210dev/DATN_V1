@@ -22,6 +22,7 @@ public class CartDetailResponseDTO {
     private String productColor;
     private String productSize;
     private Integer quantity;
+    private Integer availableQuantity; // Số lượng còn lại trong kho
     private BigDecimal price;
     private BigDecimal totalPrice;
     private List<CartDetailResponseDTO.ImageDTO> images;

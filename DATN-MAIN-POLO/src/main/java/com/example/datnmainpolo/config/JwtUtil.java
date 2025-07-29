@@ -32,12 +32,28 @@ public class JwtUtil {
                 .compact();
     }
 
+    // Overloaded method to include userId
+    public String generateToken(String identifier, String role, Integer userId) {
+        return Jwts.builder()
+                .setSubject(identifier)
+                .claim("role", role)
+                .claim("userId", userId)  // Add userId to token
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION))
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
     public String extractIdentifier(String token) {
         return getClaims(token).getSubject();
     }
 
     public String extractRole(String token) {
         return getClaims(token).get("role", String.class);
+    }
+
+    public Integer extractUserId(String token) {
+        return getClaims(token).get("userId", Integer.class);
     }
 
     public boolean isTokenValid(String token) {

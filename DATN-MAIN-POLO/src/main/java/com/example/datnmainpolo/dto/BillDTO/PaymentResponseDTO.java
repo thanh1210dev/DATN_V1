@@ -7,17 +7,15 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 
-import java.math.BigDecimal;
-
 @Getter
 @Setter
 @Builder
 public class PaymentResponseDTO {
     private BillResponseDTO bill;
-
     private Integer billId;
     private PaymentType paymentType;
     private BigDecimal amount;
+    private String paymentUrl; // URL thanh toán VNPay
     private String qrCode;
     private String bankAccount;
     private String bankName;

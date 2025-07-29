@@ -1,5 +1,6 @@
 package com.example.datnmainpolo.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -63,6 +64,7 @@ public class CustomerInformation {
     @Column(name = "deleted")
     private Boolean deleted;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id")
     private UserEntity customer;

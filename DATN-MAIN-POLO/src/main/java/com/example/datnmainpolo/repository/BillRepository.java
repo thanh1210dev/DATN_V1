@@ -52,4 +52,5 @@ public interface BillRepository extends JpaRepository<Bill, Integer> {
             Pageable pageable);
 
     Page<Bill> findByCustomerIdAndDeletedFalse(Integer userId, Pageable pageable);
+    Page<Bill> findByCustomerIdAndStatusAndDeletedFalse(Integer customerId, OrderStatus status, Pageable pageable);
 }

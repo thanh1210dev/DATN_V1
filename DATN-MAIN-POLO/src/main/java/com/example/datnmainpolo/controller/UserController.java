@@ -1,5 +1,6 @@
 package com.example.datnmainpolo.controller;
 
+import com.example.datnmainpolo.config.JwtUtil;
 import com.example.datnmainpolo.dto.LoginDTO.LoginRequest;
 import com.example.datnmainpolo.dto.LoginDTO.LoginResponse;
 import com.example.datnmainpolo.dto.LoginDTO.RegisterRequest;
@@ -17,12 +18,15 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/user")
 @RequiredArgsConstructor
 public class UserController {
     private final AuthService authService;
+    private final JwtUtil jwtUtil;
     @Autowired
     private UserService userService;
 
@@ -116,5 +120,30 @@ public class UserController {
             @RequestParam(defaultValue = "10") int size) {
         return userService.findByPhoneNumberOrNameOrEmailAndRole(
                 phoneNumber, name, email, Role.CLIENT, page, size);
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<Map<String, Object>> getCurrentUser(@RequestHeader("Authorization") String token) {
+        try {
+            // Remove "Bearer " prefix
+            String jwtToken = token.substring(7);
+            
+            if (jwtUtil.isTokenValid(jwtToken)) {
+                String email = jwtUtil.extractIdentifier(jwtToken);
+                String role = jwtUtil.extractRole(jwtToken);
+                Integer userId = jwtUtil.extractUserId(jwtToken);
+                
+                Map<String, Object> userInfo = new HashMap<>();
+                userInfo.put("id", userId);
+                userInfo.put("email", email);
+                userInfo.put("role", role);
+                
+                return ResponseEntity.ok(userInfo);
+            } else {
+                return ResponseEntity.status(401).build();
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(401).build();
+        }
     }
 }
