@@ -8,6 +8,7 @@ import OrderSummary from './OrderSummary';
 import axiosInstance from '../../../Service/axiosInstance';
 import AuthService from '../../../Service/AuthService';
 import { redirectToVnpay, safePaymentHandler } from '../../../utils/paymentUtils';
+import { getCurrentUserId } from '../../../utils/userUtils';
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -82,18 +83,26 @@ const Checkout = () => {
           return;
         }
         
-        // Sử dụng user.id trực tiếp từ AuthService (đã là số)
-        const userId = user.id;
-        console.log('🔍 [CHECKOUT AUTH] Using user.id directly:', userId);
-        
-        if (!userId) {
-          toast.error('Không tìm thấy thông tin người dùng, vui lòng đăng nhập lại', { position: 'top-right', autoClose: 3000 });
+        try {
+          const userId = await getCurrentUserId();
+          console.log('🔍 [CHECKOUT AUTH] User ID from JWT:', userId);
+          
+          if (!userId) {
+            toast.error('Không tìm thấy thông tin người dùng, vui lòng đăng nhập lại', { position: 'top-right', autoClose: 3000 });
+            AuthService.logout();
+            navigate('/login');
+            return;
+          }
+          
+          const response = await axiosInstance.get(`/cart-checkout/cart/${userId}`);
+          setCartItems(response.data);
+        } catch (error) {
+          console.error('🔍 [CHECKOUT AUTH] Error getting user ID or cart:', error);
+          toast.error('Lỗi xác thực, vui lòng đăng nhập lại', { position: 'top-right', autoClose: 3000 });
           AuthService.logout();
           navigate('/login');
           return;
         }
-        const response = await axiosInstance.get(`/cart-checkout/cart/${userId}`);
-        setCartItems(response.data);
       } catch (error) {
         toast.error(error.response?.data?.message || 'Lỗi khi lấy giỏ hàng', { position: 'top-right', autoClose: 3000 });
       }
@@ -138,10 +147,10 @@ const Checkout = () => {
           return;
         }
         
-        // Sử dụng user.id trực tiếp
-        const userId = user.id;
+        // Lấy userId từ JWT
+        const userId = await getCurrentUserId();
         if (!userId) {
-          console.error('No userId available for shipping calculation');
+          console.error('Cannot convert email to userId for shipping calculation');
           setShippingFee(22000);
           setIsLoading(false);
           return;
@@ -276,8 +285,8 @@ const Checkout = () => {
         return;
       }
       
-      // Lấy userId trực tiếp từ user object
-      const userId = user.id;
+      // Lấy userId từ JWT
+      const userId = await getCurrentUserId();
       if (!userId) {
         toast.error('Không tìm thấy thông tin người dùng, vui lòng đăng nhập lại', { position: 'top-right', autoClose: 3000 });
         AuthService.logout();

@@ -13,7 +13,6 @@ const MyOrders = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
-  const [cancellingOrderId, setCancellingOrderId] = useState(null);
 
   // Mapping trạng thái đơn hàng
   const statusMapping = {
@@ -131,35 +130,6 @@ const MyOrders = () => {
       setLoading(false);
     }
   }, [currentPage, selectedStatus, navigate]);
-
-  const handleCancelOrder = async (orderId) => {
-    if (!window.confirm('Bạn có chắc chắn muốn hủy đơn hàng này?')) {
-      return;
-    }
-
-    try {
-      setCancellingOrderId(orderId);
-      
-      const user = AuthService.getCurrentUser();
-      if (!user || !user.id) {
-        toast.error('Vui lòng đăng nhập để tiếp tục', { position: 'top-right', autoClose: 3000 });
-        navigate('/login');
-        return;
-      }
-
-      await axiosInstance.post(`/cart-checkout/cancel-order/${orderId}?userId=${user.id}`);
-      
-      toast.success('Hủy đơn hàng thành công!', { position: 'top-right', autoClose: 3000 });
-      
-      // Reload orders để cập nhật trạng thái
-      fetchOrders();
-      
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Lỗi khi hủy đơn hàng', { position: 'top-right', autoClose: 3000 });
-    } finally {
-      setCancellingOrderId(null);
-    }
-  };
 
   useEffect(() => {
     const user = AuthService.getCurrentUser();
@@ -351,17 +321,9 @@ const MyOrders = () => {
                       >
                         Xem chi tiết
                       </Link>
-                      {(order.status === 'PENDING' || order.status === 'CONFIRMING') && (
-                        <button 
-                          onClick={() => handleCancelOrder(order.id)}
-                          disabled={cancellingOrderId === order.id}
-                          className={`text-sm font-medium ${
-                            cancellingOrderId === order.id 
-                              ? 'text-gray-400 cursor-not-allowed' 
-                              : 'text-red-600 hover:text-red-900'
-                          }`}
-                        >
-                          {cancellingOrderId === order.id ? 'Đang hủy...' : 'Hủy đơn'}
+                      {order.status === 'PENDING' && (
+                        <button className="text-red-600 hover:text-red-900 text-sm font-medium">
+                          Hủy đơn
                         </button>
                       )}
                       {order.status === 'COMPLETED' && (

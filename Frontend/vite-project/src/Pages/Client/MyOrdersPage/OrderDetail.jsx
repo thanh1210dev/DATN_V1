@@ -51,17 +51,19 @@ const OrderDetail = () => {
     try {
       setLoading(true);
       
-      // Lấy token để xác thực
-      const token = localStorage.getItem('token');
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      
-      // Lấy thông tin đơn hàng
       const [orderResponse, detailsResponse] = await Promise.all([
-        axiosInstance.get(`/bills/${orderId}`, { headers }),
-        axiosInstance.get(`/bill-details/${orderId}`, { headers })
+        axiosInstance.get(`/bills/${orderId}`),
+        axiosInstance.get(`/bills/${orderId}/details`)
       ]);
       
       setOrder(orderResponse.data);
+      
+      // Check if we got HTML response (authentication error)
+      if (typeof detailsResponse.data === 'string' && detailsResponse.data.includes('<!DOCTYPE html>')) {
+        setOrderDetails([]);
+        toast.error('Lỗi xác thực khi lấy chi tiết đơn hàng', { position: 'top-right', autoClose: 3000 });
+        return;
+      }
       
       // Đảm bảo orderDetails luôn là array
       const details = detailsResponse.data;
@@ -69,8 +71,7 @@ const OrderDetail = () => {
         setOrderDetails(details);
       } else if (details && typeof details === 'object' && details.content) {
         // Nếu API trả về dạng pagination response
-        const content = Array.isArray(details.content) ? details.content : [];
-        setOrderDetails(content);
+        setOrderDetails(Array.isArray(details.content) ? details.content : []);
       } else {
         setOrderDetails([]);
       }
@@ -155,38 +156,38 @@ const OrderDetail = () => {
             <div className="px-6 py-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500 mb-2">Tên người nhận</h4>
-                  <p className="text-sm text-gray-900"> {order.customerName}</p>
-                  <h4 className="text-sm font-medium text-gray-500 mt-2">Số điện thoại</h4>
+                  <h4 className="text-sm font-medium text-gray-500 mb-2">Thông tin người nhận</h4>
+                  <p className="text-sm text-gray-900">{order.customerName}</p>
+                  <h4 className="text-sm font-medium text-gray-500 mb-2">Số điện thoại</h4>
                   <p className="text-sm text-gray-900">{order.phoneNumber}</p>
-                  <h4 className="text-sm font-medium text-gray-500 mt-2">Địa chỉ giao hàng</h4>
+                  <h4 className="text-sm font-medium text-gray-500 mb-2">Địa chỉ giao hàng</h4>
                   <p className="text-sm text-gray-900 mt-2">{order.address}</p>
                 </div>
                 <div>
                   <h4 className="text-sm font-medium text-gray-500 mb-2">Thông tin thanh toán</h4>
-                  <p className="text-sm text-gray-900">Phương thức: {order.type}</p>
+                  <p className="text-sm text-gray-900">Phương thức: {order.type || order.paymentType || 'N/A'}</p>
                   <p className="text-sm text-gray-900">
-                    Trạng thái: {statusMapping[order.status]}
+                    Trạng thái: {statusMapping[order.status] || order.status || 'N/A'}
                   </p>
-                  {/* Hiển thị thông tin thanh toán dựa trên trạng thái và phương thức */}
+                   {/* Hiển thị thông tin thanh toán dựa trên trạng thái và phương thức */}
                   {order.type === 'COD' && order.status !== 'COMPLETED' && (
                     <p className="text-sm text-yellow-600">
-                      Thanh toán khi nhận hàng: {formatPrice(order.finalAmount)}
+                      Thanh toán khi nhận hàng: {formatPrice(order.finalAmount || order.totalAmount || 0)}
                     </p>
                   )}
-                  {order.type === 'ONLINE' && order.customerPayment > 0 && (
+                  {(order.type === 'ONLINE' || order.type === 'BANKING') && (order.customerPayment || 0) > 0 && (
                     <p className="text-sm text-green-600">
-                      Đã thanh toán: {formatPrice(order.customerPayment)}
+                      Đã thanh toán: {formatPrice(order.customerPayment || 0)}
                     </p>
                   )}
-                  {order.type === 'ONLINE' && order.customerPayment === 0 && (
+                  {(order.type === 'ONLINE' || order.type === 'BANKING') && (order.customerPayment || 0) === 0 && (
                     <p className="text-sm text-red-600">
-                      Chưa thanh toán: {formatPrice(order.finalAmount)}
+                      Chưa thanh toán: {formatPrice(order.finalAmount || order.totalAmount || 0)}
                     </p>
                   )}
-                  {order.type === 'COD' && order.status === 'COMPLETED' && order.customerPayment > 0 && (
+                  {order.type === 'COD' && order.status === 'COMPLETED' && (order.customerPayment || 0) > 0 && (
                     <p className="text-sm text-green-600">
-                      Đã thanh toán: {formatPrice(order.customerPayment)}
+                      Đã thanh toán: {formatPrice(order.customerPayment || 0)}
                     </p>
                   )}
                 </div>
@@ -194,7 +195,7 @@ const OrderDetail = () => {
             </div>
           </div>
 
-          {/* Sản phẩm trong đơn hàng */}
+           {/* Sản phẩm trong đơn hàng */}
           <div className="bg-white shadow-sm rounded-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-medium text-gray-900">Sản phẩm đã đặt</h3>
@@ -202,35 +203,42 @@ const OrderDetail = () => {
             <div className="px-6 py-4">
               <div className="space-y-4">
                 {Array.isArray(orderDetails) && orderDetails.length > 0 ? (
-                  orderDetails.map((item) => (
-                    <div key={item.id} className="flex items-center py-4 border-b border-gray-100 last:border-b-0">
+                  orderDetails.map((item, index) => (
+                    <div key={item.id || index} className="flex items-center py-4 border-b border-gray-100 last:border-b-0">
                       <img
                         src={
-                          item.productImage && Array.isArray(item.productImage) && item.productImage.length > 0
+                          // Try multiple possible image field structures
+                          (item.productImage && Array.isArray(item.productImage) && item.productImage.length > 0)
                             ? `http://localhost:8080${item.productImage[0].url}`
+                            : (item.images && Array.isArray(item.images) && item.images.length > 0)
+                            ? `http://localhost:8080${item.images[0].url}`
+                            : (item.productDetailImage && Array.isArray(item.productDetailImage) && item.productDetailImage.length > 0)
+                            ? `http://localhost:8080${item.productDetailImage[0].url}`
                             : 'https://via.placeholder.com/80'
                         }
-                        alt={item.productName}
+                        alt={item.productName || item.name || 'Product'}
                         className="w-20 h-20 object-cover rounded-lg"
                         onError={(e) => {
-                          console.log('🔍 Image load error for:', item.productImage);
                           e.target.src = 'https://via.placeholder.com/80';
                         }}
                       />
                       <div className="ml-4 flex-1">
-                        <h4 className="text-sm font-medium text-gray-900">{item.productName}</h4>
+                        <h4 className="text-sm font-medium text-gray-900">
+                          {item.productName || item.name || 'Tên sản phẩm không có'}
+                        </h4>
                         <p className="text-sm text-gray-500">
-                          Màu: {item.productColor || 'N/A'} | Kích cỡ: {item.productSize || 'N/A'}
+                          Màu: {item.productColor || item.colorName || item.color || 'N/A'} | 
+                          Kích cỡ: {item.productSize || item.sizeName || item.size || 'N/A'}
                         </p>
-                        <p className="text-sm text-gray-500">Số lượng: {item.quantity}</p>
+                        <p className="text-sm text-gray-500">Số lượng: {item.quantity || 0}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-medium text-gray-900">
-                          {formatPrice(item.price)}
+                          {formatPrice(item.totalPrice || item.price || item.unitPrice || 0)}
                         </p>
-                        {item.quantity > 1 && (
-                          <p className="text-xs text-gray-500">
-                            {formatPrice(item.price * item.quantity)} (tổng)
+                        {(item.promotionalPrice && item.promotionalPrice !== (item.price || item.unitPrice)) && (
+                          <p className="text-xs text-gray-500 line-through">
+                            {formatPrice(item.price || item.unitPrice || 0)}
                           </p>
                         )}
                       </div>
@@ -254,16 +262,16 @@ const OrderDetail = () => {
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Tạm tính:</span>
-                  <span className="text-gray-900">{formatPrice(order.totalMoney)}</span>
+                  <span className="text-gray-900">{formatPrice(order.totalMoney || order.subTotal || 0)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Phí vận chuyển:</span>
-                  <span className="text-gray-900">{formatPrice(order.moneyShip)}</span>
+                  <span className="text-gray-900">{formatPrice(order.moneyShip || order.shippingFee || 0)}</span>
                 </div>
-                {order.reductionAmount > 0 && (
+                {(order.reductionAmount || 0) > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Giảm giá:</span>
-                    <span className="text-green-600">-{formatPrice(order.reductionAmount)}</span>
+                    <span className="text-green-600">-{formatPrice(order.reductionAmount || 0)}</span>
                   </div>
                 )}
                 {order.voucherCode && (
@@ -275,7 +283,7 @@ const OrderDetail = () => {
                 <div className="border-t border-gray-200 pt-3">
                   <div className="flex justify-between text-base font-medium">
                     <span className="text-gray-900">Tổng cộng:</span>
-                    <span className="text-indigo-600">{formatPrice(order.finalAmount)}</span>
+                    <span className="text-indigo-600">{formatPrice(order.finalAmount || order.totalAmount || 0)}</span>
                   </div>
                 </div>
               </div>

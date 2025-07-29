@@ -18,12 +18,19 @@ const AuthService = {
         // Ưu tiên lấy User ID số trước từ token
         id = tokenPayload.userId || tokenPayload.id || tokenPayload.accountId || tokenPayload.user_id;
         
+        // Lưu email từ token nếu chưa có trong localStorage
+        const emailFromToken = tokenPayload.sub;
+        if (emailFromToken && !localStorage.getItem("email")) {
+          localStorage.setItem("email", emailFromToken);
+        }
+        
         // Nếu không có userId trong token, thì dùng email (fallback)
         if (!id) {
           id = tokenPayload.sub;
         }
         
         console.log('🔍 [AuthService] Got ID from token:', id);
+        console.log('🔍 [AuthService] Got email from token:', emailFromToken);
         if (id) {
           localStorage.setItem("id", id); // Lưu lại để lần sau không cần decode token
         }

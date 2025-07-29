@@ -504,22 +504,6 @@ public class CartAndCheckoutController {
             return ResponseEntity.badRequest().body("Error clearing cart: " + e.getMessage());
         }
     }
-    
-    @PostMapping("/cancel-order/{billId}")
-    public ResponseEntity<String> cancelOrder(
-            @PathVariable Integer billId,
-            @RequestParam Integer userId) {
-        System.out.println("=== CANCEL ORDER DEBUG ===");
-        System.out.println("Cancelling order billId: " + billId + ", userId: " + userId);
-        
-        try {
-            cartAndCheckoutService.cancelOrder(billId, userId);
-            return ResponseEntity.ok("Order cancelled successfully");
-        } catch (Exception e) {
-            System.out.println("Error cancelling order: " + e.getMessage());
-            return ResponseEntity.badRequest().body("Error cancelling order: " + e.getMessage());
-        }
-    }
 }
 
 // DTO cho yêu cầu tính phí vận chuyển

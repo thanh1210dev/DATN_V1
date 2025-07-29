@@ -460,8 +460,13 @@ public class VoucherServiceImpl implements VoucherService {
         logger.info("Trying to get voucher by code: {}, userId: {}, orderAmount: {}", code, userId, orderAmount);
         Instant now = Instant.now();
         
-        // Find voucher by code, ensuring it's not deleted
-        Optional<Voucher> voucherOpt = voucherRepository.findByCodeAndNotDeleted(code);
+        // Try flexible search first
+        Optional<Voucher> voucherOpt = voucherRepository.findByCodeFlexible(code);
+        
+        // If flexible search fails, try exact match
+        if (voucherOpt.isEmpty()) {
+            voucherOpt = voucherRepository.findByCodeAndNotDeleted(code);
+        }
         
         if (voucherOpt.isEmpty()) {
             logger.warn("Voucher with code {} not found or deleted", code);
@@ -530,6 +535,31 @@ public class VoucherServiceImpl implements VoucherService {
         }
         
         logger.info("Successfully validated voucher {} for user {}", code, userId);
+        return mapToResponseDTO(voucher);
+    }
+    
+    @Override
+    public VoucherResponseDTO getVoucherByCodeInfo(String code) {
+        logger.info("Getting voucher info by code: {}", code);
+        
+        // Try flexible search first
+        Optional<Voucher> voucherOpt = voucherRepository.findByCodeFlexible(code);
+        
+        // If flexible search fails, try exact match
+        if (voucherOpt.isEmpty()) {
+            voucherOpt = voucherRepository.findByCodeAndNotDeleted(code);
+        }
+        
+        if (voucherOpt.isEmpty()) {
+            logger.warn("Voucher with code {} not found or deleted", code);
+            throw new EntityNotFoundException("Mã voucher không tồn tại hoặc đã bị xóa");
+        }
+        
+        Voucher voucher = voucherOpt.get();
+        logger.info("Found voucher: id={}, code={}, type={}, status={}, deleted={}", 
+                   voucher.getId(), voucher.getCode(), voucher.getTypeUser(), voucher.getStatus(), voucher.getDeleted());
+        
+        logger.info("Successfully retrieved voucher info for code {}", code);
         return mapToResponseDTO(voucher);
     }
 }

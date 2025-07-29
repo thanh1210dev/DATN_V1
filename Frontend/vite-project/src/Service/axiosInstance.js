@@ -75,13 +75,23 @@ instance.interceptors.response.use(
 
     const { config, response } = error;
     
-    // Xử lý lỗi 401 Unauthorized - không redirect đến login
+    // Xử lý lỗi 401 Unauthorized
     if (response && response.status === 401) {
-      console.warn('Token expired or invalid. Please login again.');
-      // Có thể clear token và redirect đến login page thay vì để browser tự redirect
-      localStorage.removeItem('token');
-      localStorage.removeItem('userId');
-      // Trả về lỗi thay vì để redirect loop xảy ra
+      console.warn('Token expired or invalid');
+      
+      // Chỉ clear token và redirect nếu đây KHÔNG phải là request test token
+      if (!config?.url?.includes('/api/user/me')) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('userId');
+        localStorage.removeItem('name');
+        localStorage.removeItem('selectedRole');
+        
+        // Redirect về login
+        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+      }
+      
       return Promise.reject(new Error('Authentication required'));
     }
     

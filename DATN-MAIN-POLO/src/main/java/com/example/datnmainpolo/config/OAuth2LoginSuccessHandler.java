@@ -37,7 +37,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
 
         String fullName = user.getName() != null ? user.getName() : "";
-        Integer userId = user.getId() != null ? user.getId() : 0; // Use Integer not Long
+        Integer userId = user.getId() != null ? user.getId() : 0;
         String role = user.getRole() != null ? user.getRole().name() : "";
 
 

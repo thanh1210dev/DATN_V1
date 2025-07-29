@@ -164,61 +164,6 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
     }
 
     @Override
-    @Transactional
-    public void cancelOrder(Integer billId, Integer userId) {
-        LOGGER.info("Cancelling order {} for user {}", billId, userId);
-        
-        try {
-            // Tìm bill theo ID
-            Bill bill = billRepository.findById(billId)
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn hàng"));
-            
-            // Kiểm tra quyền hủy đơn (chỉ người tạo đơn mới được hủy)
-            if (!bill.getCustomer().getId().equals(userId)) {
-                throw new RuntimeException("Bạn không có quyền hủy đơn hàng này");
-            }
-            
-            // Kiểm tra trạng thái đơn hàng (chỉ hủy được khi chưa thanh toán hoặc đang chờ xác nhận)
-            if (bill.getStatus() != OrderStatus.PENDING && bill.getStatus() != OrderStatus.CONFIRMING) {
-                String statusMessage = switch (bill.getStatus()) {
-                    case PAID -> "đã thanh toán";
-                    case DELIVERING -> "đang giao hàng";
-                    case COMPLETED -> "đã hoàn thành";
-                    case CANCELLED -> "đã hủy";
-                    case RETURNED -> "đã trả hàng";
-                    case REFUNDED -> "đã hoàn tiền";
-                    case RETURN_COMPLETED -> "đã trả xong";
-                    default -> "không thể hủy";
-                };
-                throw new RuntimeException("Không thể hủy đơn hàng đã " + statusMessage);
-            }
-            
-            // Cập nhật trạng thái đơn hàng thành CANCELLED
-            bill.setStatus(OrderStatus.CANCELLED);
-            billRepository.save(bill);
-            
-            // Hoàn lại số lượng sản phẩm vào kho
-            List<BillDetail> billDetails = billDetailRepository.findByBillId(billId);
-            for (BillDetail billDetail : billDetails) {
-                ProductDetail productDetail = billDetail.getDetailProduct();
-                Integer currentQuantity = productDetail.getQuantity();
-                Integer returnQuantity = billDetail.getQuantity();
-                productDetail.setQuantity(currentQuantity + returnQuantity);
-                productDetailRepository.save(productDetail);
-                
-                LOGGER.info("Restored {} units of product {} back to inventory", 
-                    returnQuantity, productDetail.getProduct().getName());
-            }
-            
-            LOGGER.info("Successfully cancelled order {} for user {}", billId, userId);
-            
-        } catch (Exception e) {
-            LOGGER.error("Error cancelling order {} for user {}", billId, userId, e);
-            throw new RuntimeException("Lỗi khi hủy đơn hàng: " + e.getMessage());
-        }
-    }
-
-    @Override
     public List<CartDetailResponseDTO> getCartItems(Integer userId) {
         System.out.println("=== GET CART ITEMS DEBUG START ===");
         System.out.println("User ID: " + userId);

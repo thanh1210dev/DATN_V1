@@ -4,6 +4,7 @@ import axiosInstance from '../../../Service/axiosInstance';
 import ShippingForm from './ShippingForm';
 import { HiOutlineTrash } from 'react-icons/hi';
 import AuthService from '../../../Service/AuthService';
+import { getCurrentUserId } from '../../../utils/userUtils';
 
 const AddressSelector = ({ selectedAddressId, setSelectedAddressId, setShippingInfo, onNext }) => {
   const [addresses, setAddresses] = useState([]);
@@ -32,8 +33,9 @@ const AddressSelector = ({ selectedAddressId, setSelectedAddressId, setShippingI
       return null;
     }
     
-    // Sử dụng user.id trực tiếp từ AuthService
-    return user.id;
+    // Lấy userId từ JWT token
+    const userId = await getCurrentUserId();
+    return userId;
   };
 
   useEffect(() => {
@@ -74,10 +76,10 @@ const AddressSelector = ({ selectedAddressId, setSelectedAddressId, setShippingI
           return;
         }
         
-        // Lấy userId từ JWT token thay vì dùng user.id
-        const userId = user.id; // Đã có sẵn từ AuthService
+        // Lấy userId từ JWT token
+        const userId = await getCurrentUserId();
         console.log('=== FETCH ADDRESSES DEBUG ===');
-        console.log('Using user.id directly:', userId);
+        console.log('User ID from JWT:', userId);
         
         if (!userId || isNaN(userId) || parseInt(userId) <= 0) {
           console.log('UserId không hợp lệ:', userId);

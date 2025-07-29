@@ -36,4 +36,7 @@ public interface VoucherService {
     List<VoucherResponseDTO> getPrivateVouchersForUser(Integer userId, BigDecimal orderAmount);
 
     VoucherResponseDTO getVoucherByCodeForUser(String code, Integer userId, BigDecimal orderAmount);
+    
+    // Method to get voucher info by code without validation (for display purposes)
+    VoucherResponseDTO getVoucherByCodeInfo(String code);
 }

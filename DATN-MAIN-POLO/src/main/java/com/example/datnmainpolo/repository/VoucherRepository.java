@@ -75,4 +75,9 @@ public interface VoucherRepository extends JpaRepository<Voucher, Integer> {
     @Query("SELECT v FROM Voucher v WHERE UPPER(v.code) = UPPER(:code)")
     Optional<Voucher> findByCode(@Param("code") String code);
 
+    // Find voucher by code with flexible matching (with or without null prefix)
+    @Query("SELECT v FROM Voucher v WHERE v.deleted = false AND " +
+           "(UPPER(v.code) = UPPER(:code) OR UPPER(v.code) = UPPER(CONCAT('null', :code)) OR UPPER(v.code) = UPPER(REPLACE(:code, 'null', '')))")
+    Optional<Voucher> findByCodeFlexible(@Param("code") String code);
+
 }

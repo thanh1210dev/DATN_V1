@@ -106,12 +106,11 @@ const VoucherSelector = ({ cartItems, setReductionAmount, selectedVoucher, setSe
         return;
       }
 
-      // Kiểm tra điều kiện voucher
-      if (voucherToApply.minOrderValue && cartTotal < voucherToApply.minOrderValue) {
-        toast.error(`Đơn hàng phải có giá trị tối thiểu ${voucherToApply.minOrderValue.toLocaleString('vi-VN')} VND để sử dụng voucher này`, { 
-          position: 'top-right', 
-          autoClose: 3000 
-        });
+      // Validate voucher before applying using the validation endpoint
+      const validationResponse = await axiosInstance.get(`/client/vouchers/validate/${voucherToApply.code}?userId=${userId}&orderAmount=${cartTotal}`);
+      
+      if (!validationResponse.data) {
+        toast.error('Voucher không thể áp dụng với đơn hàng này', { position: 'top-right', autoClose: 3000 });
         return;
       }
 
@@ -143,7 +142,11 @@ const VoucherSelector = ({ cartItems, setReductionAmount, selectedVoucher, setSe
       });
     } catch (error) {
       console.error('Lỗi khi áp dụng voucher:', error);
-      toast.error('Không thể áp dụng voucher. Vui lòng thử lại.', { position: 'top-right', autoClose: 3000 });
+      if (error.response?.status === 400) {
+        toast.error(error.response.data?.error || 'Voucher không thể áp dụng với đơn hàng này', { position: 'top-right', autoClose: 3000 });
+      } else {
+        toast.error('Không thể áp dụng voucher. Vui lòng thử lại.', { position: 'top-right', autoClose: 3000 });
+      }
     } finally {
       setIsApplyingVoucher(false);
     }

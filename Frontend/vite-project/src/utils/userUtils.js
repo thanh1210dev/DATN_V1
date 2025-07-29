@@ -1,48 +1,82 @@
 import axiosInstance from '../Service/axiosInstance';
-import { jwtDecode } from 'jwt-decode';
 
 // Cache để lưu mapping email -> userId
 const userIdCache = new Map();
 
 /**
- * Lấy user ID số từ email hoặc JWT token
+ * Lấy user info từ JWT token (fallback to localStorage)
+ * @returns {Promise<{id: number, email: string, role: string}>} userInfo
+ */
+export const getCurrentUserInfo = async () => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('No token found');
+    }
+
+    // Thử parse từ token trước
+    try {
+      const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+      console.log('🔍 [getCurrentUserInfo] Token payload:', tokenPayload);
+      
+      const userInfo = {
+        id: tokenPayload.userId || tokenPayload.id || parseInt(localStorage.getItem('id')),
+        email: tokenPayload.sub || localStorage.getItem('email'),
+        role: tokenPayload.role || localStorage.getItem('selectedRole')
+      };
+      
+      console.log('🔍 [getCurrentUserInfo] Parsed from token:', userInfo);
+      return userInfo;
+    } catch (parseError) {
+      console.warn('Cannot parse token, falling back to localStorage');
+    }
+
+    // Fallback: lấy từ localStorage
+    const userInfo = {
+      id: parseInt(localStorage.getItem('id')),
+      email: localStorage.getItem('email') || 'unknown@email.com',
+      role: localStorage.getItem('selectedRole') || 'CLIENT'
+    };
+    
+    console.log('🔍 [getCurrentUserInfo] From localStorage:', userInfo);
+    return userInfo;
+  } catch (error) {
+    console.error('Error getting current user info:', error);
+    
+    // Nếu token không hợp lệ, clear localStorage và redirect
+    localStorage.removeItem('token');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('name');
+    localStorage.removeItem('selectedRole');
+    
+    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+    
+    throw new Error('Cannot get current user info');
+  }
+};
+
+/**
+ * Lấy user ID số từ email (sử dụng JWT token)
  * @param {string} email 
  * @returns {Promise<number>} userId
  */
 export const getUserIdByEmail = async (email) => {
   // Kiểm tra cache trước
   if (userIdCache.has(email)) {
-    console.log('✅ [USER UTILS] Got userId from cache:', userIdCache.get(email));
     return userIdCache.get(email);
   }
 
   try {
-    // 1. Thử extract từ JWT token trước (efficient nhất)
-    const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        const decoded = jwtDecode(token);
-        console.log('🔍 [USER UTILS] Decoded token:', decoded);
-        console.log('🔍 [USER UTILS] Checking email match:', decoded.sub, 'vs', email);
-        
-        // Kiểm tra nếu email trong token khớp với email yêu cầu
-        if (decoded.sub === email && decoded.userId) {
-          const userId = decoded.userId;
-          userIdCache.set(email, userId);
-          console.log('✅ [USER UTILS] Got userId from token:', userId);
-          return userId;
-        } else {
-          console.log('🔍 [USER UTILS] Email mismatch or no userId in token');
-        }
-      } catch (jwtError) {
-        console.log('🔍 [USER UTILS] Failed to decode JWT:', jwtError.message);
-      }
-    } else {
-      console.log('🔍 [USER UTILS] No token found');
+    // Thử lấy từ JWT token trước
+    const userInfo = await getCurrentUserInfo();
+    if (userInfo.email === email) {
+      userIdCache.set(email, userInfo.id);
+      return userInfo.id;
     }
 
-    // 2. Thử các endpoint API
-    console.log('🔍 [USER UTILS] Trying API endpoints for email:', email);
+    // Nếu email không khớp với user hiện tại, thử API search
     const endpoints = [
       `/users/by-email/${encodeURIComponent(email)}`,
       `/api/users/email/${encodeURIComponent(email)}`,
@@ -56,7 +90,6 @@ export const getUserIdByEmail = async (email) => {
         if (response.data && (response.data.id || response.data.idUser)) {
           const userId = response.data.id || response.data.idUser;
           userIdCache.set(email, userId); // Cache kết quả
-          console.log('✅ [USER UTILS] Got userId from API:', userId);
           return userId;
         }
       } catch (error) {
@@ -65,26 +98,24 @@ export const getUserIdByEmail = async (email) => {
       }
     }
 
-    // 3. Mapping cứng backup (temporary)
-    console.log('🔍 [USER UTILS] Trying hardcoded mapping for:', email);
-    const hardcodedMapping = {
-      'proanuong1@gmail.com': 1,
-      'thanh1210.dev@gmail.com': 3,  // ✅ Sửa từ 2 thành 3 theo database
-      'admin@example.com': 1,
-      'user@example.com': 2
-    };
-
-    if (hardcodedMapping[email]) {
-      const userId = hardcodedMapping[email];
-      userIdCache.set(email, userId);
-      console.log('✅ [USER UTILS] Got userId from hardcoded mapping:', userId);
-      return userId;
-    }
-
-    console.log('❌ [USER UTILS] Cannot get user ID from email:', email);
-    throw new Error('Cannot get user ID from email');
+    // Nếu không có API nào work, trả về lỗi rõ ràng
+    throw new Error(`Cannot find user ID for email: ${email}`);
   } catch (error) {
     console.error('Error getting user ID by email:', error);
+    throw error;
+  }
+};
+
+/**
+ * Lấy user ID hiện tại từ JWT token (wrapper function tiện lợi)
+ * @returns {Promise<number>} userId
+ */
+export const getCurrentUserId = async () => {
+  try {
+    const userInfo = await getCurrentUserInfo();
+    return userInfo.id;
+  } catch (error) {
+    console.error('Error getting current user ID:', error);
     throw error;
   }
 };
