@@ -116,15 +116,14 @@ public class VoucherServiceImpl implements VoucherService {
     @Override
     @Transactional
     public VoucherResponseDTO createVoucher(VoucherRequestDTO requestDTO) {
-        System.out.println("=== VoucherServiceImpl.createVoucher START ===");
-        System.out.println("RequestDTO: " + requestDTO);
+
         
         try {
             validateRequestDTO(requestDTO);
-            System.out.println("Validation passed");
+    
 
             String newCode = generateUniqueCode(requestDTO.getCode());
-            System.out.println("Generated code: " + newCode);
+    
 
             Voucher voucher = mapToEntity(requestDTO);
             voucher.setCode(newCode);
@@ -133,13 +132,13 @@ public class VoucherServiceImpl implements VoucherService {
             voucher.setUpdatedAt(Instant.now());
             voucher.setDeleted(false);
 
-            System.out.println("Finding user with ID: " + requestDTO.getCreatedByUserId());
+    
             UserEntity user = userEntityRepository.findById(requestDTO.getCreatedByUserId())
                     .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy người dùng"));
             voucher.setCreatedByUser(user);
-            System.out.println("User found: " + user.getName());
+    
 
-            System.out.println("Saving voucher to database...");
+    
             voucher = voucherRepository.save(voucher);
             System.out.println("Voucher saved with ID: " + voucher.getId());
             
@@ -431,8 +430,8 @@ public class VoucherServiceImpl implements VoucherService {
         
         Instant now = Instant.now();
         
-        // Lấy voucher PRIVATE được phân cho user này
-        List<AccountVoucher> userVouchers = accountVoucherRepository.findByUserEntityIdAndStatusTrueAndDeletedFalse(userId);
+        // Lấy tất cả voucher PRIVATE được phân cho user này (không kiểm tra status)
+        List<AccountVoucher> userVouchers = accountVoucherRepository.findByUserEntityIdAndDeletedFalse(userId);
         logger.info("Found {} AccountVoucher records for userId {}", userVouchers.size(), userId);
         
         List<VoucherResponseDTO> privateVoucherDTOs = userVouchers.stream()
@@ -442,9 +441,15 @@ public class VoucherServiceImpl implements VoucherService {
                                voucher.getId(), voucher.getCode(), voucher.getTypeUser(), 
                                voucher.getStatus(), voucher.getQuantity(), voucher.getDeleted());
                 })
+                .filter(accountVoucher -> {
+                    // Kiểm tra số lượng voucher user có
+                    boolean hasQuantity = accountVoucher.getQuantity() > 0;
+                    logger.info("User voucher quantity check: {} (available: {})", hasQuantity, accountVoucher.getQuantity());
+                    return hasQuantity;
+                })
                 .map(AccountVoucher::getVoucher)
                 .filter(voucher -> {
-                    // Kiểm tra voucher còn hiệu lực
+                    // Kiểm tra voucher còn hiệu lực (từ bảng voucher)
                     boolean isValid = voucher.getStatus() == PromotionStatus.ACTIVE &&
                            voucher.getQuantity() > 0 &&
                            !voucher.getDeleted() &&
@@ -453,7 +458,7 @@ public class VoucherServiceImpl implements VoucherService {
                     return isValid;
                 })
                 .filter(voucher -> {
-                    // Kiểm tra thời gian bắt đầu
+                    // Kiểm tra thời gian bắt đầu (từ bảng voucher)
                     boolean startTimeOk = voucher.getStartTime() == null || 
                            voucher.getStartTime().isBefore(now) || 
                            voucher.getStartTime().equals(now);

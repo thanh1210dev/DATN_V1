@@ -5,21 +5,27 @@ import com.example.datnmainpolo.dto.BillDTO.DeliveryBillAddressRequestDTO;
 import com.example.datnmainpolo.dto.BillDetailDTO.BillDetailCreateDTO;
 import com.example.datnmainpolo.dto.BillDetailDTO.BillDetailResponseDTO;
 import com.example.datnmainpolo.dto.OrderHistoryDTO.OrderHistoryResponseDTO;
+import com.example.datnmainpolo.entity.AccountVoucher;
 import com.example.datnmainpolo.entity.Bill;
 import com.example.datnmainpolo.entity.BillDetail;
 import com.example.datnmainpolo.entity.CustomerInformation;
 import com.example.datnmainpolo.entity.OrderHistory;
+import com.example.datnmainpolo.entity.ProductDetail;
 import com.example.datnmainpolo.entity.Transaction;
 import com.example.datnmainpolo.enums.BillType;
 import com.example.datnmainpolo.enums.OrderStatus;
 import com.example.datnmainpolo.enums.PaymentType;
+import com.example.datnmainpolo.enums.ProductStatus;
 import com.example.datnmainpolo.enums.TransactionStatus;
 import com.example.datnmainpolo.enums.TransactionType;
+import com.example.datnmainpolo.repository.AccountVoucherRepository;
 import com.example.datnmainpolo.repository.BillDetailRepository;
 import com.example.datnmainpolo.repository.BillRepository;
 import com.example.datnmainpolo.repository.CustomerInformationRepository;
 import com.example.datnmainpolo.repository.OrderHistoryRepository;
+import com.example.datnmainpolo.repository.ProductDetailRepository;
 import com.example.datnmainpolo.repository.TransactionRepository;
+import com.example.datnmainpolo.repository.VoucherRepository;
 import com.example.datnmainpolo.service.BillDetailService;
 import com.example.datnmainpolo.service.BillService;
 import com.example.datnmainpolo.service.OnlineOrderConfirmationService;
@@ -41,12 +47,15 @@ public class OnlineOrderConfirmationServiceImpl implements OnlineOrderConfirmati
     private static final Logger LOGGER = LoggerFactory.getLogger(OnlineOrderConfirmationServiceImpl.class);
     private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
 
+    private final AccountVoucherRepository accountVoucherRepository;
     private final BillRepository billRepository;
     private final BillDetailRepository billDetailRepository;
     private final BillService billService;
     private final BillDetailService billDetailService;
     private final OrderHistoryRepository orderHistoryRepository;
+    private final ProductDetailRepository productDetailRepository;
     private final TransactionRepository transactionRepository;
+    private final VoucherRepository voucherRepository;
     private final DeliveryBillService deliveryBillService;
     private final CustomerInformationRepository customerInformationRepository;
 
@@ -168,6 +177,48 @@ public class OnlineOrderConfirmationServiceImpl implements OnlineOrderConfirmati
         // Update BillDetail typeOrder using the service method
         billDetailService.updateBillDetailTypeOrder(billId, newStatus);
 
+        // Trừ số lượng sản phẩm và voucher khi chuyển trạng thái sang CONFIRMING hoặc DELIVERING
+        if (newStatus == OrderStatus.CONFIRMING || newStatus == OrderStatus.DELIVERING) {
+            List<BillDetail> billDetails = billDetailRepository.findByBillId(billId);
+            for (BillDetail billDetail : billDetails) {
+                ProductDetail productDetail = billDetail.getDetailProduct();
+                if (productDetail != null) {
+                    // Trừ số lượng sản phẩm
+                    productDetail.setQuantity(productDetail.getQuantity() - billDetail.getQuantity());
+                    if (productDetail.getQuantity() <= 0) {
+                        productDetail.setStatus(ProductStatus.OUT_OF_STOCK);
+                    }
+                    productDetailRepository.save(productDetail);
+                    LOGGER.info("Updated product {} quantity: -{} (new quantity: {})", 
+                               productDetail.getCode(), billDetail.getQuantity(), productDetail.getQuantity());
+                }
+            }
+            
+            // Trừ số lượng voucher cho COD khi xác nhận
+            if (bill.getType() == PaymentType.COD && bill.getVoucherCode() != null) {
+                try {
+                    // Tìm voucher trong account_voucher của user
+                    AccountVoucher accountVoucher = accountVoucherRepository.findByUserEntityIdAndVoucherIdAndDeletedFalse(
+                        bill.getCustomer().getId(), 
+                        voucherRepository.findByCodeAndDeletedFalse(bill.getVoucherCode()).get().getId()
+                    );
+                    
+                    if (accountVoucher != null && accountVoucher.getQuantity() > 0) {
+                        if (accountVoucher.getQuantity() > 1) {
+                            accountVoucher.setQuantity(accountVoucher.getQuantity() - 1);
+                        } else {
+                            accountVoucher.setStatus(false);
+                        }
+                        accountVoucherRepository.save(accountVoucher);
+                        LOGGER.info("Updated voucher {} quantity for COD order: -1 (new quantity: {})", 
+                                   bill.getVoucherCode(), accountVoucher.getQuantity());
+                    }
+                } catch (Exception e) {
+                    LOGGER.error("Failed to update voucher quantity for COD order", e);
+                }
+            }
+        }
+
         if (newStatus == OrderStatus.COMPLETED) {
             bill.setCompletionDate(Instant.now());
             if (bill.getType() == PaymentType.COD) {
@@ -221,6 +272,11 @@ public class OnlineOrderConfirmationServiceImpl implements OnlineOrderConfirmati
         if (amount.compareTo(bill.getFinalAmount()) < 0) {
             throw new RuntimeException("Số tiền thanh toán COD phải lớn hơn hoặc bằng số tiền cuối cùng của hóa đơn");
         }
+
+        // Cập nhật customerPayment trong bill
+        bill.setCustomerPayment(amount.setScale(2, RoundingMode.HALF_UP));
+        bill.setUpdatedAt(Instant.now());
+        bill.setUpdatedBy("system");
 
         Transaction transaction = transactionRepository.findByBillId(billId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch"));

@@ -319,12 +319,13 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
             BigDecimal totalPrice = price.multiply(BigDecimal.valueOf(cartDetail.getQuantity()));
             savedBill.setTotalMoney(savedBill.getTotalMoney().add(totalPrice));
 
-            // Update inventory
-            productDetail.setQuantity(productDetail.getQuantity() - cartDetail.getQuantity());
-            if (productDetail.getQuantity() <= 0) {
-                productDetail.setStatus(ProductStatus.OUT_OF_STOCK);
-            }
-            productDetailRepository.save(productDetail);
+            // Không trừ số lượng sản phẩm ngay lập tức
+            // Sẽ trừ khi admin xác nhận bill (chuyển trạng thái sang CONFIRMED/SHIPPING)
+            // productDetail.setQuantity(productDetail.getQuantity() - cartDetail.getQuantity());
+            // if (productDetail.getQuantity() <= 0) {
+            //     productDetail.setStatus(ProductStatus.OUT_OF_STOCK);
+            // }
+            // productDetailRepository.save(productDetail);
         }
 
         // Apply best user voucher
@@ -543,12 +544,13 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
             BigDecimal totalPrice = price.multiply(BigDecimal.valueOf(cartDetail.getQuantity()));
             savedBill.setTotalMoney(savedBill.getTotalMoney().add(totalPrice));
 
-            // Update inventory
-            productDetail.setQuantity(productDetail.getQuantity() - cartDetail.getQuantity());
-            if (productDetail.getQuantity() <= 0) {
-                productDetail.setStatus(ProductStatus.OUT_OF_STOCK);
-            }
-            productDetailRepository.save(productDetail);
+            // Không trừ số lượng sản phẩm ngay lập tức
+            // Sẽ trừ khi admin xác nhận bill (chuyển trạng thái sang CONFIRMED/SHIPPING)
+            // productDetail.setQuantity(productDetail.getQuantity() - cartDetail.getQuantity());
+            // if (productDetail.getQuantity() <= 0) {
+            //     productDetail.setStatus(ProductStatus.OUT_OF_STOCK);
+            // }
+            // productDetailRepository.save(productDetail);
         }
 
         // Apply voucher if provided
@@ -562,9 +564,10 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
                     throw new RuntimeException("Voucher không có trong tài khoản của bạn");
                 }
                 
-                if (!accountVoucher.getStatus()) {
-                    throw new RuntimeException("Voucher đã được sử dụng hoặc không còn hiệu lực");
-                }
+                // Bỏ kiểm tra status vì đã bỏ trong getPrivateVouchersForUser
+                // if (!accountVoucher.getStatus()) {
+                //     throw new RuntimeException("Voucher đã được sử dụng hoặc không còn hiệu lực");
+                // }
                 
                 if (accountVoucher.getQuantity() <= 0) {
                     throw new RuntimeException("Voucher đã hết số lượng");
@@ -582,13 +585,16 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
                 savedBill.setVoucherCode(voucher.getCode());
                 savedBill.setVoucherName(voucher.getName());
 
-                // Update voucher quantity
-                if (accountVoucher.getQuantity() > 1) {
-                    accountVoucher.setQuantity(accountVoucher.getQuantity() - 1);
-                } else {
-                    accountVoucher.setStatus(false);
-                }
-                accountVoucherRepository.save(accountVoucher);
+                // Không trừ số lượng voucher ngay lập tức
+                // Sẽ trừ khi:
+                // - COD: Admin xác nhận (CONFIRMING/DELIVERING)
+                // - VNPAY: Thanh toán thành công (PAID)
+                // if (accountVoucher.getQuantity() > 1) {
+                //     accountVoucher.setQuantity(accountVoucher.getQuantity() - 1);
+                // } else {
+                //     accountVoucher.setStatus(false);
+                // }
+                // accountVoucherRepository.save(accountVoucher);
                 
                 System.out.println("Applied voucher: " + voucher.getCode() + ", reduction: " + reductionAmount);
             } catch (Exception e) {

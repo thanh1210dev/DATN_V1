@@ -29,30 +29,22 @@ public class JwtFilter extends OncePerRequestFilter {
         String uri = request.getRequestURI();
         String method = request.getMethod();
         
-        // Log để debug
-        System.out.println("=== JWT FILTER DEBUG ===");
-        System.out.println("URI: " + uri);
-        System.out.println("Method: " + method);
-        
-        // Log authorization header
-        final String debugAuthHeader = request.getHeader("Authorization");
-        System.out.println("Authorization header: " + (debugAuthHeader != null ? debugAuthHeader.substring(0, Math.min(50, debugAuthHeader.length())) + "..." : "null"));
+
         
         // Bỏ qua kiểm tra token cho các endpoint công khai
         if (
                 uri.startsWith("/login") ||
                         uri.startsWith("/oauth2") ||
-                        uri.startsWith("/api") ||
                         uri.startsWith("/v3/api-docs") ||
                         uri.startsWith("/swagger-ui") ||         // bao phủ index.html, *.js, *.css
                         uri.equals("/swagger-ui.html")
         ) {
-            System.out.println("Skipping JWT validation for public endpoint: " + uri);
+
             chain.doFilter(request, response);
             return;
         }
 
-        System.out.println("Applying JWT validation for endpoint: " + uri);
+
         final String authHeader = request.getHeader("Authorization");
 
         if (authHeader != null && authHeader.startsWith("Bearer ")) {

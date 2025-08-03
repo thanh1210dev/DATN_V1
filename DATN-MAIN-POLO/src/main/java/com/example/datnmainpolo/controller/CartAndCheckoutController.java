@@ -159,16 +159,16 @@ public class CartAndCheckoutController {
             return ResponseEntity.ok(paymentUrl);
         }
         
-        // Xử lý cho COD - chỉ cập nhật customerPayment, không ghi đè finalAmount
+        // Xử lý cho COD - không cập nhật customerPayment ngay vì khách chưa trả tiền
         if (paymentType == PaymentType.COD) {
             System.out.println("Processing COD payment with final amount: " + finalAmount);
             System.out.println("Current bill finalAmount (with voucher): " + bill.getFinalAmount());
             
-            // Chỉ cập nhật customerPayment, giữ nguyên finalAmount đã tính voucher
-            bill.setCustomerPayment(finalAmount);
-            billRepository.save(bill);
+            // Không cập nhật customerPayment ngay - sẽ cập nhật khi admin xác nhận khách đã trả tiền
+            // bill.setCustomerPayment(finalAmount);
+            // billRepository.save(bill);
             
-            System.out.println("Updated bill - customerPayment: " + bill.getCustomerPayment() + ", finalAmount: " + bill.getFinalAmount());
+            System.out.println("COD payment - customerPayment will be updated when admin confirms actual payment");
         }
         
         // Các phương thức thanh toán khác vẫn giữ nguyên flow cũ

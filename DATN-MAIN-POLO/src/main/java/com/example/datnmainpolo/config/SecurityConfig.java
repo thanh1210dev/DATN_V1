@@ -34,21 +34,18 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        System.out.println("=== SECURITY CONFIG DEBUG ===");
-        System.out.println("Configuring security filters...");
+
         
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/**").permitAll() // API endpoints hoàn toàn public
                         .requestMatchers("/", "/login/**", "/oauth2/**", "/login/oauth2/**", "/images/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html"
                         ).permitAll()
-                        .requestMatchers("/api/client/vouchers/**").hasAnyAuthority("USER", "ADMIN", "CLIENT")
-                        .requestMatchers("/api/vouchers/**").hasAuthority("ADMIN")
+                        .requestMatchers("/api/**").permitAll() // API endpoints hoàn toàn public - đặt cuối cùng
                         .anyRequest().authenticated()
                 )
 

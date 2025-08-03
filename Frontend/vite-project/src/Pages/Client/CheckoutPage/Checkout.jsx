@@ -30,9 +30,7 @@ const Checkout = () => {
   const [paymentMethod, setPaymentMethodState] = useState('COD');
   const [selectedVoucher, setSelectedVoucher] = useState(null);
   
-  // Debug state changes
   const setPaymentMethod = (value) => {
-    console.log('🔍 [CHECKOUT DEBUG] Setting paymentMethod from:', paymentMethod, 'to:', value);
     setPaymentMethodState(value);
   };
   const [billId, setBillId] = useState(null);
@@ -42,7 +40,6 @@ const Checkout = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleContinueFromAddress = () => {
-    console.log('🔍 [FRONTEND DEBUG] User clicked Continue from Address - NOT creating bill yet');
     setStep(2); // Move to payment step (skipping voucher step)
   };
 
@@ -53,11 +50,9 @@ const Checkout = () => {
         const user = AuthService.getCurrentUser();
         const token = localStorage.getItem('token');
         
-        console.log('🔍 [CHECKOUT AUTH] User:', user);
-        console.log('🔍 [CHECKOUT AUTH] Token exists:', !!token);
+
         
         if (!user || !token) {
-          console.log('🔍 [CHECKOUT AUTH] No auth data, redirecting to login');
           toast.error('Vui lòng đăng nhập để thanh toán', { position: 'top-right', autoClose: 3000 });
           navigate('/login');
           return;
@@ -69,7 +64,6 @@ const Checkout = () => {
           const currentTime = Date.now() / 1000;
           
           if (tokenPayload.exp < currentTime) {
-            console.log('🔍 [CHECKOUT AUTH] Token expired, redirecting to login');
             toast.error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', { position: 'top-right', autoClose: 3000 });
             AuthService.logout();
             navigate('/login');

@@ -13,10 +13,16 @@ const VoucherSelector = ({ cartItems, setReductionAmount, selectedVoucher, setSe
 
   // Tính tổng tiền giỏ hàng
   const cartTotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  
 
-  // Lấy danh sách voucher có thể áp dụng (cả PUBLIC và PRIVATE, còn số lượng, trong thời hạn)
+
+  // Lấy danh sách voucher PRIVATE được phân cho user
   useEffect(() => {
     const fetchAvailableVouchers = async () => {
+      if (cartTotal <= 0) {
+        return;
+      }
+      
       try {
         setIsLoading(true);
         
@@ -33,23 +39,24 @@ const VoucherSelector = ({ cartItems, setReductionAmount, selectedVoucher, setSe
           return;
         }
 
-        // Lấy danh sách tất cả voucher có thể áp dụng (cả PUBLIC và PRIVATE) từ backend
-        const response = await axiosInstance.get(`/api/client/vouchers/available?userId=${userId}&orderAmount=${cartTotal}`);
+        // Lấy danh sách voucher PRIVATE được phân cho user từ backend
+        const response = await axiosInstance.get(`/client/vouchers/private?userId=${userId}&orderAmount=${cartTotal}`);
         
-        console.log('🔍 [VOUCHER DEBUG] Request URL:', `/api/client/vouchers/available?userId=${userId}&orderAmount=${cartTotal}`);
-        console.log('🔍 [VOUCHER DEBUG] Response status:', response.status);
-        console.log('🔍 [VOUCHER DEBUG] Response data:', response.data);
-        console.log('🔍 [VOUCHER DEBUG] Array length:', response.data?.length || 0);
-        console.log('🔍 [VOUCHER DEBUG] Current cartTotal:', cartTotal);
-        
-        // Backend đã lọc tất cả vouchers có thể áp dụng (PUBLIC + PRIVATE), không cần lọc lại ở frontend
-        const vouchers = response.data || [];
-        console.log('🔍 [VOUCHER DEBUG] Setting availableVouchers to:', vouchers);
+        // Kiểm tra response.data có phải là array không
+        let vouchers = [];
+        if (Array.isArray(response.data)) {
+          vouchers = response.data;
+        } else if (typeof response.data === 'string' && response.data.includes('<!DOCTYPE html>')) {
+          // Nếu nhận được HTML (redirect), set empty array
+          vouchers = [];
+        } else {
+          // Nếu response.data không phải array, set empty array
+          vouchers = [];
+        }
         
         // Validate vouchers array
         const validVouchers = vouchers.filter(voucher => {
           if (!voucher || !voucher.id) {
-            console.warn('⚠️ [VOUCHER DEBUG] Invalid voucher found:', voucher);
             return false;
           }
           return true;
@@ -68,9 +75,7 @@ const VoucherSelector = ({ cartItems, setReductionAmount, selectedVoucher, setSe
       }
     };
 
-    if (cartTotal > 0) {
-      fetchAvailableVouchers();
-    }
+    fetchAvailableVouchers();
   }, [cartTotal]);
 
   // Chọn voucher từ danh sách (chưa áp dụng, chỉ preview)
@@ -361,17 +366,12 @@ const VoucherSelector = ({ cartItems, setReductionAmount, selectedVoucher, setSe
           ) : availableVouchers.length === 0 ? (
             <div className="text-center py-4">
               <p className="text-gray-500">Không có voucher nào có thể sử dụng</p>
-              <p className="text-xs text-gray-400 mt-1">Debug: cartTotal = {cartTotal}, vouchers = {availableVouchers.length}</p>
             </div>
           ) : (
             <div className="space-y-3 max-h-64 overflow-y-auto">
-              <p className="text-xs text-gray-400 mb-2">Debug: Hiển thị {availableVouchers.length} voucher(s)</p>
               {availableVouchers.map((voucher, index) => {
-                console.log(`🔍 [VOUCHER RENDER] Voucher ${index}:`, voucher);
-                
                 // Null checking để tránh lỗi
                 if (!voucher || !voucher.id) {
-                  console.warn(`⚠️ [VOUCHER RENDER] Invalid voucher at index ${index}:`, voucher);
                   return null;
                 }
                 

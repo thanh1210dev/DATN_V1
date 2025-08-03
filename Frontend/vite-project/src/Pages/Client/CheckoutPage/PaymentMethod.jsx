@@ -3,12 +3,8 @@ import React from 'react';
 const PaymentMethod = ({ paymentMethod, setPaymentMethod }) => {
   
   const handlePaymentChange = (value) => {
-    console.log('🔍 [PAYMENT METHOD DEBUG] Changing payment method from:', paymentMethod, 'to:', value);
     setPaymentMethod(value);
-    console.log('🔍 [PAYMENT METHOD DEBUG] After setPaymentMethod called');
   };
-
-  console.log('🔍 [PAYMENT METHOD DEBUG] Current paymentMethod prop:', paymentMethod);
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-md">

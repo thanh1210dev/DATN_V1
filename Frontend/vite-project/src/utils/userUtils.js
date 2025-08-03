@@ -17,7 +17,7 @@ export const getCurrentUserInfo = async () => {
     // Thử parse từ token trước
     try {
       const tokenPayload = JSON.parse(atob(token.split('.')[1]));
-      console.log('🔍 [getCurrentUserInfo] Token payload:', tokenPayload);
+  
       
       const userInfo = {
         id: tokenPayload.userId || tokenPayload.id || parseInt(localStorage.getItem('id')),
@@ -25,8 +25,7 @@ export const getCurrentUserInfo = async () => {
         role: tokenPayload.role || localStorage.getItem('selectedRole')
       };
       
-      console.log('🔍 [getCurrentUserInfo] Parsed from token:', userInfo);
-      return userInfo;
+              return userInfo;
     } catch (parseError) {
       console.warn('Cannot parse token, falling back to localStorage');
     }
@@ -38,8 +37,7 @@ export const getCurrentUserInfo = async () => {
       role: localStorage.getItem('selectedRole') || 'CLIENT'
     };
     
-    console.log('🔍 [getCurrentUserInfo] From localStorage:', userInfo);
-    return userInfo;
+            return userInfo;
   } catch (error) {
     console.error('Error getting current user info:', error);
     
@@ -93,7 +91,7 @@ export const getUserIdByEmail = async (email) => {
           return userId;
         }
       } catch (error) {
-        console.log(`Failed to get user ID from ${endpoint}:`, error.message);
+
         continue;
       }
     }

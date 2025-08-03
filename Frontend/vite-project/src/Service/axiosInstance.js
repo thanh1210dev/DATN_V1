@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const instance = axios.create({
   baseURL: 'http://localhost:8080/api',
-  withCredentials: true,
+  withCredentials: true, // Bật lại với CORS đúng cách
   headers: {
     'Accept': 'application/json',
     'Content-Type': 'application/json',
@@ -94,7 +94,7 @@ instance.interceptors.response.use(
       // Chỉ clear token và redirect nếu đây KHÔNG phải là request test token 
       // và KHÔNG trong quá trình thanh toán VNPAY
       if (!config?.url?.includes('/api/user/me') && !isVnpayFlow) {
-        console.log('Clearing authentication due to 401 error');
+
         localStorage.removeItem('token');
         localStorage.removeItem('userId');
         localStorage.removeItem('name');
@@ -102,11 +102,11 @@ instance.interceptors.response.use(
         
         // Redirect về login
         if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-          console.log('Redirecting to login due to authentication failure');
+
           window.location.href = '/login';
         }
       } else if (isVnpayFlow) {
-        console.log('Skipping auto-logout due to VNPAY flow');
+
       }
       
       return Promise.reject(new Error('Authentication required'));
@@ -114,13 +114,13 @@ instance.interceptors.response.use(
     
     // Xử lý endpoint address
     if (isAddressEndpoint(config?.url)) {
-      console.log('Lỗi khi gọi API address:', error.message);
+
       return { data: [] };
     }
     
     // Xử lý endpoint shipping
     if (isShippingEndpoint(config?.url)) {
-      console.log('Lỗi khi tính phí ship:', error.message);
+
       return { data: 22000 };
     }
     

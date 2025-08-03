@@ -272,13 +272,39 @@ public class BillServiceImpl implements BillService {
                 if (newStatus == OrderStatus.CANCELLED) {
                         List<BillDetail> billDetails = billDetailRepository.findByBillId(billId);
                         
-                        // Only restore inventory if it was already reduced 
-                        // COD orders before CONFIRMED status haven't had inventory reduced yet
-                        boolean shouldRestoreInventory = true;
-                        if (bill.getType() == PaymentType.COD && 
-                            (currentStatus == OrderStatus.PENDING || currentStatus == OrderStatus.CONFIRMING)) {
-                                shouldRestoreInventory = false;
-                                LOGGER.info("🔄 COD order cancelled before confirmation - no inventory to restore");
+                        // Logic cộng lại số lượng sản phẩm khi hủy đơn
+                        boolean shouldRestoreInventory = false;
+                        
+                        // COD: Cộng lại nếu đã xác nhận (CONFIRMING/DELIVERING/COMPLETED)
+                        if (bill.getType() == PaymentType.COD) {
+                            if (currentStatus == OrderStatus.CONFIRMING || 
+                                currentStatus == OrderStatus.DELIVERING || 
+                                currentStatus == OrderStatus.COMPLETED) {
+                                shouldRestoreInventory = true;
+                                LOGGER.info("🔄 COD order was confirmed - restoring inventory for cancelled order");
+                            } else {
+                                LOGGER.info("🔄 COD order was not confirmed yet - no inventory to restore");
+                            }
+                        }
+                        // VNPAY: Cộng lại nếu đã thanh toán (PAID)
+                        else if (bill.getType() == PaymentType.VNPAY) {
+                            if (currentStatus == OrderStatus.PAID) {
+                                shouldRestoreInventory = true;
+                                LOGGER.info("🔄 VNPAY order was paid - restoring inventory for cancelled order");
+                            } else {
+                                LOGGER.info("🔄 VNPAY order was not paid yet - no inventory to restore");
+                            }
+                        }
+                        // Các loại thanh toán khác: Cộng lại nếu đã xác nhận
+                        else {
+                            if (currentStatus == OrderStatus.CONFIRMING || 
+                                currentStatus == OrderStatus.DELIVERING || 
+                                currentStatus == OrderStatus.COMPLETED) {
+                                shouldRestoreInventory = true;
+                                LOGGER.info("🔄 Other payment order was confirmed - restoring inventory for cancelled order");
+                            } else {
+                                LOGGER.info("🔄 Other payment order was not confirmed yet - no inventory to restore");
+                            }
                         }
                         
                         if (shouldRestoreInventory) {

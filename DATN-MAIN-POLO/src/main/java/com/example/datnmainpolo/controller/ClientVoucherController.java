@@ -13,7 +13,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/client/vouchers")
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173"}, allowCredentials = "true")
+
 public class ClientVoucherController {
 
     @Autowired
@@ -43,11 +43,7 @@ public class ClientVoucherController {
             @PathVariable String code,
             @RequestParam Integer userId,
             @RequestParam BigDecimal orderAmount) {
-        System.out.println("=== DEBUG USER INFO (INFO ONLY) ===");
-        System.out.println("Received userId: " + userId);
-        System.out.println("Voucher code: " + code);
-        System.out.println("Order amount: " + orderAmount);
-        System.out.println("========================");
+
         
         try {
             // Use getVoucherByCodeInfo() instead for display purposes
@@ -68,11 +64,7 @@ public class ClientVoucherController {
             @PathVariable String code,
             @RequestParam Integer userId,
             @RequestParam BigDecimal orderAmount) {
-        System.out.println("=== DEBUG USER INFO (VALIDATION) ===");
-        System.out.println("Received userId: " + userId);
-        System.out.println("Voucher code: " + code);
-        System.out.println("Order amount: " + orderAmount);
-        System.out.println("========================");
+
         
         try {
             VoucherResponseDTO response = voucherService.getVoucherByCodeForUser(code, userId, orderAmount);

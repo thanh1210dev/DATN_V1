@@ -6,11 +6,14 @@ import com.example.datnmainpolo.entity.Bill;
 import com.example.datnmainpolo.entity.CartDetail;
 import com.example.datnmainpolo.enums.OrderStatus;
 import com.example.datnmainpolo.enums.PaymentType;
+import com.example.datnmainpolo.repository.AccountVoucherRepository;
 import com.example.datnmainpolo.repository.BillRepository;
 import com.example.datnmainpolo.repository.CartRepository;
 import com.example.datnmainpolo.repository.CartDetailRepository;
 import com.example.datnmainpolo.repository.BillDetailRepository;
+import com.example.datnmainpolo.repository.ProductDetailRepository;
 import com.example.datnmainpolo.repository.TransactionRepository;
+import com.example.datnmainpolo.repository.VoucherRepository;
 import com.example.datnmainpolo.repository.OrderHistoryRepository;
 import com.example.datnmainpolo.service.BillService;
 import com.example.datnmainpolo.service.VNPayService;
@@ -35,8 +38,11 @@ public class VNPayServiceImpl implements VNPayService {
     private final BillService billService;
     private final CartDetailRepository cartDetailRepository;
     private final CartRepository cartRepository;
+    private final AccountVoucherRepository accountVoucherRepository;
     private final BillDetailRepository billDetailRepository;
+    private final ProductDetailRepository productDetailRepository;
     private final TransactionRepository transactionRepository;
+    private final VoucherRepository voucherRepository;
     private final OrderHistoryRepository orderHistoryRepository;
 
     @Override
@@ -143,7 +149,7 @@ public class VNPayServiceImpl implements VNPayService {
                 LOGGER.info("✅ Updated bill {} with VNPay payment: customerPayment={}, status={}", 
                     billId, paidAmount, OrderStatus.PAID);
                 
-                // Cập nhật trạng thái tất cả BillDetail thành PAID
+                // Cập nhật trạng thái tất cả BillDetail thành PAID và trừ số lượng sản phẩm
                 try {
                     List<com.example.datnmainpolo.entity.BillDetail> billDetails = 
                         billDetailRepository.findByBillId(billId);
@@ -153,13 +159,64 @@ public class VNPayServiceImpl implements VNPayService {
                         detail.setTypeOrder(OrderStatus.PAID);
                         detail.setUpdatedAt(java.time.Instant.now());
                         detail.setUpdatedBy("VNPAY_SYSTEM");
+                        
+                        // Trừ số lượng sản phẩm khi VNPAY thanh toán thành công
+                        com.example.datnmainpolo.entity.ProductDetail productDetail = detail.getDetailProduct();
+                        if (productDetail != null) {
+                            int availableQuantity = productDetail.getQuantity();
+                            int requiredQuantity = detail.getQuantity();
+                            
+                            if (availableQuantity < requiredQuantity) {
+                                LOGGER.error("❌ Product {} insufficient quantity: available={}, required={}", 
+                                    productDetail.getCode(), availableQuantity, requiredQuantity);
+                                throw new RuntimeException("Sản phẩm " + productDetail.getCode() + 
+                                    " không đủ số lượng trong kho (còn " + availableQuantity + 
+                                    ", cần " + requiredQuantity + ")");
+                            }
+                            
+                            productDetail.setQuantity(availableQuantity - requiredQuantity);
+                            if (productDetail.getQuantity() <= 0) {
+                                productDetail.setStatus(com.example.datnmainpolo.enums.ProductStatus.OUT_OF_STOCK);
+                            }
+                            productDetailRepository.save(productDetail);
+                            LOGGER.info("✅ Reduced product {} quantity: -{} (new quantity: {})", 
+                                productDetail.getCode(), requiredQuantity, productDetail.getQuantity());
+                        }
                     }
                     
                     billDetailRepository.saveAll(billDetails);
-                    LOGGER.info("✅ Updated {} bill details to PAID status for bill {}", 
+                    LOGGER.info("✅ Updated {} bill details to PAID status and reduced inventory for bill {}", 
                         billDetails.size(), billId);
+                    
+                    // Trừ số lượng voucher cho VNPAY khi thanh toán thành công
+                    if (savedBill.getVoucherCode() != null) {
+                        try {
+                            // Tìm voucher trong account_voucher của user
+                            com.example.datnmainpolo.entity.Voucher voucher = voucherRepository.findByCodeAndDeletedFalse(savedBill.getVoucherCode())
+                                .orElse(null);
+                            
+                            if (voucher != null && savedBill.getCustomer() != null) {
+                                com.example.datnmainpolo.entity.AccountVoucher accountVoucher = accountVoucherRepository.findByUserEntityIdAndVoucherIdAndDeletedFalse(
+                                    savedBill.getCustomer().getId(), voucher.getId()
+                                );
+                                
+                                if (accountVoucher != null && accountVoucher.getQuantity() > 0) {
+                                    if (accountVoucher.getQuantity() > 1) {
+                                        accountVoucher.setQuantity(accountVoucher.getQuantity() - 1);
+                                    } else {
+                                        accountVoucher.setStatus(false);
+                                    }
+                                    accountVoucherRepository.save(accountVoucher);
+                                    LOGGER.info("✅ Updated voucher {} quantity for VNPAY payment: -1 (new quantity: {})", 
+                                               savedBill.getVoucherCode(), accountVoucher.getQuantity());
+                                }
+                            }
+                        } catch (Exception e) {
+                            LOGGER.error("❌ Failed to update voucher quantity for VNPAY payment", e);
+                        }
+                    }
                 } catch (Exception e) {
-                    LOGGER.error("❌ Failed to update bill details for bill {}", billId, e);
+                    LOGGER.error("❌ Failed to update bill details or reduce inventory for bill {}", billId, e);
                     // Don't throw exception - payment was successful
                 }
                 
