@@ -34,6 +34,10 @@ public class JwtFilter extends OncePerRequestFilter {
         System.out.println("URI: " + uri);
         System.out.println("Method: " + method);
         
+        // Log authorization header
+        final String debugAuthHeader = request.getHeader("Authorization");
+        System.out.println("Authorization header: " + (debugAuthHeader != null ? debugAuthHeader.substring(0, Math.min(50, debugAuthHeader.length())) + "..." : "null"));
+        
         // Bỏ qua kiểm tra token cho các endpoint công khai
         if (
                 uri.startsWith("/login") ||

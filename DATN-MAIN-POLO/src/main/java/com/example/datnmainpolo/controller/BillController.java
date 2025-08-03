@@ -27,6 +27,7 @@ import java.time.format.DateTimeParseException;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/bills")
+@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173"}, allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS}, allowCredentials = "true")
 public class BillController {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(BillController.class);
@@ -100,8 +101,21 @@ public class BillController {
     public ResponseEntity<BillResponseDTO> updateBillStatus(
             @PathVariable Integer billId,
             @RequestParam OrderStatus status) {
-        LOGGER.info("Updating bill {} status to {}", billId, status);
-        return ResponseEntity.ok(billService.updateBillStatus(billId, status));
+        try {
+            LOGGER.info("🔄 API Request: Updating bill {} status to {}", billId, status);
+            LOGGER.info("🔄 Request received at: {}", java.time.Instant.now());
+            LOGGER.info("🔄 Request parameters - billId: {}, status: {}", billId, status);
+            
+            BillResponseDTO result = billService.updateBillStatus(billId, status);
+            
+            LOGGER.info("✅ API Response: Bill status updated successfully");
+            LOGGER.info("✅ Response data: {}", result != null ? result.getStatus() : "null");
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            LOGGER.error("❌ API Error: Failed to update bill {} status: {}", billId, e.getMessage(), e);
+            LOGGER.error("❌ Full stack trace: ", e);
+            throw e;
+        }
     }
 
     @PostMapping("/{billId}/payment")

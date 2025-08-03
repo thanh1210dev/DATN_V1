@@ -40,6 +40,13 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
 @Transactional
 public CategoryResponseDTO create(CategoryRequestDTO requestDTO, MultipartFile image) {
+    System.out.println("Creating category with code: " + requestDTO.getCode() + ", name: " + requestDTO.getName());
+    
+    // Kiểm tra xem code đã tồn tại chưa
+    if (categoryRepository.existsByCodeAndDeletedFalse(requestDTO.getCode())) {
+        throw new RuntimeException("Mã danh mục đã tồn tại: " + requestDTO.getCode());
+    }
+    
     Category entity = new Category();
     mapToEntity(entity, requestDTO);
     entity.setCreatedAt(Instant.now());
@@ -48,14 +55,25 @@ public CategoryResponseDTO create(CategoryRequestDTO requestDTO, MultipartFile i
     // Xử lý upload ảnh
     if (image != null && !image.isEmpty()) {
         try {
+            System.out.println("Uploading image: " + image.getOriginalFilename());
             String imageUrl = fileStorageService.uploadFile(image);
             entity.setImageUrl(imageUrl);
+            System.out.println("Image uploaded successfully: " + imageUrl);
         } catch (Exception e) {
+            System.err.println("Error uploading image: " + e.getMessage());
             throw new RuntimeException("Lỗi upload ảnh", e);
         }
     }
-    Category saved = categoryRepository.save(entity);
-    return toResponse(saved);
+    
+    try {
+        Category saved = categoryRepository.save(entity);
+        System.out.println("Category saved successfully with ID: " + saved.getId());
+        return toResponse(saved);
+    } catch (Exception e) {
+        System.err.println("Error saving category: " + e.getMessage());
+        e.printStackTrace();
+        throw new RuntimeException("Lỗi lưu danh mục", e);
+    }
 }
 
 @Override

@@ -81,6 +81,21 @@ export const redirectToVnpay = (paymentUrl) => {
 };
 
 /**
+ * Xóa flag VNPAY processing khi cần thiết
+ */
+export const clearVnpayProcessing = () => {
+  sessionStorage.removeItem('vnpayProcessing');
+  sessionStorage.removeItem('vnpayBillId');
+};
+
+/**
+ * Kiểm tra xem có đang trong quá trình thanh toán VNPAY không
+ */
+export const isVnpayProcessing = () => {
+  return sessionStorage.getItem('vnpayProcessing') === 'true';
+};
+
+/**
  * Xử lý sự kiện đặt hàng an toàn
  * @param {Function} paymentHandler - Hàm xử lý thanh toán
  * @returns {Function} - Hàm xử lý sự kiện

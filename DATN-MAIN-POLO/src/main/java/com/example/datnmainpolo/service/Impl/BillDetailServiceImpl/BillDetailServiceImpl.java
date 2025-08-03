@@ -90,7 +90,7 @@ public class BillDetailServiceImpl implements BillDetailService {
         billDetail.setCreatedBy("system");
         billDetail.setUpdatedBy("system");
         billDetail.setDeleted(false);
-
+        //trừ số lượng sản phẩm 
         productDetail.setQuantity(productDetail.getQuantity() - request.getQuantity());
         if (productDetail.getQuantity() <= 0) {
             productDetail.setStatus(ProductStatus.OUT_OF_STOCK);

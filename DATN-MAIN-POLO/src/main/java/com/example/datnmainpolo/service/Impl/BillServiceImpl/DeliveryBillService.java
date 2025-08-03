@@ -133,8 +133,8 @@ public class DeliveryBillService {
         transaction.setUpdatedAt(Instant.now());
         transactionRepository.save(transaction);
 
-        // Apply best public voucher
-        billService.applyBestPublicVoucher(savedBill);
+        // Don't apply public voucher automatically - let user choose in frontend
+        // billService.applyBestPublicVoucher(savedBill);
 
         // Convert to DTO using BillService
         return billService.convertToBillResponseDTO(savedBill);

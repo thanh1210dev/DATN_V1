@@ -22,6 +22,9 @@ public interface AccountVoucherRepository extends JpaRepository<AccountVoucher, 
 
     boolean existsByVoucherIdAndUserEntityIdAndDeletedFalse(Integer voucherId, Integer userId);
 
+    AccountVoucher findByUserEntityIdAndVoucherIdAndDeletedFalse(Integer userId, Integer voucherId);
 
     List<AccountVoucher> findByUserEntityIdAndStatusTrueAndDeletedFalse(Integer userId);
+
+    List<AccountVoucher> findByUserEntityIdAndDeletedFalse(Integer userId);
 }

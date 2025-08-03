@@ -9,6 +9,9 @@ import com.example.datnmainpolo.enums.PaymentType;
 import com.example.datnmainpolo.repository.BillRepository;
 import com.example.datnmainpolo.repository.CartRepository;
 import com.example.datnmainpolo.repository.CartDetailRepository;
+import com.example.datnmainpolo.repository.BillDetailRepository;
+import com.example.datnmainpolo.repository.TransactionRepository;
+import com.example.datnmainpolo.repository.OrderHistoryRepository;
 import com.example.datnmainpolo.service.BillService;
 import com.example.datnmainpolo.service.VNPayService;
 import com.example.datnmainpolo.utils.VNPayUtil;
@@ -32,6 +35,9 @@ public class VNPayServiceImpl implements VNPayService {
     private final BillService billService;
     private final CartDetailRepository cartDetailRepository;
     private final CartRepository cartRepository;
+    private final BillDetailRepository billDetailRepository;
+    private final TransactionRepository transactionRepository;
+    private final OrderHistoryRepository orderHistoryRepository;
 
     @Override
     public String createPaymentUrl(Integer billId, BigDecimal amount, String orderInfo, HttpServletRequest request) {
@@ -121,8 +127,77 @@ public class VNPayServiceImpl implements VNPayService {
                 System.out.println("✅ VNPay payment SUCCESS - will clear cart");
                 LOGGER.info("VNPay payment successful for bill {}", billId);
                 
-                // Update bill status to PAID
-                billService.updateBillStatus(billId, OrderStatus.PAID);
+                // Convert VNPay amount back to normal format
+                BigDecimal paidAmount = new BigDecimal(amount).divide(new BigDecimal(100));
+                LOGGER.info("💰 VNPay payment amount: {} (converted from VNPay format: {})", paidAmount, amount);
+                
+                // Cập nhật thông tin thanh toán cho bill
+                bill.setCustomerPayment(paidAmount);
+                bill.setType(PaymentType.VNPAY);
+                bill.setStatus(OrderStatus.PAID);
+                bill.setUpdatedAt(java.time.Instant.now());
+                bill.setUpdatedBy("VNPAY_SYSTEM");
+                
+                // Lưu bill với thông tin thanh toán đã cập nhật
+                Bill savedBill = billRepository.save(bill);
+                LOGGER.info("✅ Updated bill {} with VNPay payment: customerPayment={}, status={}", 
+                    billId, paidAmount, OrderStatus.PAID);
+                
+                // Cập nhật trạng thái tất cả BillDetail thành PAID
+                try {
+                    List<com.example.datnmainpolo.entity.BillDetail> billDetails = 
+                        billDetailRepository.findByBillId(billId);
+                    
+                    for (com.example.datnmainpolo.entity.BillDetail detail : billDetails) {
+                        detail.setStatus(com.example.datnmainpolo.enums.BillDetailStatus.PAID);
+                        detail.setTypeOrder(OrderStatus.PAID);
+                        detail.setUpdatedAt(java.time.Instant.now());
+                        detail.setUpdatedBy("VNPAY_SYSTEM");
+                    }
+                    
+                    billDetailRepository.saveAll(billDetails);
+                    LOGGER.info("✅ Updated {} bill details to PAID status for bill {}", 
+                        billDetails.size(), billId);
+                } catch (Exception e) {
+                    LOGGER.error("❌ Failed to update bill details for bill {}", billId, e);
+                    // Don't throw exception - payment was successful
+                }
+                
+                // Cập nhật transaction status
+                try {
+                    Optional<com.example.datnmainpolo.entity.Transaction> transactionOpt = 
+                        transactionRepository.findByBillId(billId);
+                    
+                    if (transactionOpt.isPresent()) {
+                        com.example.datnmainpolo.entity.Transaction transaction = transactionOpt.get();
+                        transaction.setStatus(com.example.datnmainpolo.enums.TransactionStatus.SUCCESS);
+                        transaction.setTotalMoney(paidAmount);
+                        transaction.setNote("Thanh toán VNPay thành công");
+                        transaction.setUpdatedAt(java.time.Instant.now());
+                        transactionRepository.save(transaction);
+                        LOGGER.info("✅ Updated transaction for bill {} to SUCCESS", billId);
+                    }
+                } catch (Exception e) {
+                    LOGGER.error("❌ Failed to update transaction for bill {}", billId, e);
+                }
+                
+                // Tạo OrderHistory entry
+                try {
+                    com.example.datnmainpolo.entity.OrderHistory orderHistory = 
+                        new com.example.datnmainpolo.entity.OrderHistory();
+                    orderHistory.setBill(savedBill);
+                    orderHistory.setStatusOrder(OrderStatus.PAID);
+                    orderHistory.setActionDescription("Thanh toán VNPay thành công - Số tiền: " + paidAmount + " VND");
+                    orderHistory.setCreatedAt(java.time.Instant.now());
+                    orderHistory.setUpdatedAt(java.time.Instant.now());
+                    orderHistory.setCreatedBy("VNPAY_SYSTEM");
+                    orderHistory.setUpdatedBy("VNPAY_SYSTEM");
+                    orderHistory.setDeleted(false);
+                    orderHistoryRepository.save(orderHistory);
+                    LOGGER.info("✅ Created order history entry for VNPay payment of bill {}", billId);
+                } catch (Exception e) {
+                    LOGGER.error("❌ Failed to create order history for bill {}", billId, e);
+                }
                 
                 // Clear cart after successful payment
                 try {
@@ -146,9 +221,9 @@ public class VNPayServiceImpl implements VNPayService {
                 
                 // Return payment response
                 return PaymentResponseDTO.builder()
-                        .bill(billService.convertToBillResponseDTO(bill))
+                        .bill(billService.convertToBillResponseDTO(savedBill))
                         .paymentType(PaymentType.VNPAY)
-                        .amount(new BigDecimal(amount).divide(new BigDecimal(100))) // Convert back from VNPay format
+                        .amount(paidAmount) // Use the converted amount
                         .build();
             } else {
                 // Payment failed - do NOT clear cart, keep it for retry

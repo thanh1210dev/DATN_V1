@@ -82,16 +82,26 @@ const CategoryAdmin = () => {
     e.preventDefault();
     try {
       let data = new FormData();
-      data.append(
-        'category',
-        new Blob([JSON.stringify({
-          code: formData.code,
-          name: formData.name
-        })], { type: 'application/json' })
-      );
+      
+      // Tạo category JSON data đúng cách cho Spring Boot @RequestPart
+      const categoryJson = JSON.stringify({
+        code: formData.code,
+        name: formData.name
+      });
+      
+      // Append category data as string with proper content type
+      data.append('category', categoryJson);
+      
+      // Append image file if exists
       if (formData.image && typeof formData.image !== 'string') {
         data.append('image', formData.image);
       }
+      
+      console.log('Sending FormData:');
+      for (let pair of data.entries()) {
+        console.log(pair[0] + ':', pair[1]);
+      }
+      
       if (isEditing) {
         await CategoryService.update(editingId, data);
         toast.success('Cập nhật danh mục thành công!');
@@ -102,7 +112,10 @@ const CategoryAdmin = () => {
       setIsModalOpen(false);
       fetchCategories();
       setPreviewImage(null);
+      // Reset form
+      setFormData({ code: '', name: '', image: null });
     } catch (error) {
+      console.error('Category submission error:', error);
       toast.error(error);
     }
   };

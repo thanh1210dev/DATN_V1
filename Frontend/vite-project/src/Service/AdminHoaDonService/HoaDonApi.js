@@ -112,13 +112,68 @@ const HoaDonApi = {
   // Update bill status and synchronize product statuses
   updateBillStatus: async (billId, newStatus, customerPayment = null) => {
     try {
-      const params = customerPayment !== null ? { newStatus, customerPayment } : { newStatus };
-      const response = await axiosInstance.put(`/online-orders/${billId}/status`, null, {
+      console.log('🔥 updateBillStatus called with:', { billId, newStatus, customerPayment });
+      
+      // Validate inputs
+      if (!billId || !newStatus) {
+        throw new Error('Bill ID and status are required');
+      }
+      
+      // Check axiosInstance
+      if (!axiosInstance) {
+        console.error('❌ axiosInstance is undefined!');
+        throw new Error('HTTP client not available');
+      }
+      
+      console.log('🔥 axiosInstance check passed, defaults:', axiosInstance.defaults);
+      
+      const params = { status: newStatus };
+      if (customerPayment !== null) {
+        params.customerPayment = customerPayment;
+      }
+      
+      const endpoint = `/bills/${billId}/status`;
+      console.log('🌐 API Call Debug:', {
+        endpoint,
+        billId,
+        newStatus,
         params,
+        axiosInstanceExists: !!axiosInstance,
+        baseURL: axiosInstance?.defaults?.baseURL || 'undefined'
       });
+      
+      const response = await axiosInstance.put(endpoint, null, {
+        params,
+        timeout: 10000, // 10 second timeout
+      });
+      
+      console.log('✅ API Response:', response.data);
       return response.data;
     } catch (error) {
-      throw new Error(error.response?.data?.message || 'Lỗi khi cập nhật trạng thái hóa đơn');
+      console.error('❌ API Error:', {
+        endpoint: `/bills/${billId}/status`,
+        error: error.response?.data || error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        config: error.config,
+        code: error.code
+      });
+      
+      // Better error message based on status code
+      let errorMessage = 'Lỗi khi cập nhật trạng thái hóa đơn';
+      if (error.response?.status === 404) {
+        errorMessage = 'Không tìm thấy hóa đơn';
+      } else if (error.response?.status === 400) {
+        errorMessage = error.response?.data?.message || 'Dữ liệu không hợp lệ';
+      } else if (error.response?.status === 500) {
+        errorMessage = 'Lỗi server nội bộ';
+      } else if (error.code === 'ECONNREFUSED') {
+        errorMessage = 'Không thể kết nối đến server';
+      } else if (error.code === 'TIMEOUT') {
+        errorMessage = 'Yêu cầu quá thời gian chờ';
+      }
+      
+      throw new Error(errorMessage);
     }
   },
 

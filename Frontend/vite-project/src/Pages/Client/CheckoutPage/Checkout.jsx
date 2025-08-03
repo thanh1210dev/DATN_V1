@@ -260,6 +260,21 @@ const Checkout = () => {
     calculateShippingFee();
   }, [selectedAddressId, cartItems]);
 
+  // Cleanup effect để xử lý khi user thoát khỏi checkout
+  useEffect(() => {
+    // Cleanup function khi component unmount
+    return () => {
+      // Nếu không phải đang trong quá trình VNPAY, có thể xóa flag
+      const isVnpayFlow = sessionStorage.getItem('vnpayProcessing') === 'true';
+      
+      // Chỉ xóa flag nếu user thực sự thoát khỏi checkout
+      // mà không phải do chuyển hướng sang VNPAY
+      if (!isVnpayFlow) {
+        console.log('Cleaning up checkout session');
+      }
+    };
+  }, []);
+
   const handleCreateBill = async () => {
     if (!selectedAddressId) {
       toast.error('Vui lòng chọn hoặc thêm địa chỉ giao hàng', { position: 'top-right', autoClose: 3000 });
@@ -518,10 +533,17 @@ const Checkout = () => {
         if (response.data) {
           console.log('Đang chuyển hướng đến VNPay với URL:', response.data);
           
+          // Đánh dấu đang trong quá trình thanh toán VNPAY
+          sessionStorage.setItem('vnpayProcessing', 'true');
+          sessionStorage.setItem('vnpayBillId', currentBillId.toString());
+          
           // Sử dụng hàm chuyển hướng an toàn
           const redirectSuccess = redirectToVnpay(response.data);
           
           if (!redirectSuccess) {
+            // Nếu chuyển hướng thất bại, xóa flag
+            sessionStorage.removeItem('vnpayProcessing');
+            sessionStorage.removeItem('vnpayBillId');
             toast.error('Không thể chuyển hướng đến trang thanh toán. Vui lòng thử lại sau.', { position: 'top-right', autoClose: 5000 });
           }
         } else {

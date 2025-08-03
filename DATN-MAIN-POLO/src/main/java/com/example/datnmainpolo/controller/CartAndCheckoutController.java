@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/cart-checkout")
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:63342", "null"}, allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.OPTIONS})
+@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173", "http://localhost:63342"}, allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.OPTIONS}, allowCredentials = "true")
 public class CartAndCheckoutController {
     private final CartAndCheckoutService cartAndCheckoutService;
     private final AddressService addressService;
@@ -99,8 +99,20 @@ public class CartAndCheckoutController {
     public ResponseEntity<BillResponseDTO> createBillFromCart(
             @RequestParam Integer userId,
             @RequestParam Integer addressId,
-            @RequestParam PaymentType paymentType) {
-        BillResponseDTO response = cartAndCheckoutService.createBillFromCart(userId, addressId, paymentType);
+            @RequestParam PaymentType paymentType,
+            @RequestParam(required = false) Integer voucherId) {
+        
+        System.out.println("=== CREATE BILL DEBUG ===");
+        System.out.println("UserId: " + userId);
+        System.out.println("AddressId: " + addressId);
+        System.out.println("PaymentType: " + paymentType);
+        System.out.println("VoucherId: " + voucherId);
+        
+        BillResponseDTO response = cartAndCheckoutService.createBillFromCart(userId, addressId, paymentType, voucherId);
+        
+        System.out.println("Created bill with reduction: " + response.getReductionAmount());
+        System.out.println("Created bill with finalAmount: " + response.getFinalAmount());
+        
         return ResponseEntity.ok(response);
     }
 
@@ -118,21 +130,45 @@ public class CartAndCheckoutController {
             @RequestParam PaymentType paymentType,
             HttpServletRequest request) {
         
+        System.out.println("=== PROCESS PAYMENT DEBUG ===");
+        System.out.println("Bill ID: " + billId + ", Payment Type: " + paymentType);
+        
+        // Lấy thông tin bill để kiểm tra và log
+        Bill bill = billRepository.findById(billId)
+            .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
+        
+        System.out.println("Bill details:");
+        System.out.println("Total Money: " + bill.getTotalMoney());
+        System.out.println("Shipping Fee: " + bill.getMoneyShip());
+        System.out.println("Reduction Amount: " + bill.getReductionAmount());
+        System.out.println("Voucher Code: " + bill.getVoucherCode());
+        
+        // Sử dụng finalAmount hiện tại của bill (đã có voucher) thay vì tính lại
+        BigDecimal finalAmount = bill.getFinalAmount() != null ? bill.getFinalAmount() : 
+                                bill.getTotalMoney().add(bill.getMoneyShip()).subtract(bill.getReductionAmount());
+        System.out.println("Final Amount: " + finalAmount);
+        System.out.println("Using existing bill finalAmount (preserving voucher): " + bill.getFinalAmount());
+        
         // Xử lý đặc biệt cho VNPay - trả về URL trực tiếp
         if (paymentType == PaymentType.VNPAY) {
-            // Lấy thông tin bill để tạo thanh toán
-            Bill bill = billRepository.findById(billId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
-            
-            // Tính tổng tiền
-            BigDecimal amount = bill.getTotalMoney().add(bill.getMoneyShip()).subtract(bill.getReductionAmount());
-            
             // Tạo URL thanh toán VNPay
             String orderInfo = "Thanh toan don hang #" + billId;
-            String paymentUrl = vnpayService.createPaymentUrl(billId, amount, orderInfo, request);
+            String paymentUrl = vnpayService.createPaymentUrl(billId, finalAmount, orderInfo, request);
             
             // Trả về URL trực tiếp
             return ResponseEntity.ok(paymentUrl);
+        }
+        
+        // Xử lý cho COD - chỉ cập nhật customerPayment, không ghi đè finalAmount
+        if (paymentType == PaymentType.COD) {
+            System.out.println("Processing COD payment with final amount: " + finalAmount);
+            System.out.println("Current bill finalAmount (with voucher): " + bill.getFinalAmount());
+            
+            // Chỉ cập nhật customerPayment, giữ nguyên finalAmount đã tính voucher
+            bill.setCustomerPayment(finalAmount);
+            billRepository.save(bill);
+            
+            System.out.println("Updated bill - customerPayment: " + bill.getCustomerPayment() + ", finalAmount: " + bill.getFinalAmount());
         }
         
         // Các phương thức thanh toán khác vẫn giữ nguyên flow cũ

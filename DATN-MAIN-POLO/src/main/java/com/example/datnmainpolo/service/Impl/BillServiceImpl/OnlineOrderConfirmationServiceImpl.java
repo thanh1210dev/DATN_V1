@@ -333,7 +333,8 @@ public class OnlineOrderConfirmationServiceImpl implements OnlineOrderConfirmati
         bill.setUpdatedAt(Instant.now());
         bill.setUpdatedBy("system");
 
-        billService.applyBestPublicVoucher(bill);
+        // Don't apply public voucher automatically - let user choose in frontend
+        // billService.applyBestPublicVoucher(bill);
 
         Bill savedBill = billRepository.save(bill);
 

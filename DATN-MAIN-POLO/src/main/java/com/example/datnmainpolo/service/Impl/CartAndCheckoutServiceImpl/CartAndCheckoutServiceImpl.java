@@ -344,15 +344,21 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
             }
             accountVoucherRepository.save(bestVoucher);
         } else {
-            // Apply public voucher if no user voucher
-            billService.applyBestPublicVoucher(savedBill);
+            // Don't apply public voucher automatically - let user choose in frontend
+            LOGGER.info("No private voucher found for user {}. User can select public vouchers manually in checkout.", userId);
         }
 
         // Update final amount including fixed shipping cost
         savedBill.setFinalAmount(savedBill.getTotalMoney()
                 .subtract(savedBill.getReductionAmount())
                 .add(savedBill.getMoneyShip()));
-        savedBill = billRepository.save(bill);
+        savedBill = billRepository.save(savedBill);
+
+        System.out.println("=== FINAL AMOUNT CALCULATION DEBUG ===");
+        System.out.println("Total Money: " + savedBill.getTotalMoney());
+        System.out.println("Reduction Amount: " + savedBill.getReductionAmount());
+        System.out.println("Shipping Fee: " + savedBill.getMoneyShip());
+        System.out.println("Final Amount: " + savedBill.getFinalAmount());
 
         // Update loyalty points
         BigDecimal loyaltyPoints = savedBill.getFinalAmount().divide(BigDecimal.valueOf(10000), 0, RoundingMode.FLOOR);
@@ -379,6 +385,276 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
         orderHistory.setBill(savedBill);
         orderHistory.setStatusOrder(savedBill.getStatus());
         orderHistory.setActionDescription("Tạo hóa đơn online từ giỏ hàng" + (bestVoucher != null ? " với voucher " + bestVoucher.getVoucher().getCode() : ""));
+        orderHistory.setCreatedAt(Instant.now());
+        orderHistory.setUpdatedAt(Instant.now());
+        orderHistory.setCreatedBy(user.getName());
+        orderHistory.setUpdatedBy(user.getName());
+        orderHistory.setDeleted(false);
+        orderHistoryRepository.save(orderHistory);
+
+        // Create transaction
+        Transaction transaction = new Transaction();
+        transaction.setBill(savedBill);
+        transaction.setType(paymentType == PaymentType.COD ? TransactionType.PAYMENT : TransactionType.ONLINE);
+        transaction.setTotalMoney(savedBill.getFinalAmount());
+        transaction.setStatus(paymentType == PaymentType.COD ? TransactionStatus.PENDING : TransactionStatus.PENDING);
+
+        transaction.setCreatedAt(Instant.now());
+        transaction.setUpdatedAt(Instant.now());
+        transaction.setDeleted(false);
+        transactionRepository.save(transaction);
+
+        return billService.convertToBillResponseDTO(savedBill);
+    }
+
+    @Override
+    @Transactional
+    public BillResponseDTO createBillFromCart(Integer userId, Integer addressId, PaymentType paymentType, Integer voucherId) {
+        System.out.println("=== CREATE BILL WITH VOUCHER DEBUG START ===");
+        System.out.println("User ID: " + userId + ", Address ID: " + addressId + ", Payment Type: " + paymentType + ", Voucher ID: " + voucherId);
+        
+        LOGGER.info("Creating bill from cart for user {} with payment type {}, address {} and voucher {}", userId, paymentType, addressId, voucherId);
+
+        // Validate all required inputs
+        if (userId == null || addressId == null || paymentType == null) {
+            throw new RuntimeException("Thiếu thông tin bắt buộc để tạo hóa đơn");
+        }
+
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng"));
+
+        Cart cart = cartRepository.findByUserEntityId(userId)
+                .orElseThrow(() -> new RuntimeException("Giỏ hàng trống"));
+
+        List<CartDetail> cartDetails = cartDetailRepository.findByCartId(cart.getId());
+        System.out.println("Cart details found: " + cartDetails.size() + " items");
+        if (cartDetails.isEmpty()) {
+            System.out.println("❌ CART IS EMPTY - cannot create bill");
+            throw new RuntimeException("Giỏ hàng không có sản phẩm");
+        }
+
+        CustomerInformation customerInfo = customerInformationRepository.findById(addressId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy địa chỉ"));
+
+        if (!customerInfo.getCustomer().getId().equals(userId)) {
+            throw new RuntimeException("Địa chỉ không thuộc về người dùng này");
+        }
+
+        // Validate address fields
+        try {
+            validateCustomerInformation(convertToCustomerInfoDTO(customerInfo));
+        } catch (Exception e) {
+            LOGGER.error("Lỗi khi xác thực thông tin địa chỉ: {}", e.getMessage());
+            throw new RuntimeException("Địa chỉ không hợp lệ: " + e.getMessage());
+        }
+
+        // Create new bill
+        Bill bill = new Bill();
+        bill.setCode("BILL_ONLINE_" + System.currentTimeMillis());
+        bill.setType(paymentType);
+        bill.setStatus(paymentType == PaymentType.COD ? OrderStatus.CONFIRMING : OrderStatus.PENDING);
+        bill.setBillType(BillType.ONLINE);
+        bill.setCustomer(user);
+        bill.setCustomerName(customerInfo.getName());
+        bill.setPhoneNumber(customerInfo.getPhoneNumber());
+        bill.setAddress(customerInfo.getAddress());
+        bill.setCustomerInfor(customerInfo);
+        bill.setCreatedAt(Instant.now());
+        bill.setUpdatedAt(Instant.now());
+        bill.setCreatedBy(user.getName());
+        bill.setUpdatedBy(user.getName());
+        bill.setDeleted(false);
+        bill.setTotalMoney(ZERO);
+
+        // Tính phí vận chuyển thực tế dựa trên thông tin địa chỉ và tổng khối lượng sản phẩm
+        // Giả sử mỗi sản phẩm có trọng lượng 500g
+        Integer totalWeight = cartDetails.stream()
+                .mapToInt(detail -> 500 * detail.getQuantity())
+                .sum();
+        
+        // Nếu không có sản phẩm hoặc tổng khối lượng quá nhỏ, sử dụng giá trị mặc định
+        if (totalWeight <= 0) {
+            totalWeight = 500;
+        }
+
+        // Tính phí vận chuyển bằng API GHN
+        BigDecimal shippingFee;
+        try {
+            shippingFee = calculateShippingFee(
+                customerInfo.getDistrictId(),
+                customerInfo.getWardCode(),
+                totalWeight,
+                30,  // length - chiều dài mặc định
+                20,  // width - chiều rộng mặc định
+                10   // height - chiều cao mặc định
+            );
+        } catch (Exception e) {
+            LOGGER.error("Lỗi khi tính phí vận chuyển cho hóa đơn mới: {}", e.getMessage());
+            try {
+                // Thử lại với các giá trị mặc định khác nếu có lỗi
+                LOGGER.info("Thử lại tính phí vận chuyển với giá trị mặc định");
+                shippingFee = calculateShippingFee(
+                    customerInfo.getDistrictId(),
+                    customerInfo.getWardCode(),
+                    500,  // weight mặc định 500g
+                    30,   // length
+                    20,   // width
+                    10    // height
+                );
+            } catch (Exception ex) {
+                LOGGER.error("Không thể tính phí vận chuyển, sử dụng giá trị cố định: {}", ex.getMessage());
+                shippingFee = FIXED_SHIPPING_COST;  // Chỉ dùng cố định khi thực sự không tính được
+            }
+        }
+        
+        bill.setMoneyShip(shippingFee);
+        bill.setReductionAmount(ZERO);
+        bill.setFinalAmount(ZERO);
+        bill.setCustomerPayment(ZERO);
+
+        Bill savedBill = billRepository.save(bill);
+
+        // Convert CartDetail to BillDetail
+        for (CartDetail cartDetail : cartDetails) {
+            ProductDetail productDetail = cartDetail.getDetailProduct();
+            if (productDetail.getQuantity() < cartDetail.getQuantity()) {
+                throw new RuntimeException("Số lượng sản phẩm " + productDetail.getCode() + " không đủ trong kho");
+            }
+
+            BillDetail billDetail = new BillDetail();
+            billDetail.setBill(savedBill);
+            billDetail.setDetailProduct(productDetail);
+            billDetail.setQuantity(cartDetail.getQuantity());
+            billDetail.setPrice(productDetail.getPrice());
+            billDetail.setPromotionalPrice(productDetail.getPromotionalPrice());
+            billDetail.setTypeOrder(paymentType == PaymentType.COD ? OrderStatus.CONFIRMING : OrderStatus.PENDING);
+            billDetail.setCreatedAt(Instant.now());
+            billDetail.setUpdatedAt(Instant.now());
+            billDetail.setCreatedBy(user.getName());
+            billDetail.setUpdatedBy(user.getName());
+            billDetail.setDeleted(false);
+
+            billDetailRepository.save(billDetail);
+
+            // Update total bill amount
+            BigDecimal price = productDetail.getPromotionalPrice() != null
+                    ? productDetail.getPromotionalPrice()
+                    : productDetail.getPrice();
+            BigDecimal totalPrice = price.multiply(BigDecimal.valueOf(cartDetail.getQuantity()));
+            savedBill.setTotalMoney(savedBill.getTotalMoney().add(totalPrice));
+
+            // Update inventory
+            productDetail.setQuantity(productDetail.getQuantity() - cartDetail.getQuantity());
+            if (productDetail.getQuantity() <= 0) {
+                productDetail.setStatus(ProductStatus.OUT_OF_STOCK);
+            }
+            productDetailRepository.save(productDetail);
+        }
+
+        // Apply voucher if provided
+        if (voucherId != null) {
+            System.out.println("=== APPLYING VOUCHER ===");
+            try {
+                // Find voucher in user's account vouchers
+                AccountVoucher accountVoucher = accountVoucherRepository.findByUserEntityIdAndVoucherIdAndDeletedFalse(userId, voucherId);
+                
+                if (accountVoucher == null) {
+                    throw new RuntimeException("Voucher không có trong tài khoản của bạn");
+                }
+                
+                if (!accountVoucher.getStatus()) {
+                    throw new RuntimeException("Voucher đã được sử dụng hoặc không còn hiệu lực");
+                }
+                
+                if (accountVoucher.getQuantity() <= 0) {
+                    throw new RuntimeException("Voucher đã hết số lượng");
+                }
+                
+                Voucher voucher = accountVoucher.getVoucher();
+                
+                // Check voucher conditions
+                if (voucher.getMinOrderValue() != null && savedBill.getTotalMoney().compareTo(voucher.getMinOrderValue()) < 0) {
+                    throw new RuntimeException("Đơn hàng chưa đạt giá trị tối thiểu để áp dụng voucher");
+                }
+                
+                BigDecimal reductionAmount = calculateReductionAmount(voucher, savedBill.getTotalMoney());
+                savedBill.setReductionAmount(reductionAmount);
+                savedBill.setVoucherCode(voucher.getCode());
+                savedBill.setVoucherName(voucher.getName());
+
+                // Update voucher quantity
+                if (accountVoucher.getQuantity() > 1) {
+                    accountVoucher.setQuantity(accountVoucher.getQuantity() - 1);
+                } else {
+                    accountVoucher.setStatus(false);
+                }
+                accountVoucherRepository.save(accountVoucher);
+                
+                System.out.println("Applied voucher: " + voucher.getCode() + ", reduction: " + reductionAmount);
+            } catch (Exception e) {
+                System.out.println("Error applying voucher: " + e.getMessage());
+                throw new RuntimeException("Lỗi khi áp dụng voucher: " + e.getMessage());
+            }
+        } else {
+            // Try to apply best user voucher automatically if no specific voucher provided
+            AccountVoucher bestVoucher = applyBestUserVoucher(userId, savedBill.getTotalMoney());
+            if (bestVoucher != null) {
+                Voucher voucher = bestVoucher.getVoucher();
+                BigDecimal reductionAmount = calculateReductionAmount(voucher, savedBill.getTotalMoney());
+                savedBill.setReductionAmount(reductionAmount);
+                savedBill.setVoucherCode(voucher.getCode());
+                savedBill.setVoucherName(voucher.getName());
+
+                // Update voucher quantity or status
+                if (bestVoucher.getQuantity() > 1) {
+                    bestVoucher.setQuantity(bestVoucher.getQuantity() - 1);
+                } else {
+                    bestVoucher.setStatus(false);
+                }
+                accountVoucherRepository.save(bestVoucher);
+            } else {
+                // Don't apply public voucher automatically - let user choose in frontend
+                LOGGER.info("No private voucher found for user {}. User can select public vouchers manually in checkout.", userId);
+            }
+        }
+
+        // Update final amount including fixed shipping cost
+        savedBill.setFinalAmount(savedBill.getTotalMoney()
+                .subtract(savedBill.getReductionAmount())
+                .add(savedBill.getMoneyShip()));
+        savedBill = billRepository.save(savedBill);
+
+        System.out.println("=== FINAL AMOUNT CALCULATION DEBUG ===");
+        System.out.println("Total Money: " + savedBill.getTotalMoney());
+        System.out.println("Reduction Amount: " + savedBill.getReductionAmount());
+        System.out.println("Shipping Fee: " + savedBill.getMoneyShip());
+        System.out.println("Final Amount: " + savedBill.getFinalAmount());
+
+        // Update loyalty points
+        BigDecimal loyaltyPoints = savedBill.getFinalAmount().divide(BigDecimal.valueOf(10000), 0, RoundingMode.FLOOR);
+        user.setLoyaltyPoints(user.getLoyaltyPoints() != null ? user.getLoyaltyPoints() + loyaltyPoints.intValue() : loyaltyPoints.intValue());
+        userRepository.save(user);
+
+        // Clear cart only for COD payment - VNPAY will clear cart after successful callback
+        System.out.println("=== CART CLEARING DEBUG ===");
+        System.out.println("Payment type: " + paymentType);
+        System.out.println("Is COD? " + (paymentType == PaymentType.COD));
+        System.out.println("Is VNPAY? " + (paymentType == PaymentType.VNPAY));
+        
+        if (paymentType == PaymentType.COD) {
+            System.out.println("CLEARING CART for COD payment");
+            cartDetailRepository.deleteAll(cartDetails);
+        } else {
+            System.out.println("NOT CLEARING CART - payment type is: " + paymentType);
+        }
+
+        System.out.println("=== CREATE BILL DEBUG END - Bill ID: " + savedBill.getId() + " ===");
+
+        // Log order history
+        OrderHistory orderHistory = new OrderHistory();
+        orderHistory.setBill(savedBill);
+        orderHistory.setStatusOrder(savedBill.getStatus());
+        orderHistory.setActionDescription("Tạo hóa đơn online từ giỏ hàng" + (savedBill.getVoucherCode() != null ? " với voucher " + savedBill.getVoucherCode() : ""));
         orderHistory.setCreatedAt(Instant.now());
         orderHistory.setUpdatedAt(Instant.now());
         orderHistory.setCreatedBy(user.getName());

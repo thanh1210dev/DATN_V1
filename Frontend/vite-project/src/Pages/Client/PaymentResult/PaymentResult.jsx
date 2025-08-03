@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import axiosInstance from '../../../Service/axiosInstance';
 
 const PaymentResult = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [billStatus, setBillStatus] = useState(null);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -16,20 +18,70 @@ const PaymentResult = () => {
     setLoading(false);
 
     if (status === 'success') {
-      toast.success('Thanh toán VNPay thành công!', { 
-        position: 'top-right', 
-        autoClose: 3000 
-      });
+      // Đặt flag bảo vệ tạm thời để tránh auto-logout trong quá trình chuyển trang
+      sessionStorage.setItem('vnpaySuccessTransition', 'true');
       
-      // Redirect to order detail page after 2 seconds
+      // Gọi API để lấy thông tin bill và kiểm tra trạng thái
+      if (billId) {
+        axiosInstance.get(`/bills/${billId}`)
+        .then(response => {
+          console.log('Bill data after VNPay payment:', response.data);
+          setBillStatus(response.data.status);
+          
+          if (response.data.status === 'PAID') {
+            toast.success('Thanh toán VNPay thành công! Đơn hàng đã được thanh toán.', { 
+              position: 'top-right', 
+              autoClose: 3000 
+            });
+          } else if (response.data.status === 'CONFIRMING') {
+            // Trường hợp đặc biệt nếu vẫn còn trạng thái CONFIRMING
+            toast.success('Thanh toán VNPay thành công! Đơn hàng đang chờ xác nhận.', { 
+              position: 'top-right', 
+              autoClose: 4000 
+            });
+          } else {
+            toast.success('Thanh toán VNPay thành công!', { 
+              position: 'top-right', 
+              autoClose: 3000 
+            });
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching bill data:', error);
+          toast.success('Thanh toán VNPay thành công!', { 
+            position: 'top-right', 
+            autoClose: 3000 
+          });
+        });
+      } else {
+        toast.success('Thanh toán VNPay thành công!', { 
+          position: 'top-right', 
+          autoClose: 3000 
+        });
+      }
+      
+      // Redirect to order detail page after 3 seconds
       setTimeout(() => {
         if (billId) {
+          // Xóa tất cả các flag VNPAY trước khi navigate
+          sessionStorage.removeItem('vnpayProcessing');
+          sessionStorage.removeItem('vnpayBillId');
+          sessionStorage.removeItem('vnpaySuccessTransition');
           navigate(`/order/${billId}`);
         } else {
+          // Xóa tất cả các flag VNPAY trước khi navigate
+          sessionStorage.removeItem('vnpayProcessing');
+          sessionStorage.removeItem('vnpayBillId');
+          sessionStorage.removeItem('vnpaySuccessTransition');
           navigate('/profile/orders');
         }
-      }, 2000);
+      }, 3000);
     } else if (status === 'failed') {
+      // Xóa flag VNPAY processing khi thanh toán thất bại
+      sessionStorage.removeItem('vnpayProcessing');
+      sessionStorage.removeItem('vnpayBillId');
+      sessionStorage.removeItem('vnpaySuccessTransition');
+      
       toast.error(`Thanh toán VNPay thất bại. Mã lỗi: ${error}`, { 
         position: 'top-right', 
         autoClose: 5000 
@@ -40,6 +92,11 @@ const PaymentResult = () => {
         navigate('/cart');
       }, 3000);
     } else if (status === 'error') {
+      // Xóa flag VNPAY processing khi có lỗi
+      sessionStorage.removeItem('vnpayProcessing');
+      sessionStorage.removeItem('vnpayBillId');
+      sessionStorage.removeItem('vnpaySuccessTransition');
+      
       const message = params.get('message');
       toast.error(`Lỗi xử lý thanh toán: ${message}`, { 
         position: 'top-right', 
@@ -79,9 +136,28 @@ const PaymentResult = () => {
               </svg>
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Thanh toán thành công!</h2>
-            <p className="text-gray-600 mb-6">
+            <p className="text-gray-600 mb-4">
               Đơn hàng #{billId} đã được thanh toán thành công qua VNPay.
             </p>
+            {billStatus === 'PAID' ? (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                <p className="text-green-800 text-sm font-medium">
+                  ✅ Đơn hàng đã được thanh toán thành công
+                </p>
+                <p className="text-green-600 text-xs mt-1">
+                  Đơn hàng sẽ được xử lý và giao đến bạn sớm nhất
+                </p>
+              </div>
+            ) : billStatus === 'CONFIRMING' ? (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <p className="text-blue-800 text-sm font-medium">
+                  🔔 Đơn hàng của bạn đang chờ xác nhận từ cửa hàng
+                </p>
+                <p className="text-blue-600 text-xs mt-1">
+                  Chúng tôi sẽ xác nhận và xử lý đơn hàng trong thời gian sớm nhất
+                </p>
+              </div>
+            ) : null}
             <p className="text-sm text-gray-500">Đang chuyển hướng đến trang chi tiết đơn hàng...</p>
           </>
         ) : status === 'failed' ? (

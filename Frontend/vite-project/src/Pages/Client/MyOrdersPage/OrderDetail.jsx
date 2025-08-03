@@ -38,6 +38,10 @@ const OrderDetail = () => {
   };
 
   useEffect(() => {
+    // Xóa flag VNPAY success transition khi vào trang order detail
+    // để đảm bảo không ảnh hưởng đến logic authentication
+    sessionStorage.removeItem('vnpaySuccessTransition');
+    
     const user = AuthService.getCurrentUser();
     if (!user) {
       toast.error('Vui lòng đăng nhập để xem đơn hàng', { position: 'top-right', autoClose: 3000 });
@@ -148,6 +152,34 @@ const OrderDetail = () => {
         </div>
 
         <div className="space-y-6">
+          {/* Thông báo đặc biệt cho trạng thái CONFIRMING */}
+          {order.status === 'CONFIRMING' && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-blue-800">
+                    Đơn hàng đang chờ xác nhận
+                  </h3>
+                  <div className="mt-2 text-sm text-blue-700">
+                    <p>
+                      Đơn hàng của bạn đã được thanh toán thành công và đang chờ xác nhận từ cửa hàng. 
+                      Chúng tôi sẽ xử lý và cập nhật trạng thái đơn hàng trong thời gian sớm nhất.
+                    </p>
+                    <p className="mt-1 font-medium">
+                      Thời gian xác nhận dự kiến: 1-2 giờ trong giờ hành chính
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Thông tin đơn hàng */}
           <div className="bg-white shadow-sm rounded-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">

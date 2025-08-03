@@ -14,7 +14,7 @@ const VoucherSelector = ({ cartItems, setReductionAmount, selectedVoucher, setSe
   // Tính tổng tiền giỏ hàng
   const cartTotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  // Lấy danh sách voucher có thể áp dụng (chỉ PRIVATE được phân cho user này, còn số lượng, trong thời hạn)
+  // Lấy danh sách voucher có thể áp dụng (cả PUBLIC và PRIVATE, còn số lượng, trong thời hạn)
   useEffect(() => {
     const fetchAvailableVouchers = async () => {
       try {
@@ -33,21 +33,36 @@ const VoucherSelector = ({ cartItems, setReductionAmount, selectedVoucher, setSe
           return;
         }
 
-        // Lấy danh sách voucher PRIVATE được phân cho user từ backend
-        const response = await axiosInstance.get(`/client/vouchers/private?userId=${userId}&orderAmount=${cartTotal}`);
+        // Lấy danh sách tất cả voucher có thể áp dụng (cả PUBLIC và PRIVATE) từ backend
+        const response = await axiosInstance.get(`/api/client/vouchers/available?userId=${userId}&orderAmount=${cartTotal}`);
         
-        console.log('🔍 [VOUCHER DEBUG] Request URL:', `/client/vouchers/private?userId=${userId}&orderAmount=${cartTotal}`);
+        console.log('🔍 [VOUCHER DEBUG] Request URL:', `/api/client/vouchers/available?userId=${userId}&orderAmount=${cartTotal}`);
         console.log('🔍 [VOUCHER DEBUG] Response status:', response.status);
         console.log('🔍 [VOUCHER DEBUG] Response data:', response.data);
         console.log('🔍 [VOUCHER DEBUG] Array length:', response.data?.length || 0);
         console.log('🔍 [VOUCHER DEBUG] Current cartTotal:', cartTotal);
         
-        // Backend đã lọc PRIVATE vouchers, không cần lọc lại ở frontend
+        // Backend đã lọc tất cả vouchers có thể áp dụng (PUBLIC + PRIVATE), không cần lọc lại ở frontend
         const vouchers = response.data || [];
         console.log('🔍 [VOUCHER DEBUG] Setting availableVouchers to:', vouchers);
-        setAvailableVouchers(vouchers);
+        
+        // Validate vouchers array
+        const validVouchers = vouchers.filter(voucher => {
+          if (!voucher || !voucher.id) {
+            console.warn('⚠️ [VOUCHER DEBUG] Invalid voucher found:', voucher);
+            return false;
+          }
+          return true;
+        });
+        
+        setAvailableVouchers(validVouchers);
       } catch (error) {
         console.error('Lỗi khi lấy danh sách voucher:', error);
+        setAvailableVouchers([]); // Set empty array on error
+        // Don't show error toast if it's just network issue
+        if (error.response && error.response.status !== 401) {
+          console.error('API Error:', error.response.data);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -60,16 +75,22 @@ const VoucherSelector = ({ cartItems, setReductionAmount, selectedVoucher, setSe
 
   // Chọn voucher từ danh sách (chưa áp dụng, chỉ preview)
   const handleSelectVoucher = (voucher) => {
+    if (!voucher) {
+      console.error('Voucher is null or undefined');
+      return;
+    }
+
     // Tính toán số tiền giảm preview
     let discountAmount = 0;
     if (voucher.type === 'PERCENTAGE') {
-      discountAmount = Math.floor((cartTotal * voucher.percentageDiscountValue) / 100);
+      const percentageValue = voucher.percentageDiscountValue || 0;
+      discountAmount = Math.floor((cartTotal * percentageValue) / 100);
       if (voucher.maxDiscountValue && discountAmount > voucher.maxDiscountValue) {
         discountAmount = voucher.maxDiscountValue;
       }
     } else {
       // FIXED
-      discountAmount = voucher.fixedDiscountValue;
+      discountAmount = voucher.fixedDiscountValue || 0;
     }
 
     // Đảm bảo số tiền giảm không vượt quá tổng đơn hàng
@@ -79,9 +100,9 @@ const VoucherSelector = ({ cartItems, setReductionAmount, selectedVoucher, setSe
 
     setPreviewVoucher(voucher);
     setPreviewDiscount(discountAmount);
-    setVoucherCode(voucher.code);
+    setVoucherCode(voucher.code || '');
     
-    toast.info(`Voucher ${voucher.code}: Giảm ${discountAmount.toLocaleString('vi-VN')} VND. Click "Áp dụng" để xác nhận.`, { 
+    toast.info(`Voucher ${voucher.code || 'N/A'}: Giảm ${discountAmount.toLocaleString('vi-VN')} VND. Click "Áp dụng" để xác nhận.`, { 
       position: 'top-right', 
       autoClose: 3000 
     });
@@ -107,7 +128,7 @@ const VoucherSelector = ({ cartItems, setReductionAmount, selectedVoucher, setSe
       }
 
       // Validate voucher before applying using the validation endpoint
-      const validationResponse = await axiosInstance.get(`/client/vouchers/validate/${voucherToApply.code}?userId=${userId}&orderAmount=${cartTotal}`);
+      const validationResponse = await axiosInstance.get(`/api/client/vouchers/validate/${voucherToApply.code}?userId=${userId}&orderAmount=${cartTotal}`);
       
       if (!validationResponse.data) {
         toast.error('Voucher không thể áp dụng với đơn hàng này', { position: 'top-right', autoClose: 3000 });
@@ -171,7 +192,7 @@ const VoucherSelector = ({ cartItems, setReductionAmount, selectedVoucher, setSe
       }
 
       // Tìm voucher theo code và kiểm tra điều kiện
-      const response = await axiosInstance.get(`/client/vouchers/by-code/${voucherCode}?userId=${userId}&orderAmount=${cartTotal}`);
+      const response = await axiosInstance.get(`/api/client/vouchers/by-code/${voucherCode}?userId=${userId}&orderAmount=${cartTotal}`);
       
       if (response.data) {
         // Backend đã validate voucher, chỉ cần áp dụng trực tiếp
@@ -217,12 +238,23 @@ const VoucherSelector = ({ cartItems, setReductionAmount, selectedVoucher, setSe
 
   // Format ngày
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('vi-VN');
+    if (!dateString) {
+      return 'N/A';
+    }
+    try {
+      return new Date(dateString).toLocaleDateString('vi-VN');
+    } catch (error) {
+      console.error('Error formatting date:', dateString, error);
+      return 'N/A';
+    }
   };
 
   // Format số tiền
   const formatPrice = (price) => {
-    return price?.toLocaleString('vi-VN') + ' VND' || '0 VND';
+    if (price === null || price === undefined || isNaN(price)) {
+      return '0 VND';
+    }
+    return price.toLocaleString('vi-VN') + ' VND';
   };
 
   return (
@@ -336,19 +368,26 @@ const VoucherSelector = ({ cartItems, setReductionAmount, selectedVoucher, setSe
               <p className="text-xs text-gray-400 mb-2">Debug: Hiển thị {availableVouchers.length} voucher(s)</p>
               {availableVouchers.map((voucher, index) => {
                 console.log(`🔍 [VOUCHER RENDER] Voucher ${index}:`, voucher);
+                
+                // Null checking để tránh lỗi
+                if (!voucher || !voucher.id) {
+                  console.warn(`⚠️ [VOUCHER RENDER] Invalid voucher at index ${index}:`, voucher);
+                  return null;
+                }
+                
                 return (
                 <div key={voucher.id} className="border border-gray-200 rounded-lg p-4 hover:border-indigo-300 transition-colors">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
-                      <h5 className="font-medium text-gray-900">{voucher.name}</h5>
+                      <h5 className="font-medium text-gray-900">{voucher.name || 'Voucher không tên'}</h5>
                       <p className="text-sm text-gray-600 mt-1">
-                        Mã: <span className="font-mono font-medium">{voucher.code}</span>
+                        Mã: <span className="font-mono font-medium">{voucher.code || 'N/A'}</span>
                       </p>
                       <div className="text-sm text-gray-500 mt-1">
                         <p>
                           Giảm: {voucher.type === 'PERCENTAGE' 
-                            ? `${voucher.percentageDiscountValue}%` 
-                            : formatPrice(voucher.fixedDiscountValue)
+                            ? `${voucher.percentageDiscountValue || 0}%` 
+                            : formatPrice(voucher.fixedDiscountValue || 0)
                           }
                           {voucher.maxDiscountValue && voucher.type === 'PERCENTAGE' && 
                             ` (tối đa ${formatPrice(voucher.maxDiscountValue)})`
@@ -357,8 +396,8 @@ const VoucherSelector = ({ cartItems, setReductionAmount, selectedVoucher, setSe
                         {voucher.minOrderValue && (
                           <p>Đơn tối thiểu: {formatPrice(voucher.minOrderValue)}</p>
                         )}
-                        <p>HSD: {formatDate(voucher.endTime)}</p>
-                        <p>Còn lại: {voucher.quantity} voucher</p>
+                        <p>HSD: {voucher.endTime ? formatDate(voucher.endTime) : 'N/A'}</p>
+                        <p>Còn lại: {voucher.quantity || 0} voucher</p>
                       </div>
                     </div>
                     <button

@@ -20,6 +20,7 @@ public interface CartAndCheckoutService {
     void clearCart(Integer userId);
     List<CartDetailResponseDTO> getCartItems(Integer userId);
     BillResponseDTO createBillFromCart(Integer userId, Integer addressId, PaymentType paymentType);
+    BillResponseDTO createBillFromCart(Integer userId, Integer addressId, PaymentType paymentType, Integer voucherId);
     void updateCustomerInformation(Integer billId, Integer addressId);
     PaymentResponseDTO processOnlinePayment(Integer billId, PaymentType paymentType);
     BillResponseDTO confirmOnlinePayment(Integer billId);

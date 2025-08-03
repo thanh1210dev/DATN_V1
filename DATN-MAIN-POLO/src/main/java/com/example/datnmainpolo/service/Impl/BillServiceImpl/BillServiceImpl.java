@@ -259,21 +259,39 @@ public class BillServiceImpl implements BillService {
         @Override
         @Transactional
         public BillResponseDTO updateBillStatus(Integer billId, OrderStatus newStatus) {
-                LOGGER.info("Updating bill {} status to {}", billId, newStatus);
+                LOGGER.info("🔄 Updating bill {} status to {}", billId, newStatus);
+                LOGGER.info("🔄 Service method entry at: {}", java.time.Instant.now());
+                
                 Bill bill = billRepository.findById(billId)
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
+                LOGGER.info("✅ Bill found: ID={}, currentStatus={}, billType={}", bill.getId(), bill.getStatus(), bill.getBillType());
 
                 OrderStatus currentStatus = bill.getStatus();
-
+                LOGGER.info("📊 Current status: {}, Target status: {}, Bill type: {}", currentStatus, newStatus, bill.getBillType());
+// cộng số lượng sản phẩm khi hủy đơn   
                 if (newStatus == OrderStatus.CANCELLED) {
                         List<BillDetail> billDetails = billDetailRepository.findByBillId(billId);
-                        for (BillDetail detail : billDetails) {
-                                ProductDetail productDetail = detail.getDetailProduct();
-                                productDetail.setQuantity(productDetail.getQuantity() + detail.getQuantity());
-                                if (productDetail.getQuantity() > 0) {
-                                        productDetail.setStatus(ProductStatus.AVAILABLE);
+                        
+                        // Only restore inventory if it was already reduced 
+                        // COD orders before CONFIRMED status haven't had inventory reduced yet
+                        boolean shouldRestoreInventory = true;
+                        if (bill.getType() == PaymentType.COD && 
+                            (currentStatus == OrderStatus.PENDING || currentStatus == OrderStatus.CONFIRMING)) {
+                                shouldRestoreInventory = false;
+                                LOGGER.info("🔄 COD order cancelled before confirmation - no inventory to restore");
+                        }
+                        
+                        if (shouldRestoreInventory) {
+                                LOGGER.info("🔄 Restoring inventory for cancelled order");
+                                for (BillDetail detail : billDetails) {
+                                        ProductDetail productDetail = detail.getDetailProduct();
+                                        productDetail.setQuantity(productDetail.getQuantity() + detail.getQuantity());
+                                        if (productDetail.getQuantity() > 0) {
+                                                productDetail.setStatus(ProductStatus.AVAILABLE);
+                                        }
+                                        productDetailRepository.save(productDetail);
+                                        LOGGER.info("🔄 Restored {} units for product {}", detail.getQuantity(), productDetail.getCode());
                                 }
-                                productDetailRepository.save(productDetail);
                         }
 
                         if (bill.getVoucherCode() != null) {
@@ -289,14 +307,20 @@ public class BillServiceImpl implements BillService {
                 bill.setUpdatedAt(Instant.now());
                 bill.setUpdatedBy("system");
 
-                // Only update typeOrder if bill is not ONLINE to avoid conflict with OnlineOrderConfirmationServiceImpl
-                if (bill.getBillType() != BillType.ONLINE) {
-                        List<BillDetail> billDetails = billDetailRepository.findAllByBill_Id(billId);
-                        for (BillDetail detail : billDetails) {
-                                detail.setTypeOrder(newStatus);
+                // Update BillDetail status for all bill types - removed the BillType restriction
+                List<BillDetail> billDetails = billDetailRepository.findAllByBill_Id(billId);
+                for (BillDetail detail : billDetails) {
+                        detail.setTypeOrder(newStatus);
+                        
+                        // Also update BillDetailStatus based on OrderStatus
+                        BillDetailStatus billDetailStatus = mapOrderStatusToBillDetailStatus(newStatus);
+                        if (billDetailStatus != null) {
+                                detail.setStatus(billDetailStatus);
+                                LOGGER.info("🔄 Updated BillDetail {} status from {} to {}", 
+                                        detail.getId(), detail.getStatus(), billDetailStatus);
                         }
-                        billDetailRepository.saveAll(billDetails);
                 }
+                billDetailRepository.saveAll(billDetails);
 
                 OrderHistory orderHistory = new OrderHistory();
                 orderHistory.setBill(bill);
@@ -311,6 +335,7 @@ public class BillServiceImpl implements BillService {
 
                 Transaction transaction = transactionRepository.findByBillId(billId)
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch"));
+                LOGGER.info("🔍 Transaction found: ID={}, Status={}, Type={}", transaction.getId(), transaction.getStatus(), transaction.getType());
 
                 switch (newStatus) {
                         case PENDING:
@@ -325,11 +350,57 @@ public class BillServiceImpl implements BillService {
                                 transaction.setUpdatedAt(Instant.now());
                                 transactionRepository.save(transaction);
                                 break;
+                        case CONFIRMED:
+                                // Reduce inventory when order is confirmed (especially for COD orders)
+                                if (bill.getType() == PaymentType.COD) {
+                                        LOGGER.info("🔄 Reducing inventory for confirmed COD order {}", billId);
+                                        List<BillDetail> confirmationBillDetails = billDetailRepository.findByBillId(billId);
+                                        for (BillDetail detail : confirmationBillDetails) {
+                                                ProductDetail productDetail = detail.getDetailProduct();
+                                                int availableQuantity = productDetail.getQuantity();
+                                                int requiredQuantity = detail.getQuantity();
+                                                
+                                                if (availableQuantity < requiredQuantity) {
+                                                        throw new RuntimeException("Sản phẩm " + productDetail.getCode() + 
+                                                                " không đủ số lượng trong kho (còn " + availableQuantity + 
+                                                                ", cần " + requiredQuantity + ")");
+                                                }
+                                                
+                                                productDetail.setQuantity(availableQuantity - requiredQuantity);
+                                                if (productDetail.getQuantity() <= 0) {
+                                                        productDetail.setStatus(ProductStatus.OUT_OF_STOCK);
+                                                }
+                                                productDetailRepository.save(productDetail);
+                                                LOGGER.info("🔄 Reduced inventory for product {} by {} units (was: {}, now: {})", 
+                                                        productDetail.getCode(), requiredQuantity, availableQuantity, productDetail.getQuantity());
+                                        }
+                                }
+                                transaction.setNote("Đã xác nhận đơn hàng");
+                                transaction.setUpdatedAt(Instant.now());
+                                transactionRepository.save(transaction);
+                                break;
+                        case PACKED:
+                                transaction.setNote("Đã đóng gói đơn hàng");
+                                transaction.setUpdatedAt(Instant.now());
+                                transactionRepository.save(transaction);
+                                break;
                         case DELIVERING:
-                                if (transaction.getStatus() != TransactionStatus.SUCCESS) {
-                                        throw new RuntimeException("Không thể giao hàng cho đơn hàng chưa thanh toán");
+                                // Cho phép giao hàng với COD (chưa thanh toán) hoặc đã thanh toán
+                                if (transaction.getStatus() != TransactionStatus.SUCCESS && 
+                                    !(bill.getType() == PaymentType.COD && transaction.getStatus() == TransactionStatus.PENDING)) {
+                                        throw new RuntimeException("Không thể giao hàng cho đơn hàng này");
                                 }
                                 transaction.setNote("Đang giao hàng");
+                                transaction.setUpdatedAt(Instant.now());
+                                transactionRepository.save(transaction);
+                                break;
+                        case DELIVERED:
+                                // Cho phép đánh dấu đã giao với COD (chưa thanh toán) hoặc đã thanh toán
+                                if (transaction.getStatus() != TransactionStatus.SUCCESS && 
+                                    !(bill.getType() == PaymentType.COD && transaction.getStatus() == TransactionStatus.PENDING)) {
+                                        throw new RuntimeException("Không thể đánh dấu đã giao cho đơn hàng này");
+                                }
+                                transaction.setNote("Đã giao hàng thành công");
                                 transaction.setUpdatedAt(Instant.now());
                                 transactionRepository.save(transaction);
                                 break;
@@ -352,20 +423,171 @@ public class BillServiceImpl implements BillService {
                                 transactionRepository.save(transaction);
                                 break;
                         case COMPLETED:
+                                LOGGER.info("✅ Processing COMPLETED status for bill {}", billId);
+                                LOGGER.info("🔍 Transaction status before validation: {}", transaction.getStatus());
                                 if (transaction.getStatus() != TransactionStatus.SUCCESS) {
+                                        LOGGER.error("❌ Cannot complete unpaid order. Transaction status: {}", transaction.getStatus());
+                                        LOGGER.error("❌ Required status: SUCCESS, Current status: {}", transaction.getStatus());
                                         throw new RuntimeException("Không thể hoàn thành đơn hàng chưa thanh toán");
                                 }
+                                LOGGER.info("✅ Transaction status validation passed");
+                                transaction.setNote("Đơn hàng hoàn thành");
+                                transaction.setUpdatedAt(Instant.now());
+                                transactionRepository.save(transaction);
+                                LOGGER.info("✅ Transaction updated for COMPLETED status");
+                                break;
+                        case RETURN_REQUESTED:
+                                transaction.setNote("Yêu cầu trả hàng");
+                                transaction.setUpdatedAt(Instant.now());
+                                transactionRepository.save(transaction);
                                 break;
                         case RETURNED:
-                        case RETURN_COMPLETED:
-                                if (transaction.getStatus() != TransactionStatus.SUCCESS) {
-                                        throw new RuntimeException("Không thể trả hàng cho đơn hàng chưa thanh toán");
+                                LOGGER.info("🔄 Processing RETURNED for bill {}", billId);
+                                LOGGER.info("🔍 Current transaction status: {}, Bill payment type: {}", 
+                                    transaction.getStatus(), bill.getType());
+                                
+                                // Chấp nhận trả hàng cho các trường hợp: đã thanh toán hoặc COD chưa thanh toán
+                                if (transaction.getStatus() != TransactionStatus.SUCCESS && 
+                                    !(bill.getType() == PaymentType.COD && transaction.getStatus() == TransactionStatus.PENDING)) {
+                                        LOGGER.error("❌ Cannot return order with transaction status: {}", transaction.getStatus());
+                                        throw new RuntimeException("Không thể trả hàng cho đơn hàng này");
                                 }
+                                
+                                // Khôi phục số lượng sản phẩm ngay khi trả hàng
+                                List<BillDetail> billDetailsToReturn = billDetailRepository.findByBillId(billId);
+                                LOGGER.info("🔄 Restoring {} products to inventory for RETURNED", billDetailsToReturn.size());
+                                for (BillDetail detail : billDetailsToReturn) {
+                                        ProductDetail productDetail = detail.getDetailProduct();
+                                        productDetail.setQuantity(productDetail.getQuantity() + detail.getQuantity());
+                                        if (productDetail.getQuantity() > 0) {
+                                                productDetail.setStatus(ProductStatus.AVAILABLE);
+                                        }
+                                        productDetailRepository.save(productDetail);
+                                        LOGGER.info("🔄 Restored {} units of product {} (new quantity: {})", 
+                                            detail.getQuantity(), productDetail.getCode(), productDetail.getQuantity());
+                                }
+                                
+                                // Khôi phục voucher nếu có
+                                if (bill.getVoucherCode() != null) {
+                                        try {
+                                                Optional<Voucher> voucherOpt = voucherRepository.findByCodeAndDeletedFalse(bill.getVoucherCode());
+                                                if (voucherOpt.isPresent()) {
+                                                        Voucher voucher = voucherOpt.get();
+                                                        voucher.setQuantity(voucher.getQuantity() + 1);
+                                                        if (voucher.getStatus() == PromotionStatus.USED_UP) {
+                                                                voucher.setStatus(PromotionStatus.ACTIVE);
+                                                        }
+                                                        voucherRepository.save(voucher);
+                                                        LOGGER.info("✅ Restored voucher {} quantity to {}", voucher.getCode(), voucher.getQuantity());
+                                                }
+                                        } catch (Exception e) {
+                                                LOGGER.error("❌ Error restoring voucher {}: {}", bill.getVoucherCode(), e.getMessage());
+                                        }
+                                }
+                                
+                                transaction.setNote("Đã xử lý trả hàng - Khôi phục sản phẩm về kho");
+                                transaction.setUpdatedAt(Instant.now());
+                                transactionRepository.save(transaction);
+                                LOGGER.info("✅ Products restored to inventory for bill {}", billId);
+                                break;
+                        case RETURN_COMPLETED:
+                                LOGGER.info("🔄 Processing RETURN_COMPLETED for bill {}", billId);
+                                LOGGER.info("🔍 Current transaction status: {}, Bill payment type: {}", 
+                                    transaction.getStatus(), bill.getType());
+                                
+                                // Hoàn tất trả hàng - chấp nhận cho: đã thanh toán, COD chưa thanh toán, hoặc đã hoàn tiền
+                                if (transaction.getStatus() != TransactionStatus.SUCCESS && 
+                                    transaction.getStatus() != TransactionStatus.REFUNDED &&
+                                    !(bill.getType() == PaymentType.COD && transaction.getStatus() == TransactionStatus.PENDING)) {
+                                        LOGGER.error("❌ Validation failed for RETURN_COMPLETED: transaction.status={}, bill.type={}", 
+                                            transaction.getStatus(), bill.getType());
+                                        throw new RuntimeException("Không thể hoàn tất trả hàng cho đơn hàng này");
+                                }
+                                
+                                LOGGER.info("✅ Validation passed for RETURN_COMPLETED");
+                                
+                                // Khôi phục số lượng sản phẩm
+                                List<BillDetail> returnBillDetails = billDetailRepository.findByBillId(billId);
+                                LOGGER.info("🔄 Restoring {} products to inventory", returnBillDetails.size());
+                                for (BillDetail detail : returnBillDetails) {
+                                        ProductDetail productDetail = detail.getDetailProduct();
+                                        int oldQuantity = productDetail.getQuantity();
+                                        productDetail.setQuantity(productDetail.getQuantity() + detail.getQuantity());
+                                        if (productDetail.getQuantity() > 0) {
+                                                productDetail.setStatus(ProductStatus.AVAILABLE);
+                                        }
+                                        productDetailRepository.save(productDetail);
+                                        LOGGER.info("Restored {} units for product {} (was: {}, now: {})", 
+                                            detail.getQuantity(), productDetail.getId(), oldQuantity, productDetail.getQuantity());
+                                }
+                                
+                                // Cập nhật transaction status - nếu COD chưa thanh toán thì chuyển thành CANCELLED, ngược lại giữ REFUNDED
+                                if (bill.getType() == PaymentType.COD && transaction.getStatus() == TransactionStatus.PENDING) {
+                                        transaction.setStatus(TransactionStatus.CANCELLED);
+                                        transaction.setNote("Hoàn tất trả hàng COD - khách hàng không nhận");
+                                        LOGGER.info("🔄 Updated transaction status to CANCELLED for COD");
+                                } else {
+                                        // Nếu đã REFUNDED thì giữ nguyên, ngược lại chuyển thành REFUNDED
+                                        if (transaction.getStatus() != TransactionStatus.REFUNDED) {
+                                                transaction.setStatus(TransactionStatus.REFUNDED);
+                                                LOGGER.info("🔄 Updated transaction status to REFUNDED");
+                                        } else {
+                                                LOGGER.info("🔄 Keeping transaction status as REFUNDED");
+                                        }
+                                        transaction.setNote("Hoàn tất trả hàng - đã hoàn tiền cho khách hàng");
+                                }
+                                transaction.setUpdatedAt(Instant.now());
+                                transactionRepository.save(transaction);
+                                
+                                // Khôi phục voucher nếu có
+                                if (bill.getVoucherCode() != null) {
+                                        try {
+                                                Optional<Voucher> voucherOpt = voucherRepository.findByCodeAndDeletedFalse(bill.getVoucherCode());
+                                                if (voucherOpt.isPresent()) {
+                                                        Voucher voucher = voucherOpt.get();
+                                                        voucher.setQuantity(voucher.getQuantity() + 1);
+                                                        if (voucher.getStatus() == PromotionStatus.USED_UP) {
+                                                                voucher.setStatus(PromotionStatus.ACTIVE);
+                                                        }
+                                                        voucherRepository.save(voucher);
+                                                        LOGGER.info("Restored voucher {} quantity to {}", voucher.getCode(), voucher.getQuantity());
+                                                }
+                                        } catch (Exception e) {
+                                                LOGGER.error("Error restoring voucher {}: {}", bill.getVoucherCode(), e.getMessage());
+                                        }
+                                }
+                                break;
+                        case DELIVERY_FAILED:
+                                transaction.setNote("Giao hàng thất bại");
+                                transaction.setUpdatedAt(Instant.now());
+                                transactionRepository.save(transaction);
                                 break;
                 }
 
                 Bill savedBill = billRepository.save(bill);
-                return convertToBillResponseDTO(savedBill);
+                LOGGER.info("✅ Bill status successfully updated from {} to {} for bill {}", currentStatus, newStatus, billId);
+                LOGGER.info("✅ Saved bill status: {}", savedBill.getStatus());
+                
+                // Force flush để đảm bảo transaction được commit ngay lập tức
+                billRepository.flush();
+                LOGGER.info("🔄 Database transaction flushed for bill {}", billId);
+                
+                BillResponseDTO responseDTO = convertToBillResponseDTO(savedBill);
+                LOGGER.info("✅ Returning response with status: {}", responseDTO.getStatus());
+                LOGGER.info("🔍 Full response DTO: id={}, code={}, status={}, billType={}", 
+                    responseDTO.getId(), responseDTO.getCode(), responseDTO.getStatus(), responseDTO.getBillType());
+                return responseDTO;
+        }
+
+        @Override
+        @Transactional
+        public BillResponseDTO updateBillStatusWithPayment(Integer billId, OrderStatus newStatus, BigDecimal amount) {
+                LOGGER.info("🔄 Updating bill {} status to {} with payment amount {}", billId, newStatus, amount);
+                
+                // For now, just delegate to the regular updateBillStatus method
+                // This method is here to satisfy the interface requirement from VNPay integration
+                // The amount parameter can be used for future payment tracking enhancements
+                return updateBillStatus(billId, newStatus);
         }
 
         @Override
@@ -401,8 +623,8 @@ public class BillServiceImpl implements BillService {
                                 throw new RuntimeException("Loại thanh toán không hợp lệ");
                 }
 
-                if (hasCustomerInfo && bill.getStatus() == OrderStatus.PENDING) {
-                        LOGGER.info("Bill {} has customer information, updating status to CONFIRMING", billId);
+                if (hasCustomerInfo && paymentType == PaymentType.COD && bill.getStatus() == OrderStatus.PENDING) {
+                        LOGGER.info("Bill {} has customer information and COD payment, updating status to CONFIRMING", billId);
                         bill.setStatus(OrderStatus.CONFIRMING);
                         bill.setBillType(BillType.ONLINE);
                         bill.setUpdatedAt(Instant.now());
@@ -413,7 +635,7 @@ public class BillServiceImpl implements BillService {
                         OrderHistory orderHistory = new OrderHistory();
                         orderHistory.setBill(bill);
                         orderHistory.setStatusOrder(OrderStatus.CONFIRMING);
-                        orderHistory.setActionDescription("Cập nhật trạng thái hóa đơn thành CONFIRMING do có thông tin khách hàng");
+                        orderHistory.setActionDescription("Cập nhật trạng thái hóa đơn COD thành CONFIRMING do có thông tin khách hàng");
                         orderHistory.setCreatedAt(Instant.now());
                         orderHistory.setUpdatedAt(Instant.now());
                         orderHistory.setCreatedBy("system");
@@ -457,6 +679,18 @@ public class BillServiceImpl implements BillService {
                 bill.setUpdatedBy("system");
                 Bill savedBill = billRepository.save(bill);
 
+                // ⭐ Tạo OrderHistory entry cho việc thanh toán
+                OrderHistory orderHistory = new OrderHistory();
+                orderHistory.setBill(savedBill);
+                orderHistory.setStatusOrder(savedBill.getStatus());
+                orderHistory.setActionDescription(hasCustomerInfo ? "Thanh toán thành công, chuyển sang xác nhận" : "Thanh toán tại quầy thành công");
+                orderHistory.setCreatedAt(Instant.now());
+                orderHistory.setUpdatedAt(Instant.now());
+                orderHistory.setCreatedBy("system");
+                orderHistory.setUpdatedBy("system");
+                orderHistory.setDeleted(false);
+                orderHistoryRepository.save(orderHistory);
+
                 if (bill.getCustomer() != null && bill.getStatus() == OrderStatus.PAID) {
                         BigDecimal orderValue = bill.getFinalAmount();
                         userService.updateLoyaltyPoints(bill.getCustomer().getId(), orderValue);
@@ -471,6 +705,18 @@ public class BillServiceImpl implements BillService {
                         billDetail.setUpdatedAt(Instant.now());
                         billDetail.setUpdatedBy("system");
                         billDetailRepository.save(billDetail);
+
+                        // ⭐ Cập nhật ProductDetail status sau khi thanh toán thành công
+                        ProductDetail productDetail = billDetail.getDetailProduct();
+                        if (productDetail != null) {
+                                // Nếu số lượng còn lại > 0 thì AVAILABLE, ngược lại OUT_OF_STOCK
+                                if (productDetail.getQuantity() > 0) {
+                                        productDetail.setStatus(ProductStatus.AVAILABLE);
+                                } else {
+                                        productDetail.setStatus(ProductStatus.OUT_OF_STOCK);
+                                }
+                                productDetailRepository.save(productDetail);
+                        }
                 }
 
                 Transaction transaction = transactionRepository.findByBillId(bill.getId())
@@ -492,14 +738,27 @@ public class BillServiceImpl implements BillService {
         private PaymentResponseDTO processVNPayPayment(Bill bill, BigDecimal finalAmount,
                                                        boolean hasCustomerInfo) {
                 LOGGER.info("Processing VNPay payment for bill {} with amount {}", bill.getId(), finalAmount);
+                LOGGER.info("VNPay Payment - Current bill info: voucherCode={}, reductionAmount={}, finalAmount={}", 
+                           bill.getVoucherCode(), bill.getReductionAmount(), bill.getFinalAmount());
                 if (finalAmount.compareTo(new BigDecimal("999999999999999.99")) > 0) {
                         throw new RuntimeException("Số tiền vượt quá giới hạn cho phép");
                 }
 
                 bill.setType(PaymentType.VNPAY);
-                bill.setCustomerPayment(finalAmount.setScale(2, RoundingMode.HALF_UP));
-                bill.setFinalAmount(finalAmount.setScale(2, RoundingMode.HALF_UP));
-                bill.setStatus(hasCustomerInfo ? OrderStatus.CONFIRMING : OrderStatus.PENDING);
+                // Sử dụng finalAmount hiện tại của bill (đã tính voucher) thay vì parameter
+                BigDecimal actualFinalAmount = bill.getFinalAmount() != null ? bill.getFinalAmount() : finalAmount;
+                bill.setCustomerPayment(actualFinalAmount.setScale(2, RoundingMode.HALF_UP));
+                // Không ghi đè finalAmount nếu đã có voucher được áp dụng
+                if (bill.getFinalAmount() == null || bill.getFinalAmount().compareTo(ZERO) == 0) {
+                        bill.setFinalAmount(finalAmount.setScale(2, RoundingMode.HALF_UP));
+                } else {
+                        LOGGER.info("VNPay Payment - Keeping existing finalAmount with voucher: {}", bill.getFinalAmount());
+                }
+                // VNPay payment sẽ được cập nhật thành PAID trong VNPayServiceImpl sau khi thanh toán thành công
+                // Tạm thời giữ PENDING để chờ VNPay callback
+                bill.setStatus(OrderStatus.PENDING);
+                // Set BillType dựa trên có thông tin khách hàng hay không
+                bill.setBillType(hasCustomerInfo ? BillType.ONLINE : BillType.OFFLINE);
                 bill.setUpdatedAt(Instant.now());
                 bill.setUpdatedBy("system");
                 Bill savedBill = billRepository.save(bill);
@@ -518,7 +777,9 @@ public class BillServiceImpl implements BillService {
                 Transaction transaction = transactionRepository.findByBillId(bill.getId())
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch"));
                 transaction.setType(TransactionType.ONLINE);
-                transaction.setTotalMoney(finalAmount.setScale(2, RoundingMode.HALF_UP));
+                // Sử dụng finalAmount thực tế từ bill (đã có voucher)
+                BigDecimal actualFinalAmountForTransaction = savedBill.getFinalAmount() != null ? savedBill.getFinalAmount() : finalAmount;
+                transaction.setTotalMoney(actualFinalAmountForTransaction.setScale(2, RoundingMode.HALF_UP));
                 transaction.setStatus(TransactionStatus.PENDING);
                 transaction.setNote("Đang chờ thanh toán VNPay" + (hasCustomerInfo ? " (xử lý như ONLINE)" : ""));
                 transaction.setUpdatedAt(Instant.now());
@@ -527,16 +788,25 @@ public class BillServiceImpl implements BillService {
                 return PaymentResponseDTO.builder()
                         .bill(convertToBillResponseDTO(savedBill))
                         .paymentType(bill.getType())
-                        .amount(finalAmount.setScale(2, RoundingMode.HALF_UP))
+                        .amount(actualFinalAmountForTransaction.setScale(2, RoundingMode.HALF_UP))
                         .build();
         }
 
         private PaymentResponseDTO processCODPayment(Bill bill, BigDecimal finalAmount, boolean hasCustomerInfo) {
                 LOGGER.info("Processing COD payment for bill {} with amount {}", bill.getId(), finalAmount);
+                LOGGER.info("COD Payment - Current bill info: voucherCode={}, reductionAmount={}, finalAmount={}", 
+                           bill.getVoucherCode(), bill.getReductionAmount(), bill.getFinalAmount());
 
                 bill.setType(PaymentType.COD);
 //                bill.setCustomerPayment(finalAmount.setScale(2, RoundingMode.HALF_UP));
-                bill.setFinalAmount(finalAmount.setScale(2, RoundingMode.HALF_UP));
+                // Không ghi đè finalAmount nếu đã có voucher được áp dụng
+                // finalAmount parameter là giá trị đã tính toán từ calculateFinalAmount(bill) 
+                // nên có thể an toàn sử dụng
+                if (bill.getFinalAmount() == null || bill.getFinalAmount().compareTo(ZERO) == 0) {
+                        bill.setFinalAmount(finalAmount.setScale(2, RoundingMode.HALF_UP));
+                } else {
+                        LOGGER.info("COD Payment - Keeping existing finalAmount with voucher: {}", bill.getFinalAmount());
+                }
                 bill.setStatus(hasCustomerInfo ? OrderStatus.CONFIRMING : OrderStatus.PENDING);
                 bill.setUpdatedAt(Instant.now());
                 bill.setUpdatedBy("system");
@@ -556,7 +826,9 @@ public class BillServiceImpl implements BillService {
                 Transaction transaction = transactionRepository.findByBillId(bill.getId())
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch"));
                 transaction.setType(TransactionType.ONLINE);
-                transaction.setTotalMoney(finalAmount.setScale(2, RoundingMode.HALF_UP));
+                // Sử dụng finalAmount thực tế từ bill (đã có voucher)
+                BigDecimal actualFinalAmountCOD = savedBill.getFinalAmount() != null ? savedBill.getFinalAmount() : finalAmount;
+                transaction.setTotalMoney(actualFinalAmountCOD.setScale(2, RoundingMode.HALF_UP));
                 transaction.setStatus(TransactionStatus.PENDING);
                 transaction.setNote("Đang chờ thanh toán COD" + (hasCustomerInfo ? " (xử lý như ONLINE)" : ""));
                 transaction.setUpdatedAt(Instant.now());
@@ -565,19 +837,28 @@ public class BillServiceImpl implements BillService {
                 return PaymentResponseDTO.builder()
                         .bill(convertToBillResponseDTO(savedBill))
                         .paymentType(bill.getType())
-                        .amount(finalAmount.setScale(2, RoundingMode.HALF_UP))
+                        .amount(actualFinalAmountCOD.setScale(2, RoundingMode.HALF_UP))
                         .build();
         }
 
         private PaymentResponseDTO processBankingPayment(Bill bill, BigDecimal finalAmount, boolean hasCustomerInfo) {
                 LOGGER.info("Processing Banking payment for bill {} with amount {}", bill.getId(), finalAmount);
+                LOGGER.info("Banking Payment - Current bill info: voucherCode={}, reductionAmount={}, finalAmount={}", 
+                           bill.getVoucherCode(), bill.getReductionAmount(), bill.getFinalAmount());
                 if (finalAmount.compareTo(new BigDecimal("999999999999999.99")) > 0) {
                         throw new RuntimeException("Số tiền vượt quá giới hạn cho phép");
                 }
 
                 bill.setType(PaymentType.BANKING);
-                bill.setCustomerPayment(finalAmount.setScale(2, RoundingMode.HALF_UP));
-                bill.setFinalAmount(finalAmount.setScale(2, RoundingMode.HALF_UP));
+                // Sử dụng finalAmount hiện tại của bill (đã tính voucher) thay vì parameter
+                BigDecimal actualFinalAmount = bill.getFinalAmount() != null ? bill.getFinalAmount() : finalAmount;
+                bill.setCustomerPayment(actualFinalAmount.setScale(2, RoundingMode.HALF_UP));
+                // Không ghi đè finalAmount nếu đã có voucher được áp dụng
+                if (bill.getFinalAmount() == null || bill.getFinalAmount().compareTo(ZERO) == 0) {
+                        bill.setFinalAmount(finalAmount.setScale(2, RoundingMode.HALF_UP));
+                } else {
+                        LOGGER.info("Banking Payment - Keeping existing finalAmount with voucher: {}", bill.getFinalAmount());
+                }
                 bill.setStatus(hasCustomerInfo ? OrderStatus.CONFIRMING : OrderStatus.PENDING);
                 bill.setUpdatedAt(Instant.now());
                 bill.setUpdatedBy("system");
@@ -597,7 +878,9 @@ public class BillServiceImpl implements BillService {
                 Transaction transaction = transactionRepository.findByBillId(bill.getId())
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch"));
                 transaction.setType(TransactionType.ONLINE);
-                transaction.setTotalMoney(finalAmount.setScale(2, RoundingMode.HALF_UP));
+                // Sử dụng finalAmount thực tế từ bill (đã có voucher)
+                BigDecimal actualFinalAmountBanking = savedBill.getFinalAmount() != null ? savedBill.getFinalAmount() : finalAmount;
+                transaction.setTotalMoney(actualFinalAmountBanking.setScale(2, RoundingMode.HALF_UP));
                 transaction.setStatus(TransactionStatus.PENDING);
                 transaction.setNote("Đang chờ thanh toán Banking" + (hasCustomerInfo ? " (xử lý như ONLINE)" : ""));
                 transaction.setUpdatedAt(Instant.now());
@@ -606,7 +889,7 @@ public class BillServiceImpl implements BillService {
                 return PaymentResponseDTO.builder()
                         .bill(convertToBillResponseDTO(savedBill))
                         .paymentType(bill.getType())
-                        .amount(finalAmount.setScale(2, RoundingMode.HALF_UP))
+                        .amount(actualFinalAmountBanking.setScale(2, RoundingMode.HALF_UP))
                         .build();
         }
 
@@ -1071,5 +1354,35 @@ public class BillServiceImpl implements BillService {
 
                 Bill savedBill = billRepository.save(bill);
                 return convertToBillResponseDTO(savedBill);
+        }
+        
+        /**
+         * Map OrderStatus to corresponding BillDetailStatus
+         */
+        private BillDetailStatus mapOrderStatusToBillDetailStatus(OrderStatus orderStatus) {
+                switch (orderStatus) {
+                        case PENDING:
+                        case CONFIRMING:
+                        case CONFIRMED:
+                                return BillDetailStatus.PENDING;
+                        case PAID:
+                        case PACKED:
+                                return BillDetailStatus.PAID;
+                        case DELIVERING:
+                                return BillDetailStatus.SHIPPED;
+                        case DELIVERED:
+                        case COMPLETED:
+                                return BillDetailStatus.DELIVERED;
+                        case CANCELLED:
+                                return BillDetailStatus.CANCELLED;
+                        case RETURN_REQUESTED:
+                        case RETURNED:
+                        case REFUNDED:
+                        case RETURN_COMPLETED:
+                                return BillDetailStatus.RETURNED;
+                        default:
+                                LOGGER.warn("No mapping found for OrderStatus: {}", orderStatus);
+                                return null;
+                }
         }
 }

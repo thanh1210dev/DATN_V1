@@ -17,7 +17,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/vnpay")
 @RequiredArgsConstructor
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:63342", "null"}, allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.OPTIONS})
+@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173", "http://localhost:63342"}, allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.OPTIONS}, allowCredentials = "true")
 public class VNPayController {
     private static final Logger LOGGER = LoggerFactory.getLogger(VNPayController.class);
 

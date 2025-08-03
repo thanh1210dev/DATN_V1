@@ -32,6 +32,12 @@ instance.interceptors.request.use(
       config.headers['Authorization'] = `Bearer ${token}`;
     }
     
+    // Kiểm tra nếu data là FormData thì không set Content-Type
+    if (config.data instanceof FormData) {
+      // Xóa Content-Type để browser tự set với boundary
+      delete config.headers['Content-Type'];
+    }
+    
     // Kiểm tra userId với endpoint address
     if (isAddressEndpoint(config.url) && !isValidUserId(config.url)) {
       // Reject request ngay từ đầu nếu userId không hợp lệ
@@ -79,8 +85,16 @@ instance.interceptors.response.use(
     if (response && response.status === 401) {
       console.warn('Token expired or invalid');
       
-      // Chỉ clear token và redirect nếu đây KHÔNG phải là request test token
-      if (!config?.url?.includes('/api/user/me')) {
+      // Kiểm tra xem có phải đang trong quá trình thanh toán VNPAY không
+      const isVnpayFlow = window.location.pathname.includes('/payment-result') || 
+                         window.location.search.includes('vnp_') ||
+                         sessionStorage.getItem('vnpayProcessing') === 'true' ||
+                         sessionStorage.getItem('vnpaySuccessTransition') === 'true';
+      
+      // Chỉ clear token và redirect nếu đây KHÔNG phải là request test token 
+      // và KHÔNG trong quá trình thanh toán VNPAY
+      if (!config?.url?.includes('/api/user/me') && !isVnpayFlow) {
+        console.log('Clearing authentication due to 401 error');
         localStorage.removeItem('token');
         localStorage.removeItem('userId');
         localStorage.removeItem('name');
@@ -88,8 +102,11 @@ instance.interceptors.response.use(
         
         // Redirect về login
         if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+          console.log('Redirecting to login due to authentication failure');
           window.location.href = '/login';
         }
+      } else if (isVnpayFlow) {
+        console.log('Skipping auto-logout due to VNPAY flow');
       }
       
       return Promise.reject(new Error('Authentication required'));

@@ -323,6 +323,9 @@ public class VoucherServiceImpl implements VoucherService {
 
     @Override
     public List<VoucherResponseDTO> getAvailableVouchersForUser(Integer userId, BigDecimal orderAmount) {
+        logger.info("=== GET AVAILABLE VOUCHERS DEBUG START ===");
+        logger.info("UserId: {}, OrderAmount: {}", userId, orderAmount);
+        
         // Auto-update voucher statuses before searching
         this.updateActiveVouchers();
         this.updateExpiredVouchers();
@@ -333,20 +336,32 @@ public class VoucherServiceImpl implements VoucherService {
         // 1. Lấy voucher PUBLIC (cho tất cả mọi người)
         List<Voucher> publicVouchers = voucherRepository.findByStatusAndEndTimeAfterAndQuantityGreaterThan(
                 PromotionStatus.ACTIVE, now, 0);
+        logger.info("Found {} public vouchers from database", publicVouchers.size());
         
         List<VoucherResponseDTO> publicVoucherDTOs = publicVouchers.stream()
+                .peek(voucher -> logger.info("Processing PUBLIC voucher: code={}, type={}, startTime={}, minOrder={}", 
+                     voucher.getCode(), voucher.getTypeUser(), voucher.getStartTime(), voucher.getMinOrderValue()))
                 .filter(voucher -> {
                     // Kiểm tra thời gian bắt đầu
-                    return voucher.getStartTime().isBefore(now) || voucher.getStartTime().equals(now);
+                    boolean startTimeOk = voucher.getStartTime() == null || 
+                           voucher.getStartTime().isBefore(now) || 
+                           voucher.getStartTime().equals(now);
+                    logger.info("Voucher {} start time check: {}", voucher.getCode(), startTimeOk);
+                    return startTimeOk;
                 })
                 .filter(voucher -> {
                     // Chỉ lấy voucher PUBLIC
-                    return voucher.getTypeUser() == VoucherTypeUser.PUBLIC;
+                    boolean isPublic = voucher.getTypeUser() == VoucherTypeUser.PUBLIC;
+                    logger.info("Voucher {} is PUBLIC: {}", voucher.getCode(), isPublic);
+                    return isPublic;
                 })
                 .filter(voucher -> {
                     // Kiểm tra giá trị đơn hàng tối thiểu
-                    return voucher.getMinOrderValue() == null || 
+                    boolean minOrderOk = voucher.getMinOrderValue() == null || 
                            orderAmount.compareTo(voucher.getMinOrderValue()) >= 0;
+                    logger.info("Voucher {} min order check: {} (required: {}, actual: {})", 
+                               voucher.getCode(), minOrderOk, voucher.getMinOrderValue(), orderAmount);
+                    return minOrderOk;
                 })
                 .map(this::mapToResponseDTO)
                 .toList();
@@ -355,14 +370,14 @@ public class VoucherServiceImpl implements VoucherService {
         
         // 2. Lấy voucher PRIVATE được phân cho user này (nếu có userId)
         if (userId != null) {
-            List<AccountVoucher> userVouchers = accountVoucherRepository.findByUserEntityIdAndStatusTrueAndDeletedFalse(userId);
+            List<AccountVoucher> userVouchers = accountVoucherRepository.findByUserEntityIdAndDeletedFalse(userId);
             
             List<VoucherResponseDTO> privateVoucherDTOs = userVouchers.stream()
+                    .filter(av -> av.getQuantity() > 0) // Chỉ lấy những voucher user còn số lượng
                     .map(AccountVoucher::getVoucher)
                     .filter(voucher -> {
                         // Kiểm tra voucher còn hiệu lực
                         return voucher.getStatus() == PromotionStatus.ACTIVE &&
-                               voucher.getQuantity() > 0 &&
                                !voucher.getDeleted() &&
                                (voucher.getEndTime() == null || voucher.getEndTime().isAfter(now));
                     })
@@ -386,6 +401,17 @@ public class VoucherServiceImpl implements VoucherService {
                     
             availableVouchers.addAll(privateVoucherDTOs);
         }
+        
+        logger.info("Total available vouchers found: {} (PUBLIC: {}, PRIVATE: {})", 
+                   availableVouchers.size(), 
+                   availableVouchers.stream().filter(v -> v.getTypeUser() == VoucherTypeUser.PUBLIC).count(),
+                   availableVouchers.stream().filter(v -> v.getTypeUser() == VoucherTypeUser.PRIVATE).count());
+        
+        availableVouchers.forEach(voucher -> {
+            logger.info("Available voucher: {} - Type: {} - Fixed: {} - Percentage: {} - Min Order: {}", 
+                       voucher.getName(), voucher.getTypeUser(), 
+                       voucher.getFixedDiscountValue(), voucher.getPercentageDiscountValue(), voucher.getMinOrderValue());
+        });
         
         return availableVouchers;
     }

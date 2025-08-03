@@ -25,14 +25,15 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(@NonNull CorsRegistry registry) {
         registry.addMapping("/**")
-                .allowedOrigins(
+                .allowedOriginPatterns(
                     "http://localhost:3000", 
+                    "http://localhost:5173",  // Vite dev server
                     "http://localhost:63342", 
-                    "null"  // Cho phép file:// protocol
+                    "file://*"  // Cho phép file:// protocol với pattern
                 )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
-                .allowCredentials(false);
+                .allowCredentials(true);  // Allow credentials for authentication
     }
 
 }

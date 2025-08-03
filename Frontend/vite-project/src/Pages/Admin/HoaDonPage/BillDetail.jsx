@@ -1,15 +1,16 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { HiArrowLeft, HiOutlinePlus, HiOutlineX, HiCheckCircle, HiClock, HiXCircle, HiCurrencyDollar, HiUser, HiOutlineTruck } from 'react-icons/hi';
+import { HiArrowLeft, HiOutlinePlus, HiOutlineX, HiCheckCircle, HiClock, HiXCircle, HiCurrencyDollar, HiUser, HiOutlineTruck, HiArchive } from 'react-icons/hi';
 import Select from 'react-select';
 import HoaDonApi from '../../../Service/AdminHoaDonService/HoaDonApi';
 
 const BillDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const isMountedRef = useRef(true);
   const [bill, setBill] = useState(null);
   const [billDetails, setBillDetails] = useState([]);
   const [products, setProducts] = useState([]);
@@ -47,13 +48,26 @@ const BillDetail = () => {
     totalPages: 1,
   });
 
+  const billDetailStatusOptions = [
+    { value: 'PENDING', label: 'Chờ thanh toán', color: 'bg-yellow-100 text-yellow-800' },
+    { value: 'PAID', label: 'Đã thanh toán', color: 'bg-green-100 text-green-800' },
+    { value: 'SHIPPED', label: 'Đã gửi hàng', color: 'bg-indigo-100 text-indigo-800' },
+    { value: 'DELIVERED', label: 'Đã giao hàng', color: 'bg-teal-100 text-teal-800' },
+    { value: 'RETURNED', label: 'Đã trả hàng', color: 'bg-orange-100 text-orange-800' },
+    { value: 'CANCELLED', label: 'Đã hủy', color: 'bg-red-100 text-red-800' },
+  ];
+
   const orderStatusOptions = [
     { value: 'PENDING', label: 'Chờ thanh toán', color: 'bg-yellow-100 text-yellow-800' },
     { value: 'CONFIRMING', label: 'Đang xác nhận', color: 'bg-blue-100 text-blue-800' },
+    { value: 'CONFIRMED', label: 'Đã xác nhận', color: 'bg-cyan-100 text-cyan-800' },
+    { value: 'PACKED', label: 'Đã đóng gói', color: 'bg-purple-100 text-purple-800' },
     { value: 'PAID', label: 'Đã thanh toán', color: 'bg-green-100 text-green-800' },
     { value: 'DELIVERING', label: 'Đang giao hàng', color: 'bg-indigo-100 text-indigo-800' },
+    { value: 'DELIVERED', label: 'Đã giao hàng', color: 'bg-emerald-100 text-emerald-800' },
     { value: 'COMPLETED', label: 'Hoàn thành', color: 'bg-teal-100 text-teal-800' },
     { value: 'CANCELLED', label: 'Đã hủy', color: 'bg-red-100 text-red-800' },
+    { value: 'RETURN_REQUESTED', label: 'Yêu cầu trả hàng', color: 'bg-amber-100 text-amber-800' },
     { value: 'RETURNED', label: 'Đã trả hàng', color: 'bg-orange-100 text-orange-800' },
     { value: 'REFUNDED', label: 'Đã hoàn tiền', color: 'bg-purple-100 text-purple-800' },
     { value: 'RETURN_COMPLETED', label: 'Đã trả xong', color: 'bg-pink-100 text-pink-800' },
@@ -74,6 +88,7 @@ const BillDetail = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
+      console.log(`📄 Fetching bill data for ID: ${id}`);
       const [billData, billDetailsData, productData] = await Promise.all([
         HoaDonApi.getBill(id),
         HoaDonApi.getBillDetails(id, 0, 10),
@@ -87,6 +102,18 @@ const BillDetail = () => {
           productFilters.colorName
         ),
       ]);
+      
+      console.log('✅ Bill data loaded:', {
+        billType: billData.billType,
+        status: billData.status,
+        code: billData.code,
+        id: billData.id,
+        fullBillData: billData
+      });
+      
+      console.log('🔍 Bill Details Data:', billDetailsData.content);
+      console.log('🔍 First Bill Detail:', billDetailsData.content?.[0]);
+      
       setBill(billData);
       setBillDetails(billDetailsData.content || []);
       setProducts(productData.content || []);
@@ -115,9 +142,12 @@ const BillDetail = () => {
 
   const fetchOrderHistory = async () => {
     try {
+      console.log(`📊 Fetching order history for bill: ${id}`);
       const historyData = await HoaDonApi.getOrderHistory(id);
+      console.log('✅ Order history fetched:', historyData);
       setOrderHistory(historyData);
     } catch (error) {
+      console.error('❌ Order history fetch failed:', error);
       toast.error('Lỗi khi tải lịch sử đơn hàng: ' + error.message);
     }
   };
@@ -198,62 +228,375 @@ const BillDetail = () => {
     setCustomerPayment(bill.finalAmount.toString());
   };
 
-  const getNextStatus = (currentStatus) => {
-    if (!currentStatus) return null;
-    const normalFlow = ['CONFIRMING', 'DELIVERING', 'PAID', 'COMPLETED'];
-    const returnFlow = ['RETURNED', 'REFUNDED', 'RETURN_COMPLETED'];
+  // Get available next statuses for dropdown based on current status and bill conditions
+  const getAvailableNextStatuses = (currentStatus) => {
+    if (!currentStatus) return [];
     
-    if (normalFlow.includes(currentStatus)) {
-      const currentIndex = normalFlow.indexOf(currentStatus);
-      return currentIndex < normalFlow.length - 1 ? normalFlow[currentIndex + 1] : null;
-    } else if (returnFlow.includes(currentStatus)) {
-      const currentIndex = returnFlow.indexOf(currentStatus);
-      return currentIndex < returnFlow.length - 1 ? returnFlow[currentIndex + 1] : null;
+    const hasDeliveryAddress = bill?.address && bill.address.trim() !== '' && bill.address !== 'N/A';
+    
+    switch (currentStatus) {
+      case 'PENDING':
+        // Đơn hàng mới tạo - có thể hủy hoặc xác nhận
+        return [
+          { value: 'CONFIRMING', label: 'Xác nhận đơn hàng' },
+          { value: 'CANCELLED', label: 'Hủy hóa đơn' }
+        ];
+        
+      case 'CONFIRMING':
+        // Đang xác nhận - phân biệt theo loại thanh toán
+        if (bill?.billType === 'OFFLINE' && (bill?.type === 'CASH' || bill?.type === 'BANKING')) {
+          // Tại quầy với CASH hoặc BANKING - thanh toán trước
+          return [
+            { value: 'PAID', label: 'Đã thanh toán' },
+            { value: 'CANCELLED', label: 'Hủy hóa đơn' }
+          ];
+        } else if (bill?.type === 'COD') {
+          // COD - xác nhận trước, thanh toán sau khi giao hàng
+          return [
+            { value: 'CONFIRMED', label: 'Đã xác nhận' },
+            { value: 'CANCELLED', label: 'Hủy hóa đơn' }
+          ];
+        } else if (bill?.type === 'VNPAY') {
+          // VNPAY - thanh toán trước
+          return [
+            { value: 'PAID', label: 'Đã thanh toán' },
+            { value: 'CANCELLED', label: 'Hủy hóa đơn' }
+          ];
+        } else {
+          // Trường hợp khác - mặc định thanh toán trước
+          return [
+            { value: 'PAID', label: 'Đã thanh toán' },
+            { value: 'CANCELLED', label: 'Hủy hóa đơn' }
+          ];
+        }
+        
+      case 'CONFIRMED':
+        // Đã xác nhận đơn hàng - chuyển sang đóng gói
+        return [
+          { value: 'PACKED', label: 'Đã đóng gói' },
+          { value: 'CANCELLED', label: 'Hủy hóa đơn' }
+        ];
+        
+      case 'PAID':
+        // Đã thanh toán - phân biệt theo loại thanh toán và có địa chỉ giao hàng
+        if (bill?.billType === 'OFFLINE' && (bill?.type === 'CASH' || bill?.type === 'BANKING')) {
+          // Tại quầy với CASH hoặc BANKING - kiểm tra có địa chỉ giao hàng không
+          if (hasDeliveryAddress) {
+            // Có địa chỉ giao hàng - cần đóng gói và giao hàng
+            return [
+              { value: 'PACKED', label: 'Đã đóng gói' },
+              { value: 'CANCELLED', label: 'Hủy hóa đơn' }
+            ];
+          } else {
+            // Không có địa chỉ - hoàn thành luôn (khách lấy tại quầy)
+            return [
+              { value: 'COMPLETED', label: 'Hoàn thành' }
+            ];
+          }
+        } else if (bill?.type === 'COD') {
+          // COD - đã thanh toán nghĩa là khách đã nhận hàng và thanh toán rồi, hoàn thành luôn
+          return [
+            { value: 'COMPLETED', label: 'Hoàn thành' }
+          ];
+        } else if (bill?.type === 'VNPAY') {
+          // VNPAY - đã thanh toán trước, cần đóng gói và giao hàng
+          if (hasDeliveryAddress) {
+            return [
+              { value: 'PACKED', label: 'Đã đóng gói' },
+              { value: 'CANCELLED', label: 'Hủy hóa đơn' }
+            ];
+          } else {
+            return [
+              { value: 'COMPLETED', label: 'Hoàn thành' }
+            ];
+          }
+        } else {
+          // Trường hợp khác - kiểm tra có địa chỉ giao hàng
+          if (hasDeliveryAddress) {
+            return [
+              { value: 'PACKED', label: 'Đã đóng gói' },
+              { value: 'CANCELLED', label: 'Hủy hóa đơn' }
+            ];
+          } else {
+            return [
+              { value: 'COMPLETED', label: 'Hoàn thành' }
+            ];
+          }
+        }
+        
+      case 'PACKED':
+        // Đã đóng gói - chỉ cho giao hàng hoặc hủy
+        return [
+          { value: 'DELIVERING', label: 'Đang giao hàng' },
+          { value: 'CANCELLED', label: 'Hủy hóa đơn' }
+        ];
+        
+      case 'DELIVERING':
+        // Đang giao hàng - KHÔNG cho hủy nữa, chỉ cho giao thành công hoặc yêu cầu trả hàng
+        return [
+          { value: 'DELIVERED', label: 'Đã giao hàng' },
+          { value: 'RETURN_REQUESTED', label: 'Khách yêu cầu trả hàng' }
+        ];
+        
+      case 'DELIVERED':
+        // Đã giao hàng - phân biệt theo loại thanh toán
+        if (bill?.type === 'COD') {
+          // COD - khách thanh toán sau khi nhận hàng
+          return [
+            { value: 'PAID', label: 'Khách đã thanh toán' },
+            { value: 'RETURN_REQUESTED', label: 'Khách yêu cầu trả hàng' }
+          ];
+        } else {
+          // Đã thanh toán trước - hoàn thành hoặc trả hàng
+          return [
+            { value: 'COMPLETED', label: 'Hoàn thành' },
+            { value: 'RETURN_REQUESTED', label: 'Khách yêu cầu trả hàng' }
+          ];
+        }
+        
+      case 'RETURN_REQUESTED':
+        // Yêu cầu trả hàng - xử lý trả hàng
+        return [
+          { value: 'RETURNED', label: 'Đã trả hàng' },
+          { value: 'DELIVERED', label: 'Từ chối trả hàng (giao lại)' }
+        ];
+        
+      case 'RETURNED':
+        // Đã trả hàng - hoàn tiền
+        return [
+          { value: 'REFUNDED', label: 'Đã hoàn tiền' }
+        ];
+        
+      case 'REFUNDED':
+        // Đã hoàn tiền - hoàn tất trả hàng
+        return [
+          { value: 'RETURN_COMPLETED', label: 'Hoàn tất trả hàng' }
+        ];
+        
+      case 'COMPLETED':
+      case 'CANCELLED':
+      case 'RETURN_COMPLETED':
+        // Trạng thái cuối - không thể chuyển tiếp
+        return [];
+        
+      default:
+        return [];
     }
-    return null;
   };
 
+  // Get previous status for reverting
   const getPreviousStatus = (currentStatus) => {
-    if (!currentStatus) return null;
-    const normalFlow = ['CONFIRMING', 'DELIVERING', 'PAID', 'COMPLETED'];
-    const returnFlow = ['RETURNED', 'REFUNDED', 'RETURN_COMPLETED'];
-    
-    if (normalFlow.includes(currentStatus)) {
-      const currentIndex = normalFlow.indexOf(currentStatus);
-      return currentIndex > 0 ? normalFlow[currentIndex - 1] : null;
-    } else if (returnFlow.includes(currentStatus)) {
-      const currentIndex = returnFlow.indexOf(currentStatus);
-      return currentIndex > 0 ? returnFlow[currentIndex - 1] : null;
+    switch (currentStatus) {
+      case 'CONFIRMING': return 'PENDING';
+      case 'CONFIRMED': return 'CONFIRMING';
+      case 'PAID': return 'CONFIRMING';
+      case 'PACKED': return 'PAID';
+      case 'DELIVERING': return 'PACKED';
+      case 'DELIVERED': return 'DELIVERING';
+      case 'COMPLETED': return 'DELIVERED';
+      case 'RETURN_REQUESTED': return 'DELIVERED';
+      case 'RETURNED': return 'RETURN_REQUESTED';
+      case 'REFUNDED': return 'RETURNED';
+      case 'RETURN_COMPLETED': return 'REFUNDED';
+      default: return null;
     }
-    return null;
   };
 
-  const handleNextStatusUpdate = async () => {
-    if (!bill || !bill.status) {
-      toast.error('Không thể cập nhật trạng thái: Hóa đơn chưa tải');
+  // Get return status for processing returns
+  const getReturnStatus = (currentStatus) => {
+    switch (currentStatus) {
+      case 'DELIVERED': return 'RETURN_REQUESTED';
+      case 'COMPLETED': return 'RETURN_REQUESTED';
+      case 'RETURN_REQUESTED': return 'RETURNED';
+      case 'RETURNED': return 'REFUNDED';
+      case 'REFUNDED': return 'RETURN_COMPLETED';
+      default: return null;
+    }
+  };
+
+  // Check if can add products to bill (only in early statuses)
+  const canAddProducts = (currentStatus) => {
+    return ['PENDING', 'CONFIRMING'].includes(currentStatus);
+  };
+
+  // Handle status change from dropdown
+  const handleStatusChange = async (newStatus) => {
+    if (!bill || !newStatus) {
+      toast.error('Không thể cập nhật trạng thái');
       return;
     }
-    
-    const nextStatus = getNextStatus(bill.status);
-    if (!nextStatus) {
-      toast.error('Không thể chuyển sang trạng thái tiếp theo');
+
+    // Special handling for payment transition
+    if (newStatus === 'PAID' && bill.customerPayment < bill.finalAmount) {
+      setShowPaymentModal(true);
       return;
     }
 
     try {
       setLoading(true);
-      if (nextStatus === 'PAID' && bill.customerPayment < bill.finalAmount) {
-        setShowPaymentModal(true);
-      } else {
-        await HoaDonApi.updateBillStatus(id, nextStatus);
-        toast.success(`Cập nhật trạng thái thành ${orderStatusOptions.find(opt => opt.value === nextStatus)?.label || nextStatus}`);
-        fetchData();
-        fetchOrderHistory();
-      }
+      console.log(`📤 Changing status: ${bill.status} → ${newStatus}`);
+      
+      await HoaDonApi.updateBillStatus(id, newStatus);
+      
+      const statusLabel = orderStatusOptions.find(opt => opt.value === newStatus)?.label || newStatus;
+      toast.success(`Đã chuyển trạng thái sang: ${statusLabel}`);
+      
+      fetchData();
+      fetchOrderHistory();
     } catch (error) {
+      console.error('❌ Status change failed:', error);
       toast.error('Lỗi khi cập nhật trạng thái: ' + error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleNextStatusUpdate = async () => {
+    console.log('🔄 handleNextStatusUpdate called!');
+    
+    try {
+      console.log('🔄 Inside main try block');
+      console.log('🔄 isMountedRef.current:', isMountedRef.current);
+      
+      // Remove mount check that was preventing status updates
+      // if (!isMountedRef.current) {
+      //   console.log('🔄 Component unmounted, returning');
+      //   return;
+      // }
+      
+      if (!bill || !bill.status) {
+        console.log('🔄 No bill or status, showing error');
+        toast.error('Không thể cập nhật trạng thái: Hóa đơn chưa tải');
+        return;
+      }
+      
+      // Get the first available next status
+      const availableStatuses = getAvailableNextStatuses(bill.status);
+      const nextStatus = availableStatuses.length > 0 ? availableStatuses[0].value : null;
+      
+      console.log('🔄 Status Transition Debug:', {
+        billType: bill.billType,
+        currentStatus: bill.status,
+        availableStatuses: availableStatuses,
+        nextStatus: nextStatus,
+        billId: bill.id
+      });
+      
+      if (!nextStatus) {
+        console.log('🔄 No next status available');
+        toast.error('Không thể chuyển sang trạng thái tiếp theo');
+        return;
+      }
+
+      console.log('🔄 Starting status update process...');
+      // Skip mount check temporarily for debugging
+      setLoading(true);
+      console.log('🔄 Set loading to true');
+      
+      if (nextStatus === 'PAID' && bill.customerPayment < bill.finalAmount) {
+        console.log('🔄 Payment modal path - should not happen for PAID->COMPLETED');
+        setShowPaymentModal(true);
+        setLoading(false);
+        return;
+      } else {
+        console.log('🔄 Normal status update path');
+        console.log(`📤 Sending status update request: ${bill.id} -> ${nextStatus}`);
+        console.log('📤 Using API endpoint: /bills/' + id + '/status');
+        console.log('📤 Request parameters:', { status: nextStatus });
+        
+        console.log('🔄 About to call HoaDonApi.updateBillStatus...');
+        console.log('🔄 Parameters:', { id, nextStatus, idType: typeof id, nextStatusType: typeof nextStatus });
+        
+        // Add additional safeguards for the API call
+        let result;
+        try {
+          result = await HoaDonApi.updateBillStatus(id, nextStatus);
+          console.log('✅ HoaDonApi.updateBillStatus completed:', result);
+        } catch (apiError) {
+          console.error('❌ HoaDonApi.updateBillStatus failed:', apiError);
+          
+          // Try to parse the actual error
+          let apiErrorMessage = 'Lỗi API không xác định';
+          if (apiError?.message) {
+            apiErrorMessage = apiError.message;
+          } else if (apiError?.response?.data?.message) {
+            apiErrorMessage = apiError.response.data.message;
+          } else if (typeof apiError === 'string') {
+            apiErrorMessage = apiError;
+          }
+          
+          throw new Error(`API Error: ${apiErrorMessage}`);
+        }
+        
+        // Remove mount check to allow UI updates
+        // if (!isMountedRef.current) return;
+        
+        // Safe status label lookup
+        let statusLabel = nextStatus;
+        try {
+          const statusOption = orderStatusOptions.find(opt => opt.value === nextStatus);
+          statusLabel = statusOption?.label || nextStatus;
+        } catch (labelError) {
+          console.warn('❌ Error finding status label:', labelError);
+        }
+        
+        toast.success(`Cập nhật trạng thái thành ${statusLabel}`);
+        
+        console.log('🔄 About to refresh data...');
+        try {
+          // Remove mount check to allow data refresh
+          // if (!isMountedRef.current) return;
+          await fetchData();
+          console.log('✅ fetchData completed');
+        } catch (fetchError) {
+          console.error('❌ fetchData failed:', fetchError);
+        }
+        
+        try {
+          // Remove mount check to allow history refresh
+          // if (!isMountedRef.current) return;
+          await fetchOrderHistory();
+          console.log('✅ fetchOrderHistory completed');
+        } catch (historyError) {
+          console.error('❌ fetchOrderHistory failed:', historyError);
+        }
+        console.log('✅ Data refresh completed');
+      }
+    } catch (error) {
+      console.error('❌ Status update failed:', error);
+      
+      // Safe error handling to prevent React crashes
+      let errorMessage = 'Lỗi không xác định';
+      let errorDetails = {};
+      
+      try {
+        errorDetails = {
+          message: error?.message || 'Unknown error',
+          response: error?.response || null,
+          stack: error?.stack || 'No stack trace',
+          errorType: typeof error,
+          errorConstructor: error?.constructor?.name || 'Unknown'
+        };
+        
+        if (error?.message) {
+          errorMessage = error.message;
+        } else if (error?.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        } else if (typeof error === 'string') {
+          errorMessage = error;
+        }
+        
+        console.error('❌ Error details:', errorDetails);
+      } catch (detailError) {
+        console.error('❌ Error processing error details:', detailError);
+        errorMessage = 'Có lỗi xảy ra khi cập nhật trạng thái';
+      }
+      
+      toast.error('Lỗi khi cập nhật trạng thái: ' + errorMessage);
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -282,23 +625,32 @@ const BillDetail = () => {
     }
   };
 
-  const handlePaymentSubmit = async () => {
-    if (!customerPayment || isNaN(customerPayment) || Number(customerPayment) <= 0) {
-      toast.error('Số tiền khách trả không hợp lệ');
+  const handleReturnOrder = async () => {
+    if (!bill || !bill.status) {
+      toast.error('Không thể trả hàng: Hóa đơn chưa tải');
       return;
     }
+    
+    const returnStatus = getReturnStatus(bill.status);
+    if (!returnStatus) {
+      toast.error('Không thể trả hàng ở trạng thái hiện tại');
+      return;
+    }
+
+    if (!window.confirm('Xác nhận khách hàng không nhận hàng và trả về kho?')) {
+      return;
+    }
+
     try {
       setLoading(true);
-      const paymentAmount = Number(customerPayment);
-      await HoaDonApi.updateCustomerPayment(id, paymentAmount);
-      await HoaDonApi.updateBillStatus(id, 'PAID');
-      setShowPaymentModal(false);
-      setCustomerPayment('');
-      toast.success('Cập nhật thanh toán và trạng thái thành công');
+      console.log(`📤 Processing return: ${bill.id} -> ${returnStatus}`);
+      await HoaDonApi.updateBillStatus(id, returnStatus);
+      toast.success('Đã xử lý trả hàng thành công');
       fetchData();
       fetchOrderHistory();
     } catch (error) {
-      toast.error('Lỗi khi cập nhật thanh toán: ' + error.message);
+      console.error('❌ Return processing failed:', error);
+      toast.error('Lỗi khi xử lý trả hàng: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -306,6 +658,34 @@ const BillDetail = () => {
 
   const handleCustomerPaymentChange = (e) => {
     setCustomerPayment(e.target.value);
+  };
+
+  const handlePaymentSubmit = async () => {
+    if (!customerPayment || isNaN(customerPayment) || Number(customerPayment) <= 0) {
+      toast.error('Vui lòng nhập số tiền hợp lệ');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Update customer payment first
+      await HoaDonApi.updateCustomerPayment(id, Number(customerPayment));
+      
+      // Then update status to PAID
+      await HoaDonApi.updateBillStatus(id, 'PAID');
+      
+      toast.success('Đã cập nhật thanh toán thành công');
+      setShowPaymentModal(false);
+      setCustomerPayment('');
+      fetchData();
+      fetchOrderHistory();
+    } catch (error) {
+      console.error('❌ Payment update failed:', error);
+      toast.error('Lỗi khi cập nhật thanh toán: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAddressChange = (field, value) => {
@@ -382,6 +762,13 @@ const BillDetail = () => {
     }
   }, [showAddressModal, addressForm.provinceId, addressForm.districtId]);
 
+  // Cleanup effect
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const formatDate = (dateStr) => {
     if (!dateStr) return 'N/A';
     const date = new Date(dateStr);
@@ -390,16 +777,20 @@ const BillDetail = () => {
 
   const filteredStatusOptions = bill?.billType === 'ONLINE'
     ? orderStatusOptions
-    : orderStatusOptions.filter(opt => !['DELIVERING', 'COMPLETED', 'RETURNED', 'REFUNDED', 'RETURN_COMPLETED'].includes(opt.value));
+    : orderStatusOptions.filter(opt => !['DELIVERING', 'RETURNED', 'REFUNDED', 'RETURN_COMPLETED'].includes(opt.value));
 
   const getStatusIcon = (status) => {
     switch (status) {
       case 'PENDING': return <HiClock className="text-yellow-600" />;
       case 'CONFIRMING': return <HiCheckCircle className="text-blue-600" />;
+      case 'CONFIRMED': return <HiCheckCircle className="text-cyan-600" />;
+      case 'PACKED': return <HiArchive className="text-purple-600" />;
       case 'PAID': return <HiCurrencyDollar className="text-green-600" />;
       case 'DELIVERING': return <HiOutlineTruck className="text-indigo-600" />;
+      case 'DELIVERED': return <HiCheckCircle className="text-emerald-600" />;
       case 'COMPLETED': return <HiCheckCircle className="text-teal-600" />;
       case 'CANCELLED': return <HiXCircle className="text-red-600" />;
+      case 'RETURN_REQUESTED': return <HiClock className="text-amber-600" />;
       case 'RETURNED': return <HiArrowLeft className="text-orange-600" />;
       case 'REFUNDED': return <HiCurrencyDollar className="text-purple-600" />;
       case 'RETURN_COMPLETED': return <HiCheckCircle className="text-pink-600" />;
@@ -417,7 +808,6 @@ const BillDetail = () => {
             <button
               onClick={() => setShowModal(true)}
               className="flex items-center px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-colors"
-              disabled={bill?.billType !== 'ONLINE'}
             >
               <HiClock className="mr-2" /> Xem lịch sử
             </button>
@@ -431,31 +821,51 @@ const BillDetail = () => {
         </div>
 
         {/* Timeline Section */}
-        {bill?.billType === 'ONLINE' && (
+        {(bill?.billType === 'ONLINE' || bill?.billType === 'OFFLINE') && (
           <div className="bg-white shadow-lg rounded-lg p-6 mb-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-semibold text-gray-900">Lịch sử trạng thái</h3>
               <div className="flex space-x-4">
-                <button
-                  onClick={handlePreviousStatusUpdate}
-                  className="flex items-center px-4 py-2 bg-gray-600 text-white text-sm font-medium rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors disabled:opacity-50"
-                  disabled={loading || !getPreviousStatus(bill?.status)}
-                >
-                  <HiArrowLeft className="mr-2" />
-                  {getPreviousStatus(bill?.status)
-                    ? `Quay lại ${orderStatusOptions.find(opt => opt.value === getPreviousStatus(bill?.status))?.label || 'N/A'}`
-                    : 'Không thể quay lại'}
-                </button>
-                <button
-                  onClick={handleNextStatusUpdate}
-                  className="flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50"
-                  disabled={loading || !getNextStatus(bill?.status)}
-                >
-                  <HiCheckCircle className="mr-2" />
-                  {getNextStatus(bill?.status)
-                    ? `Chuyển sang ${orderStatusOptions.find(opt => opt.value === getNextStatus(bill?.status))?.label || 'N/A'}`
-                    : 'Không thể chuyển trạng thái'}
-                </button>
+                {/* Status Change Dropdown */}
+                {getAvailableNextStatuses(bill?.status).length > 0 && (
+                  <div className="flex flex-col space-y-2">
+                    <label className="text-sm font-medium text-gray-700">
+                      Chuyển trạng thái:
+                    </label>
+                    <Select
+                      options={getAvailableNextStatuses(bill?.status)}
+                      value={null}
+                      onChange={(option) => handleStatusChange(option.value)}
+                      className="min-w-64"
+                      placeholder="Chọn trạng thái tiếp theo..."
+                      isDisabled={loading}
+                      styles={{
+                        control: (base) => ({
+                          ...base,
+                          borderColor: '#d1d5db',
+                          boxShadow: 'none',
+                          '&:hover': { borderColor: '#9ca3af' },
+                        }),
+                        option: (base, state) => ({
+                          ...base,
+                          backgroundColor: state.isSelected 
+                            ? '#3b82f6' 
+                            : state.isFocused 
+                            ? '#eff6ff' 
+                            : 'white',
+                          color: state.isSelected ? 'white' : '#374151',
+                        }),
+                      }}
+                    />
+                  </div>
+                )}
+                
+                {/* No available transitions message */}
+                {getAvailableNextStatuses(bill?.status).length === 0 && (
+                  <div className="text-sm text-gray-500 bg-gray-50 px-4 py-2 rounded-lg">
+                    Đơn hàng đã hoàn tất - không thể chuyển trạng thái
+                  </div>
+                )}
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -592,7 +1002,7 @@ const BillDetail = () => {
         <div className="bg-white shadow-lg rounded-lg p-6 mb-6">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-xl font-semibold text-gray-900">Chi tiết sản phẩm</h3>
-            {bill?.status === 'CONFIRMING' && (
+            {canAddProducts(bill?.status) && (
               <button
                 onClick={() => setShowAddProductModal(true)}
                 className="flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors disabled:opacity-50"
@@ -616,7 +1026,7 @@ const BillDetail = () => {
                     <th className="px-6 py-3">Đơn giá</th>
                     <th className="px-6 py-3">Tổng</th>
                     <th className="px-6 py-3">Trạng thái</th>
-                    {bill?.status === 'CONFIRMING' && (
+                    {canAddProducts(bill?.status) && (
                       <th className="px-6 py-3 w-24">Hành động</th>
                     )}
                   </tr>
@@ -646,11 +1056,11 @@ const BillDetail = () => {
                       <td className="px-6 py-4">{formatMoney(item.price)}</td>
                       <td className="px-6 py-4">{formatMoney(item.promotionalPrice * item.quantity)}</td>
                       <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${orderStatusOptions.find(opt => opt.value === item.status)?.color || 'bg-gray-100 text-gray-800'}`}>
-                          {orderStatusOptions.find(opt => opt.value === item.typeOrder)?.label || item.typeOrder || 'N/A'}
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${billDetailStatusOptions.find(opt => opt.value === item.status)?.color || 'bg-gray-100 text-gray-800'}`}>
+                          {billDetailStatusOptions.find(opt => opt.value === item.status)?.label || item.status || 'N/A'}
                         </span>
                       </td>
-                      {bill?.status === 'CONFIRMING' && (
+                      {canAddProducts(bill?.status) && (
                         <td className="px-6 py-4 text-center">
                           <button
                             onClick={() => handleRemoveProduct(item.id)}

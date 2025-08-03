@@ -21,6 +21,7 @@ public interface BillService {
     BillResponseDTO addVoucherToBill(Integer billId, String voucherCode);
     BillResponseDTO removeVoucherFromBill(Integer billId);
     BillResponseDTO updateBillStatus(Integer billId, OrderStatus newStatus);
+    BillResponseDTO updateBillStatusWithPayment(Integer billId, OrderStatus newStatus, BigDecimal amount);
     PaymentResponseDTO processPayment(Integer billId, PaymentType paymentType, BigDecimal amount);
     BillResponseDTO confirmBankingPayment(Integer billId);
     String generateInvoice(Integer billId);
