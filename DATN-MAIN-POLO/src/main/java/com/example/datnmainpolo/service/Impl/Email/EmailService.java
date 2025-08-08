@@ -106,4 +106,102 @@ public class EmailService {
         helper.setText(htmlContent, true);
         mailSender.send(message);
     }
+
+    public void sendOrderConfirmationEmail(String to, String userName, String billCode, 
+                                         BigDecimal finalAmount, String address, String phoneNumber,
+                                         String paymentMethod) throws MessagingException {
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+        helper.setFrom(fromEmail);
+        helper.setTo(to);
+        helper.setSubject("Xác nhận đặt hàng thành công - POLO Viet Store");
+
+        // Format current date
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+        String orderDate = Instant.now().atZone(java.time.ZoneId.systemDefault()).format(formatter);
+
+        // Format payment method
+        String paymentMethodText = "COD".equals(paymentMethod) ? "Thanh toán khi nhận hàng (COD)" : 
+                                  "VNPAY".equals(paymentMethod) ? "Thanh toán qua VNPay" : paymentMethod;
+
+        String htmlContent = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+        </head>
+        <body class="bg-gray-100 font-sans">
+            <div class="max-w-2xl mx-auto bg-white rounded-lg shadow-lg p-6 my-8">
+                <!-- Header -->
+                <div class="text-center mb-6">
+                    <h1 class="text-2xl font-bold text-green-600">Đặt hàng thành công!</h1>
+                    <p class="text-gray-600">Chào %s,</p>
+                    <p class="text-gray-600">Cảm ơn bạn đã đặt hàng tại POLO Viet Store!</p>
+                </div>
+
+                <!-- Order Details -->
+                <div class="bg-gray-50 rounded-lg p-6 mb-6">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4">Thông tin đơn hàng</h2>
+                    <div class="grid grid-cols-1 gap-2">
+                        <p><strong class="text-gray-700">Mã đơn hàng:</strong> <span class="font-mono bg-gray-200 px-2 py-1 rounded">%s</span></p>
+                        <p><strong class="text-gray-700">Ngày đặt hàng:</strong> %s</p>
+                        <p><strong class="text-gray-700">Tổng tiền:</strong> <span class="text-green-600 font-semibold">%,.0f VND</span></p>
+                        <p><strong class="text-gray-700">Phương thức thanh toán:</strong> %s</p>
+                    </div>
+                </div>
+
+                <!-- Shipping Details -->
+                <div class="bg-gray-50 rounded-lg p-6 mb-6">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4">Thông tin giao hàng</h2>
+                    <div class="grid grid-cols-1 gap-2">
+                        <p><strong class="text-gray-700">Người nhận:</strong> %s</p>
+                        <p><strong class="text-gray-700">Số điện thoại:</strong> %s</p>
+                        <p><strong class="text-gray-700">Địa chỉ:</strong> %s</p>
+                    </div>
+                </div>
+
+                <!-- Status -->
+                <div class="bg-blue-50 rounded-lg p-6 mb-6">
+                    <h2 class="text-xl font-semibold text-blue-800 mb-4">Trạng thái đơn hàng</h2>
+                    <p class="text-blue-700">
+                        %s
+                    </p>
+                </div>
+
+                <!-- Call to Action -->
+                <div class="text-center mb-6">
+                    <a href="https://your-website.com/orders" class="inline-block bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 transition">
+                        Theo dõi đơn hàng
+                    </a>
+                </div>
+
+                <!-- Footer -->
+                <div class="text-center text-gray-500 text-sm border-t pt-4">
+                    <p>Cảm ơn bạn đã chọn POLO Viet Store!</p>
+                    <p>Liên hệ với chúng tôi qua email: <a href="mailto:support@polostore.com" class="text-blue-600">support@polostore.com</a></p>
+                    <p>© 2025 POLO Viet Store. All rights reserved.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """.formatted(
+                userName,
+                billCode,
+                orderDate,
+                finalAmount,
+                paymentMethodText,
+                userName,
+                phoneNumber,
+                address,
+                "COD".equals(paymentMethod) ? 
+                    "Đơn hàng của bạn đang được xác nhận. Chúng tôi sẽ liên hệ với bạn trong thời gian sớm nhất để xác nhận và giao hàng." :
+                    "Đơn hàng của bạn đã được thanh toán thành công và đang được chuẩn bị. Chúng tôi sẽ giao hàng trong thời gian sớm nhất."
+        );
+
+        helper.setText(htmlContent, true);
+        mailSender.send(message);
+    }
 }

@@ -9,6 +9,7 @@ import { getUserIdByEmail } from '../../../utils/userUtils';
 
 const Cart = () => {
   const [cartItems, setCartItems] = useState([]);
+  const [selectedItems, setSelectedItems] = useState(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -143,6 +144,13 @@ const Cart = () => {
         setCartItems(cartItems.filter((item) => item.id !== cartDetailId));
       }
       
+      // Xóa khỏi danh sách selected nếu có
+      setSelectedItems(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(cartDetailId);
+        return newSet;
+      });
+      
       toast.success('Đã xóa sản phẩm khỏi giỏ hàng', {
         position: 'top-right',
         autoClose: 3000,
@@ -153,6 +161,30 @@ const Cart = () => {
         autoClose: 3000,
       });
     }
+  };
+
+  const handleSelectItem = (itemId, isSelected) => {
+    setSelectedItems(prev => {
+      const newSet = new Set(prev);
+      if (isSelected) {
+        newSet.add(itemId);
+      } else {
+        newSet.delete(itemId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = (isSelected) => {
+    if (isSelected) {
+      setSelectedItems(new Set(cartItems.map(item => item.id)));
+    } else {
+      setSelectedItems(new Set());
+    }
+  };
+
+  const getSelectedCartItems = () => {
+    return cartItems.filter(item => selectedItems.has(item.id));
   };
 
   return (
@@ -177,16 +209,43 @@ const Cart = () => {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-6">
+              {/* Checkbox chọn tất cả */}
+              <div className="bg-white rounded-xl shadow-md p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={cartItems.length > 0 && selectedItems.size === cartItems.length}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className="w-5 h-5 text-indigo-600 bg-gray-100 border-gray-300 rounded focus:ring-indigo-500 focus:ring-2 mr-3"
+                    />
+                    <span className="text-lg font-medium text-gray-900">
+                      Chọn tất cả ({selectedItems.size}/{cartItems.length})
+                    </span>
+                  </div>
+                  {selectedItems.size > 0 && (
+                    <span className="text-sm text-indigo-600 font-medium">
+                      Đã chọn {selectedItems.size} sản phẩm
+                    </span>
+                  )}
+                </div>
+              </div>
+
               {cartItems.map((item) => (
                 <CartItem
                   key={item.id}
                   item={item}
+                  isSelected={selectedItems.has(item.id)}
+                  onSelectItem={handleSelectItem}
                   onUpdateQuantity={handleUpdateQuantity}
                   onRemoveItem={handleRemoveItem}
                 />
               ))}
             </div>
-            <CartSummary cartItems={cartItems} />
+            <CartSummary 
+              cartItems={cartItems} 
+              selectedItems={getSelectedCartItems()}
+            />
           </div>
         )}
       </div>

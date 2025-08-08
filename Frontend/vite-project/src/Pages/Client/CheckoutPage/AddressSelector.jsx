@@ -709,13 +709,21 @@ const AddressSelector = ({ selectedAddressId, setSelectedAddressId, setShippingI
               ))
             )}
           </div>
-          <button
-            key="add-new-btn"
-            onClick={() => setIsAddingNew(true)}
-            className="mt-4 px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-300"
-          >
-            Thêm địa chỉ mới
-          </button>
+          {addresses.length >= 4 ? (
+            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-sm text-yellow-800">
+                Bạn đã đạt giới hạn tối đa 4 địa chỉ giao hàng. Vui lòng xóa một địa chỉ cũ để thêm địa chỉ mới.
+              </p>
+            </div>
+          ) : (
+            <button
+              key="add-new-btn"
+              onClick={() => setIsAddingNew(true)}
+              className="mt-4 px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-300"
+            >
+              Thêm địa chỉ mới ({addresses.length}/4)
+            </button>
+          )}
           {selectedAddressId && (
             <button
               key="continue-btn"

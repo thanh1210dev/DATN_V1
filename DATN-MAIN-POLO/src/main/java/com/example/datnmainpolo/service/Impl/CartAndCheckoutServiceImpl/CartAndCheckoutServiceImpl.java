@@ -50,13 +50,13 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
     private final BillService billService;
     private final BillDetailService billDetailService;
     private final UserService userService;
-    
+
     @Value("${ghn.api.token}")
     private String ghnToken;
-    
+
     @Value("${ghn.api.shop-id}")
     private String shopId;
-    
+
     @Value("${ghn.api.base-url}")
     private String ghnBaseUrl;
 
@@ -69,8 +69,9 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
     @Transactional
     public CartDetailResponseDTO addProductToCart(Integer userId, Integer productDetailId, Integer quantity) {
         System.out.println("=== ADD TO CART DEBUG START ===");
-        System.out.println("User ID: " + userId + ", Product Detail ID: " + productDetailId + ", Quantity: " + quantity);
-        
+        System.out
+                .println("User ID: " + userId + ", Product Detail ID: " + productDetailId + ", Quantity: " + quantity);
+
         LOGGER.info("Adding product {} to cart for user {}", productDetailId, userId);
 
         UserEntity user = userRepository.findById(userId)
@@ -103,7 +104,8 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
         cartDetail.setUpdatedBy(user.getName());
 
         CartDetail savedCartDetail = cartDetailRepository.save(cartDetail);
-        System.out.println("=== ADD TO CART DEBUG END - Cart detail saved with ID: " + savedCartDetail.getId() + " ===");
+        System.out
+                .println("=== ADD TO CART DEBUG END - Cart detail saved with ID: " + savedCartDetail.getId() + " ===");
         return convertToCartDetailResponseDTO(savedCartDetail);
     }
 
@@ -145,11 +147,11 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
     @Transactional
     public void clearCart(Integer userId) {
         LOGGER.info("Clearing cart for user {}", userId);
-        
+
         try {
             Cart cart = cartRepository.findByUserEntityId(userId)
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy giỏ hàng"));
-            
+
             List<CartDetail> cartDetails = cartDetailRepository.findByCartId(cart.getId());
             if (!cartDetails.isEmpty()) {
                 cartDetailRepository.deleteAll(cartDetails);
@@ -167,7 +169,7 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
     public List<CartDetailResponseDTO> getCartItems(Integer userId) {
         System.out.println("=== GET CART ITEMS DEBUG START ===");
         System.out.println("User ID: " + userId);
-        
+
         LOGGER.debug("Fetching cart items for user {}", userId);
 
         Cart cart = cartRepository.findByUserEntityId(userId)
@@ -176,11 +178,11 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
 
         List<CartDetail> cartDetails = cartDetailRepository.findByCartId(cart.getId());
         System.out.println("Cart details count: " + cartDetails.size());
-        
+
         List<CartDetailResponseDTO> result = cartDetails.stream()
                 .map(this::convertToCartDetailResponseDTO)
                 .collect(Collectors.toList());
-                
+
         System.out.println("=== GET CART ITEMS DEBUG END - returning " + result.size() + " items ===");
         return result;
     }
@@ -190,8 +192,9 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
     public BillResponseDTO createBillFromCart(Integer userId, Integer addressId, PaymentType paymentType) {
         System.out.println("=== CREATE BILL DEBUG START ===");
         System.out.println("User ID: " + userId + ", Address ID: " + addressId + ", Payment Type: " + paymentType);
-        
-        LOGGER.info("Creating bill from cart for user {} with payment type {} and address {}", userId, paymentType, addressId);
+
+        LOGGER.info("Creating bill from cart for user {} with payment type {} and address {}", userId, paymentType,
+                addressId);
 
         // Validate all required inputs
         if (userId == null || addressId == null || paymentType == null) {
@@ -241,28 +244,29 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
         bill.setUpdatedBy(user.getName());
         bill.setDeleted(false);
         bill.setTotalMoney(ZERO);
-        
-        // Tính phí vận chuyển thực tế dựa trên thông tin địa chỉ và tổng khối lượng sản phẩm
+
+        // Tính phí vận chuyển thực tế dựa trên thông tin địa chỉ và tổng khối lượng sản
+        // phẩm
         // Giả sử mỗi sản phẩm có trọng lượng 500g
         Integer totalWeight = cartDetails.stream()
                 .mapToInt(detail -> 500 * detail.getQuantity())
                 .sum();
-        
+
         // Nếu không có sản phẩm hoặc tổng khối lượng quá nhỏ, sử dụng giá trị mặc định
         if (totalWeight <= 0) {
             totalWeight = 500;
         }
-        
+
         // Tính phí vận chuyển bằng API GHN
         BigDecimal shippingFee;
         try {
             shippingFee = calculateShippingFee(
-                customerInfo.getDistrictId(),
-                customerInfo.getWardCode(),
-                totalWeight,
-                30,  // length - chiều dài mặc định
-                20,  // width - chiều rộng mặc định
-                10   // height - chiều cao mặc định
+                    customerInfo.getDistrictId(),
+                    customerInfo.getWardCode(),
+                    totalWeight,
+                    30, // length - chiều dài mặc định
+                    20, // width - chiều rộng mặc định
+                    10 // height - chiều cao mặc định
             );
         } catch (Exception e) {
             LOGGER.error("Lỗi khi tính phí vận chuyển cho hóa đơn mới: {}", e.getMessage());
@@ -270,19 +274,19 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
                 // Thử lại với các giá trị mặc định khác nếu có lỗi
                 LOGGER.info("Thử lại tính phí vận chuyển với giá trị mặc định");
                 shippingFee = calculateShippingFee(
-                    customerInfo.getDistrictId(),
-                    customerInfo.getWardCode(),
-                    500,  // weight mặc định 500g
-                    30,   // length
-                    20,   // width
-                    10    // height
+                        customerInfo.getDistrictId(),
+                        customerInfo.getWardCode(),
+                        500, // weight mặc định 500g
+                        30, // length
+                        20, // width
+                        10 // height
                 );
             } catch (Exception ex) {
                 LOGGER.error("Không thể tính phí vận chuyển, sử dụng giá trị cố định: {}", ex.getMessage());
-                shippingFee = FIXED_SHIPPING_COST;  // Chỉ dùng cố định khi thực sự không tính được
+                shippingFee = FIXED_SHIPPING_COST; // Chỉ dùng cố định khi thực sự không tính được
             }
         }
-        
+
         bill.setMoneyShip(shippingFee);
         bill.setReductionAmount(ZERO);
         bill.setFinalAmount(ZERO);
@@ -319,13 +323,12 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
             BigDecimal totalPrice = price.multiply(BigDecimal.valueOf(cartDetail.getQuantity()));
             savedBill.setTotalMoney(savedBill.getTotalMoney().add(totalPrice));
 
-            // Không trừ số lượng sản phẩm ngay lập tức
-            // Sẽ trừ khi admin xác nhận bill (chuyển trạng thái sang CONFIRMED/SHIPPING)
-            // productDetail.setQuantity(productDetail.getQuantity() - cartDetail.getQuantity());
-            // if (productDetail.getQuantity() <= 0) {
-            //     productDetail.setStatus(ProductStatus.OUT_OF_STOCK);
-            // }
-            // productDetailRepository.save(productDetail);
+            // Update inventory
+            productDetail.setQuantity(productDetail.getQuantity() - cartDetail.getQuantity());
+            if (productDetail.getQuantity() <= 0) {
+                productDetail.setStatus(ProductStatus.OUT_OF_STOCK);
+            }
+            productDetailRepository.save(productDetail);
         }
 
         // Apply best user voucher
@@ -346,7 +349,8 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
             accountVoucherRepository.save(bestVoucher);
         } else {
             // Don't apply public voucher automatically - let user choose in frontend
-            LOGGER.info("No private voucher found for user {}. User can select public vouchers manually in checkout.", userId);
+            LOGGER.info("No private voucher found for user {}. User can select public vouchers manually in checkout.",
+                    userId);
         }
 
         // Update final amount including fixed shipping cost
@@ -363,29 +367,32 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
 
         // Update loyalty points
         BigDecimal loyaltyPoints = savedBill.getFinalAmount().divide(BigDecimal.valueOf(10000), 0, RoundingMode.FLOOR);
-        user.setLoyaltyPoints(user.getLoyaltyPoints() != null ? user.getLoyaltyPoints() + loyaltyPoints.intValue() : loyaltyPoints.intValue());
+        user.setLoyaltyPoints(user.getLoyaltyPoints() != null ? user.getLoyaltyPoints() + loyaltyPoints.intValue()
+                : loyaltyPoints.intValue());
         userRepository.save(user);
 
-        // Clear cart only for COD payment - VNPAY will clear cart after successful callback
+        // Clear cart only for COD payment - VNPAY will clear cart after successful
+        // callback
         System.out.println("=== CART CLEARING DEBUG ===");
         System.out.println("Payment type: " + paymentType);
         System.out.println("Is COD? " + (paymentType == PaymentType.COD));
         System.out.println("Is VNPAY? " + (paymentType == PaymentType.VNPAY));
-        
+
         if (paymentType == PaymentType.COD) {
             System.out.println("CLEARING CART for COD payment");
             cartDetailRepository.deleteAll(cartDetails);
         } else {
             System.out.println("NOT CLEARING CART - payment type is: " + paymentType);
         }
-        
+
         System.out.println("=== CREATE BILL DEBUG END - Bill ID: " + savedBill.getId() + " ===");
 
         // Log order history
         OrderHistory orderHistory = new OrderHistory();
         orderHistory.setBill(savedBill);
         orderHistory.setStatusOrder(savedBill.getStatus());
-        orderHistory.setActionDescription("Tạo hóa đơn online từ giỏ hàng" + (bestVoucher != null ? " với voucher " + bestVoucher.getVoucher().getCode() : ""));
+        orderHistory.setActionDescription("Tạo hóa đơn online từ giỏ hàng"
+                + (bestVoucher != null ? " với voucher " + bestVoucher.getVoucher().getCode() : ""));
         orderHistory.setCreatedAt(Instant.now());
         orderHistory.setUpdatedAt(Instant.now());
         orderHistory.setCreatedBy(user.getName());
@@ -410,11 +417,14 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
 
     @Override
     @Transactional
-    public BillResponseDTO createBillFromCart(Integer userId, Integer addressId, PaymentType paymentType, Integer voucherId) {
+    public BillResponseDTO createBillFromCart(Integer userId, Integer addressId, PaymentType paymentType,
+            Integer voucherId) {
         System.out.println("=== CREATE BILL WITH VOUCHER DEBUG START ===");
-        System.out.println("User ID: " + userId + ", Address ID: " + addressId + ", Payment Type: " + paymentType + ", Voucher ID: " + voucherId);
-        
-        LOGGER.info("Creating bill from cart for user {} with payment type {}, address {} and voucher {}", userId, paymentType, addressId, voucherId);
+        System.out.println("User ID: " + userId + ", Address ID: " + addressId + ", Payment Type: " + paymentType
+                + ", Voucher ID: " + voucherId);
+
+        LOGGER.info("Creating bill from cart for user {} with payment type {}, address {} and voucher {}", userId,
+                paymentType, addressId, voucherId);
 
         // Validate all required inputs
         if (userId == null || addressId == null || paymentType == null) {
@@ -467,12 +477,13 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
         bill.setDeleted(false);
         bill.setTotalMoney(ZERO);
 
-        // Tính phí vận chuyển thực tế dựa trên thông tin địa chỉ và tổng khối lượng sản phẩm
+        // Tính phí vận chuyển thực tế dựa trên thông tin địa chỉ và tổng khối lượng sản
+        // phẩm
         // Giả sử mỗi sản phẩm có trọng lượng 500g
         Integer totalWeight = cartDetails.stream()
                 .mapToInt(detail -> 500 * detail.getQuantity())
                 .sum();
-        
+
         // Nếu không có sản phẩm hoặc tổng khối lượng quá nhỏ, sử dụng giá trị mặc định
         if (totalWeight <= 0) {
             totalWeight = 500;
@@ -482,12 +493,12 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
         BigDecimal shippingFee;
         try {
             shippingFee = calculateShippingFee(
-                customerInfo.getDistrictId(),
-                customerInfo.getWardCode(),
-                totalWeight,
-                30,  // length - chiều dài mặc định
-                20,  // width - chiều rộng mặc định
-                10   // height - chiều cao mặc định
+                    customerInfo.getDistrictId(),
+                    customerInfo.getWardCode(),
+                    totalWeight,
+                    30, // length - chiều dài mặc định
+                    20, // width - chiều rộng mặc định
+                    10 // height - chiều cao mặc định
             );
         } catch (Exception e) {
             LOGGER.error("Lỗi khi tính phí vận chuyển cho hóa đơn mới: {}", e.getMessage());
@@ -495,19 +506,19 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
                 // Thử lại với các giá trị mặc định khác nếu có lỗi
                 LOGGER.info("Thử lại tính phí vận chuyển với giá trị mặc định");
                 shippingFee = calculateShippingFee(
-                    customerInfo.getDistrictId(),
-                    customerInfo.getWardCode(),
-                    500,  // weight mặc định 500g
-                    30,   // length
-                    20,   // width
-                    10    // height
+                        customerInfo.getDistrictId(),
+                        customerInfo.getWardCode(),
+                        500, // weight mặc định 500g
+                        30, // length
+                        20, // width
+                        10 // height
                 );
             } catch (Exception ex) {
                 LOGGER.error("Không thể tính phí vận chuyển, sử dụng giá trị cố định: {}", ex.getMessage());
-                shippingFee = FIXED_SHIPPING_COST;  // Chỉ dùng cố định khi thực sự không tính được
+                shippingFee = FIXED_SHIPPING_COST; // Chỉ dùng cố định khi thực sự không tính được
             }
         }
-        
+
         bill.setMoneyShip(shippingFee);
         bill.setReductionAmount(ZERO);
         bill.setFinalAmount(ZERO);
@@ -544,13 +555,12 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
             BigDecimal totalPrice = price.multiply(BigDecimal.valueOf(cartDetail.getQuantity()));
             savedBill.setTotalMoney(savedBill.getTotalMoney().add(totalPrice));
 
-            // Không trừ số lượng sản phẩm ngay lập tức
-            // Sẽ trừ khi admin xác nhận bill (chuyển trạng thái sang CONFIRMED/SHIPPING)
-            // productDetail.setQuantity(productDetail.getQuantity() - cartDetail.getQuantity());
-            // if (productDetail.getQuantity() <= 0) {
-            //     productDetail.setStatus(ProductStatus.OUT_OF_STOCK);
-            // }
-            // productDetailRepository.save(productDetail);
+            // Update inventory
+            productDetail.setQuantity(productDetail.getQuantity() - cartDetail.getQuantity());
+            if (productDetail.getQuantity() <= 0) {
+                productDetail.setStatus(ProductStatus.OUT_OF_STOCK);
+            }
+            productDetailRepository.save(productDetail);
         }
 
         // Apply voucher if provided
@@ -558,44 +568,42 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
             System.out.println("=== APPLYING VOUCHER ===");
             try {
                 // Find voucher in user's account vouchers
-                AccountVoucher accountVoucher = accountVoucherRepository.findByUserEntityIdAndVoucherIdAndDeletedFalse(userId, voucherId);
-                
+                AccountVoucher accountVoucher = accountVoucherRepository
+                        .findByUserEntityIdAndVoucherIdAndDeletedFalse(userId, voucherId);
+
                 if (accountVoucher == null) {
                     throw new RuntimeException("Voucher không có trong tài khoản của bạn");
                 }
-                
-                // Bỏ kiểm tra status vì đã bỏ trong getPrivateVouchersForUser
-                // if (!accountVoucher.getStatus()) {
-                //     throw new RuntimeException("Voucher đã được sử dụng hoặc không còn hiệu lực");
-                // }
-                
+
+                if (!accountVoucher.getStatus()) {
+                    throw new RuntimeException("Voucher đã được sử dụng hoặc không còn hiệu lực");
+                }
+
                 if (accountVoucher.getQuantity() <= 0) {
                     throw new RuntimeException("Voucher đã hết số lượng");
                 }
-                
+
                 Voucher voucher = accountVoucher.getVoucher();
-                
+
                 // Check voucher conditions
-                if (voucher.getMinOrderValue() != null && savedBill.getTotalMoney().compareTo(voucher.getMinOrderValue()) < 0) {
+                if (voucher.getMinOrderValue() != null
+                        && savedBill.getTotalMoney().compareTo(voucher.getMinOrderValue()) < 0) {
                     throw new RuntimeException("Đơn hàng chưa đạt giá trị tối thiểu để áp dụng voucher");
                 }
-                
+
                 BigDecimal reductionAmount = calculateReductionAmount(voucher, savedBill.getTotalMoney());
                 savedBill.setReductionAmount(reductionAmount);
                 savedBill.setVoucherCode(voucher.getCode());
                 savedBill.setVoucherName(voucher.getName());
 
-                // Không trừ số lượng voucher ngay lập tức
-                // Sẽ trừ khi:
-                // - COD: Admin xác nhận (CONFIRMING/DELIVERING)
-                // - VNPAY: Thanh toán thành công (PAID)
-                // if (accountVoucher.getQuantity() > 1) {
-                //     accountVoucher.setQuantity(accountVoucher.getQuantity() - 1);
-                // } else {
-                //     accountVoucher.setStatus(false);
-                // }
-                // accountVoucherRepository.save(accountVoucher);
-                
+                // Update voucher quantity
+                if (accountVoucher.getQuantity() > 1) {
+                    accountVoucher.setQuantity(accountVoucher.getQuantity() - 1);
+                } else {
+                    accountVoucher.setStatus(false);
+                }
+                accountVoucherRepository.save(accountVoucher);
+
                 System.out.println("Applied voucher: " + voucher.getCode() + ", reduction: " + reductionAmount);
             } catch (Exception e) {
                 System.out.println("Error applying voucher: " + e.getMessage());
@@ -620,7 +628,9 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
                 accountVoucherRepository.save(bestVoucher);
             } else {
                 // Don't apply public voucher automatically - let user choose in frontend
-                LOGGER.info("No private voucher found for user {}. User can select public vouchers manually in checkout.", userId);
+                LOGGER.info(
+                        "No private voucher found for user {}. User can select public vouchers manually in checkout.",
+                        userId);
             }
         }
 
@@ -638,15 +648,17 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
 
         // Update loyalty points
         BigDecimal loyaltyPoints = savedBill.getFinalAmount().divide(BigDecimal.valueOf(10000), 0, RoundingMode.FLOOR);
-        user.setLoyaltyPoints(user.getLoyaltyPoints() != null ? user.getLoyaltyPoints() + loyaltyPoints.intValue() : loyaltyPoints.intValue());
+        user.setLoyaltyPoints(user.getLoyaltyPoints() != null ? user.getLoyaltyPoints() + loyaltyPoints.intValue()
+                : loyaltyPoints.intValue());
         userRepository.save(user);
 
-        // Clear cart only for COD payment - VNPAY will clear cart after successful callback
+        // Clear cart only for COD payment - VNPAY will clear cart after successful
+        // callback
         System.out.println("=== CART CLEARING DEBUG ===");
         System.out.println("Payment type: " + paymentType);
         System.out.println("Is COD? " + (paymentType == PaymentType.COD));
         System.out.println("Is VNPAY? " + (paymentType == PaymentType.VNPAY));
-        
+
         if (paymentType == PaymentType.COD) {
             System.out.println("CLEARING CART for COD payment");
             cartDetailRepository.deleteAll(cartDetails);
@@ -660,7 +672,8 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
         OrderHistory orderHistory = new OrderHistory();
         orderHistory.setBill(savedBill);
         orderHistory.setStatusOrder(savedBill.getStatus());
-        orderHistory.setActionDescription("Tạo hóa đơn online từ giỏ hàng" + (savedBill.getVoucherCode() != null ? " với voucher " + savedBill.getVoucherCode() : ""));
+        orderHistory.setActionDescription("Tạo hóa đơn online từ giỏ hàng"
+                + (savedBill.getVoucherCode() != null ? " với voucher " + savedBill.getVoucherCode() : ""));
         orderHistory.setCreatedAt(Instant.now());
         orderHistory.setUpdatedAt(Instant.now());
         orderHistory.setCreatedBy(user.getName());
@@ -692,7 +705,8 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
 
         if (bill.getStatus() != OrderStatus.PENDING && bill.getStatus() != OrderStatus.CONFIRMING) {
-            throw new RuntimeException("Chỉ có thể cập nhật thông tin giao hàng cho hóa đơn ở trạng thái PENDING hoặc CONFIRMING");
+            throw new RuntimeException(
+                    "Chỉ có thể cập nhật thông tin giao hàng cho hóa đơn ở trạng thái PENDING hoặc CONFIRMING");
         }
 
         CustomerInformation customerInfo = customerInformationRepository.findById(addressId)
@@ -709,22 +723,22 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
         bill.setCustomerName(customerInfo.getName());
         bill.setPhoneNumber(customerInfo.getPhoneNumber());
         bill.setAddress(customerInfo.getAddress());
-        
+
         // Tính phí vận chuyển dựa trên địa chỉ mới
         // Lấy tổng khối lượng từ các chi tiết hóa đơn
         Integer totalWeight = 0;
         List<BillDetail> billDetails = billDetailRepository.findByBillId(billId);
-        
+
         // Tính tổng khối lượng (giả sử mỗi sản phẩm có khối lượng 500g)
         for (BillDetail detail : billDetails) {
             totalWeight += 500 * detail.getQuantity();
         }
-        
+
         // Nếu không có sản phẩm hoặc tổng khối lượng quá nhỏ
         if (totalWeight <= 0) {
             totalWeight = 500;
         }
-        
+
         // Tính phí vận chuyển mới
         BigDecimal shippingFee;
         try {
@@ -735,12 +749,12 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
             } else {
                 LOGGER.info("Tính lại phí vận chuyển khi cập nhật địa chỉ cho hóa đơn {}", billId);
                 shippingFee = calculateShippingFee(
-                    customerInfo.getDistrictId(),
-                    customerInfo.getWardCode(),
-                    totalWeight,
-                    30,  // length
-                    20,  // width
-                    10   // height
+                        customerInfo.getDistrictId(),
+                        customerInfo.getWardCode(),
+                        totalWeight,
+                        30, // length
+                        20, // width
+                        10 // height
                 );
                 LOGGER.info("Phí vận chuyển mới: {} VND", shippingFee);
             }
@@ -750,19 +764,19 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
                 // Thử lại với giá trị mặc định
                 LOGGER.info("Thử lại tính phí vận chuyển với giá trị mặc định");
                 shippingFee = calculateShippingFee(
-                    customerInfo.getDistrictId(),
-                    customerInfo.getWardCode(),
-                    500,  // weight mặc định 500g
-                    30,   // length
-                    20,   // width
-                    10    // height
+                        customerInfo.getDistrictId(),
+                        customerInfo.getWardCode(),
+                        500, // weight mặc định 500g
+                        30, // length
+                        20, // width
+                        10 // height
                 );
             } catch (Exception ex) {
                 LOGGER.error("Thử lại không thành công, sử dụng phí cố định: {}", ex.getMessage());
-                shippingFee = FIXED_SHIPPING_COST;  // Chỉ dùng cố định khi thực sự không tính được
+                shippingFee = FIXED_SHIPPING_COST; // Chỉ dùng cố định khi thực sự không tính được
             }
         }
-        
+
         bill.setMoneyShip(shippingFee);
 
         // Update final amount
@@ -846,8 +860,10 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
         AccountVoucher bestVoucher = vouchers.stream()
                 .filter(voucher -> {
                     Voucher v = voucher.getVoucher();
-                    boolean validOrderValue = v.getMinOrderValue() == null || totalMoney.compareTo(v.getMinOrderValue()) >= 0;
-                    boolean validUserType = v.getTypeUser() == null || v.getTypeUser().name().equals(user.getRole().name());
+                    boolean validOrderValue = v.getMinOrderValue() == null
+                            || totalMoney.compareTo(v.getMinOrderValue()) >= 0;
+                    boolean validUserType = v.getTypeUser() == null
+                            || v.getTypeUser().name().equals(user.getRole().name());
                     boolean validTime = (v.getStartTime() == null || v.getStartTime().isBefore(Instant.now())) &&
                             (v.getEndTime() == null || v.getEndTime().isAfter(Instant.now()));
                     return validOrderValue && validUserType && validTime;
@@ -856,15 +872,18 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
                 .orElse(null);
 
         if (bestVoucher != null) {
-            LOGGER.info("Selected voucher {} with reduction amount {}", bestVoucher.getVoucher().getCode(), calculateReductionAmount(bestVoucher.getVoucher(), totalMoney));
+            LOGGER.info("Selected voucher {} with reduction amount {}", bestVoucher.getVoucher().getCode(),
+                    calculateReductionAmount(bestVoucher.getVoucher(), totalMoney));
         }
 
         return bestVoucher;
     }
 
     @Override
-    public BigDecimal calculateShippingCost(Integer toDistrictId, String toWardCode, Integer weight, Integer length, Integer width, Integer height) {
-        LOGGER.info("Gọi tính phí vận chuyển động thông qua API GHN cho quận/huyện {} và phường/xã {}", toDistrictId, toWardCode);
+    public BigDecimal calculateShippingCost(Integer toDistrictId, String toWardCode, Integer weight, Integer length,
+            Integer width, Integer height) {
+        LOGGER.info("Gọi tính phí vận chuyển động thông qua API GHN cho quận/huyện {} và phường/xã {}", toDistrictId,
+                toWardCode);
         try {
             return calculateShippingFee(toDistrictId, toWardCode, weight, length, width, height);
         } catch (Exception e) {
@@ -879,22 +898,24 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
             }
         }
     }
-    
+
     @Override
     @Transactional
-    public BigDecimal calculateShippingFee(Integer toDistrictId, String toWardCode, Integer weight, Integer length, Integer width, Integer height) {
-        LOGGER.info("Tính phí vận chuyển cho quận/huyện {} và phường/xã {} với khối lượng {}", toDistrictId, toWardCode, weight);
-        
+    public BigDecimal calculateShippingFee(Integer toDistrictId, String toWardCode, Integer weight, Integer length,
+            Integer width, Integer height) {
+        LOGGER.info("Tính phí vận chuyển cho quận/huyện {} và phường/xã {} với khối lượng {}", toDistrictId, toWardCode,
+                weight);
+
         // Kiểm tra dữ liệu đầu vào
         if (toDistrictId == null || toWardCode == null || weight == null) {
             LOGGER.warn("Thiếu thông tin địa chỉ hoặc khối lượng, sử dụng phí cố định");
             return FIXED_SHIPPING_COST;
         }
-        
+
         try {
             // Sử dụng HttpHeaders từ org.springframework.http để tránh import
             org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-            
+
             // Kiểm tra token từ cấu hình application.yml
             if (ghnToken == null || ghnToken.isEmpty()) {
                 LOGGER.error("GHN API Token không được cấu hình hoặc rỗng");
@@ -902,7 +923,7 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
             }
             headers.set("Token", ghnToken);
             LOGGER.debug("Sử dụng GHN token: {}", ghnToken);
-            
+
             // Kiểm tra Shop ID từ cấu hình application.yml
             if (shopId == null || shopId.isEmpty()) {
                 LOGGER.error("GHN Shop ID không được cấu hình hoặc rỗng");
@@ -910,7 +931,7 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
             }
             headers.set("ShopId", shopId);
             LOGGER.debug("Sử dụng GHN Shop ID: {}", shopId);
-            
+
             headers.set("Content-Type", "application/json");
 
             // Quận/huyện của cửa hàng
@@ -934,13 +955,13 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
             requestBody.put("weight", weight != null ? weight : 500);
             requestBody.put("width", width != null ? width : 20);
             requestBody.put("insurance_value", 0);
-            
+
             // Log chi tiết request để debug
             LOGGER.debug("Request body cho GHN API: {}", requestBody);
 
-            org.springframework.http.HttpEntity<java.util.Map<String, Object>> request = 
-                new org.springframework.http.HttpEntity<>(requestBody, headers);
-                
+            org.springframework.http.HttpEntity<java.util.Map<String, Object>> request = new org.springframework.http.HttpEntity<>(
+                    requestBody, headers);
+
             // Sử dụng base URL từ cấu hình
             String url;
             if (ghnBaseUrl != null && !ghnBaseUrl.isEmpty()) {
@@ -956,20 +977,20 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
                 url = "https://online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/fee";
                 LOGGER.warn("Không tìm thấy cấu hình ghnBaseUrl, sử dụng URL production mặc định");
             }
-            
+
             // Định nghĩa các phí vận chuyển dự phòng dựa trên khoảng cách
             // Mô phỏng giá tiền gần đúng: khối lượng dưới 1kg, khoảng cách dưới 10km
             BigDecimal fallbackFee = FIXED_SHIPPING_COST; // Mặc định: 22,000 VND
-            
+
             if (toDistrictId != null) {
                 // Phân loại quận/huyện theo khoảng cách để ước tính phí ship
                 // Các ID quận/huyện của Hà Nội - giả định cửa hàng ở Hà Nội
                 boolean isHanoi = toDistrictId >= 1442 && toDistrictId <= 1482; // Quận/huyện Hà Nội
                 boolean isHCM = toDistrictId >= 1442 && toDistrictId <= 1482; // Quận/huyện TP.HCM
-                
+
                 // Tính phí vận chuyển dự phòng dựa trên khối lượng và khoảng cách
                 Integer safeWeight = (weight != null && weight > 0) ? weight : 500;
-                
+
                 if (isHanoi) {
                     // Nội thành Hà Nội
                     fallbackFee = new BigDecimal(18000 + (safeWeight / 500) * 3000).setScale(2, RoundingMode.HALF_UP);
@@ -980,32 +1001,31 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
                     // Tỉnh/thành phố khác
                     fallbackFee = new BigDecimal(35000 + (safeWeight / 500) * 5000).setScale(2, RoundingMode.HALF_UP);
                 }
-                
+
                 // Giới hạn phí vận chuyển tối đa
                 if (fallbackFee.compareTo(new BigDecimal(150000)) > 0) {
                     fallbackFee = new BigDecimal(150000).setScale(2, RoundingMode.HALF_UP);
                 }
-                
+
                 LOGGER.info("Phí vận chuyển dự phòng được tính: {} VND", fallbackFee);
             }
 
             // Thiết lập timeout cho request
-            org.springframework.http.client.SimpleClientHttpRequestFactory factory = 
-                new org.springframework.http.client.SimpleClientHttpRequestFactory();
+            org.springframework.http.client.SimpleClientHttpRequestFactory factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
             factory.setConnectTimeout(5000);
             factory.setReadTimeout(5000);
-            
+
             org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
             restTemplate.setRequestFactory(factory);
-            
+
             LOGGER.info("Đang gửi yêu cầu đến GHN API: {}", url);
-            
+
             try {
                 @SuppressWarnings("rawtypes") // Suppressing warning about raw type
-                org.springframework.http.ResponseEntity<java.util.Map> response = 
-                    restTemplate.exchange(url, org.springframework.http.HttpMethod.POST, request, 
-                                        java.util.Map.class);
-                    
+                org.springframework.http.ResponseEntity<java.util.Map> response = restTemplate.exchange(url,
+                        org.springframework.http.HttpMethod.POST, request,
+                        java.util.Map.class);
+
                 @SuppressWarnings("unchecked") // Suppressing warning about raw type
                 java.util.Map<String, Object> responseBody = (java.util.Map<String, Object>) response.getBody();
                 LOGGER.debug("GHN API response: {}", responseBody);
@@ -1022,7 +1042,8 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
                         } else if (totalObj instanceof Number) {
                             Number feeNumber = (Number) totalObj;
                             LOGGER.info("Phí vận chuyển tính được (không phải Integer): {} VND", feeNumber);
-                            return new java.math.BigDecimal(feeNumber.doubleValue()).setScale(2, java.math.RoundingMode.HALF_UP);
+                            return new java.math.BigDecimal(feeNumber.doubleValue()).setScale(2,
+                                    java.math.RoundingMode.HALF_UP);
                         } else if (totalObj instanceof String) {
                             try {
                                 double feeDouble = Double.parseDouble((String) totalObj);
@@ -1034,31 +1055,34 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
                         }
                     }
                 }
-                
+
                 LOGGER.warn("GHN API không trả về dữ liệu phí vận chuyển hợp lệ, sử dụng phí cố định");
             } catch (org.springframework.web.client.HttpClientErrorException.Unauthorized unauthorizedEx) {
-                LOGGER.error("Lỗi xác thực với GHN API (401 Unauthorized). Token hết hạn hoặc không hợp lệ: {}", unauthorizedEx.getMessage());
+                LOGGER.error("Lỗi xác thực với GHN API (401 Unauthorized). Token hết hạn hoặc không hợp lệ: {}",
+                        unauthorizedEx.getMessage());
                 LOGGER.info("Token hiện tại: {}, Shop ID: {}", ghnToken, shopId);
                 // Cố gắng sử dụng token thay thế từ application.yml
                 try {
                     String backupToken = "929e80d4-51a7-11f0-8820-9ad08323835f"; // Token từ application.yml
                     LOGGER.info("Thử lại với token dự phòng từ application.yml");
                     headers.set("Token", backupToken);
-                    
-                    org.springframework.http.HttpEntity<java.util.Map<String, Object>> retryRequest = 
-                        new org.springframework.http.HttpEntity<>(requestBody, headers);
-                    
+
+                    org.springframework.http.HttpEntity<java.util.Map<String, Object>> retryRequest = new org.springframework.http.HttpEntity<>(
+                            requestBody, headers);
+
                     @SuppressWarnings("rawtypes")
-                    org.springframework.http.ResponseEntity<java.util.Map> retryResponse = 
-                        restTemplate.exchange(url, org.springframework.http.HttpMethod.POST, retryRequest, 
-                                            java.util.Map.class);
-                                            
+                    org.springframework.http.ResponseEntity<java.util.Map> retryResponse = restTemplate.exchange(url,
+                            org.springframework.http.HttpMethod.POST, retryRequest,
+                            java.util.Map.class);
+
                     @SuppressWarnings("unchecked")
-                    java.util.Map<String, Object> retryResponseBody = (java.util.Map<String, Object>) retryResponse.getBody();
-                    
+                    java.util.Map<String, Object> retryResponseBody = (java.util.Map<String, Object>) retryResponse
+                            .getBody();
+
                     if (retryResponseBody != null && retryResponseBody.containsKey("data")) {
                         @SuppressWarnings("unchecked")
-                        java.util.Map<String, Object> data = (java.util.Map<String, Object>) retryResponseBody.get("data");
+                        java.util.Map<String, Object> data = (java.util.Map<String, Object>) retryResponseBody
+                                .get("data");
                         if (data != null && data.containsKey("total")) {
                             Integer fee = (Integer) data.get("total");
                             LOGGER.info("Phí vận chuyển tính được với token dự phòng: {} VND", fee);
@@ -1074,7 +1098,7 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
             return FIXED_SHIPPING_COST;
         } catch (Exception e) {
             LOGGER.error("Lỗi khi tính phí vận chuyển: {}", e.getMessage(), e);
-            
+
             // Trong trường hợp lỗi, trả về phí vận chuyển cố định
             return FIXED_SHIPPING_COST;
         }
@@ -1084,8 +1108,10 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
         BigDecimal reductionAmount = ZERO;
         if (voucher.getFixedDiscountValue() != null && voucher.getFixedDiscountValue().compareTo(ZERO) > 0) {
             reductionAmount = voucher.getFixedDiscountValue();
-        } else if (voucher.getPercentageDiscountValue() != null && voucher.getPercentageDiscountValue().compareTo(ZERO) > 0) {
-            reductionAmount = totalMoney.multiply(voucher.getPercentageDiscountValue()).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        } else if (voucher.getPercentageDiscountValue() != null
+                && voucher.getPercentageDiscountValue().compareTo(ZERO) > 0) {
+            reductionAmount = totalMoney.multiply(voucher.getPercentageDiscountValue()).divide(BigDecimal.valueOf(100),
+                    2, RoundingMode.HALF_UP);
             if (voucher.getMaxDiscountValue() != null && reductionAmount.compareTo(voucher.getMaxDiscountValue()) > 0) {
                 reductionAmount = voucher.getMaxDiscountValue();
             }
@@ -1153,5 +1179,294 @@ public class CartAndCheckoutServiceImpl implements CartAndCheckoutService {
                 .createdAt(cartDetail.getCreatedAt())
                 .updatedAt(cartDetail.getUpdatedAt())
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public BillResponseDTO createBillFromSelectedItems(Integer userId, Integer addressId, PaymentType paymentType,
+            Integer voucherId, List<Integer> selectedCartDetailIds) {
+        System.out.println("=== CREATE BILL FROM SELECTED ITEMS DEBUG START ===");
+        System.out.println("User ID: " + userId + ", Address ID: " + addressId + ", Payment Type: " + paymentType
+                + ", Voucher ID: " + voucherId);
+        System.out.println("Selected Cart Detail IDs: " + selectedCartDetailIds);
+
+        LOGGER.info(
+                "Creating bill from selected cart items for user {} with payment type {}, address {} and voucher {}",
+                userId, paymentType, addressId, voucherId);
+
+        // Validate all required inputs
+        if (userId == null || addressId == null || paymentType == null || selectedCartDetailIds == null
+                || selectedCartDetailIds.isEmpty()) {
+            throw new RuntimeException("Thiếu thông tin bắt buộc để tạo hóa đơn");
+        }
+
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng"));
+
+        Cart cart = cartRepository.findByUserEntityId(userId)
+                .orElseThrow(() -> new RuntimeException("Giỏ hàng trống"));
+
+        // Get only selected cart items
+        List<CartDetail> selectedCartDetails = cartDetailRepository.findAllById(selectedCartDetailIds);
+        System.out.println("Selected cart details found: " + selectedCartDetails.size() + " items");
+
+        // Filter to only items belonging to this user's cart
+        selectedCartDetails = selectedCartDetails.stream()
+                .filter(detail -> detail.getCart().getId().equals(cart.getId()))
+                .collect(Collectors.toList());
+
+        if (selectedCartDetails.isEmpty()) {
+            System.out.println("❌ NO SELECTED ITEMS - cannot create bill");
+            throw new RuntimeException("Không có sản phẩm nào được chọn hoặc sản phẩm không thuộc về bạn");
+        }
+
+        CustomerInformation customerInfo = customerInformationRepository.findById(addressId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy địa chỉ"));
+
+        if (!customerInfo.getCustomer().getId().equals(userId)) {
+            throw new RuntimeException("Địa chỉ không thuộc về người dùng này");
+        }
+
+        // Validate address fields
+        try {
+            validateCustomerInformation(convertToCustomerInfoDTO(customerInfo));
+        } catch (Exception e) {
+            LOGGER.error("Lỗi khi xác thực thông tin địa chỉ: {}", e.getMessage());
+            throw new RuntimeException("Địa chỉ không hợp lệ: " + e.getMessage());
+        }
+
+        // Create new bill
+        Bill bill = new Bill();
+        bill.setCode("BILL_SELECTED_" + System.currentTimeMillis());
+        bill.setType(paymentType);
+        bill.setStatus(paymentType == PaymentType.COD ? OrderStatus.CONFIRMING : OrderStatus.PENDING);
+        bill.setBillType(BillType.ONLINE);
+        bill.setCustomer(user);
+        bill.setCustomerName(customerInfo.getName());
+        bill.setPhoneNumber(customerInfo.getPhoneNumber());
+        bill.setAddress(customerInfo.getAddress());
+        bill.setCustomerInfor(customerInfo);
+        bill.setCreatedAt(Instant.now());
+        bill.setUpdatedAt(Instant.now());
+        bill.setCreatedBy(user.getName());
+        bill.setUpdatedBy(user.getName());
+        bill.setDeleted(false);
+        bill.setTotalMoney(ZERO);
+
+        // Calculate shipping fee based on selected items weight
+        Integer totalWeight = selectedCartDetails.stream()
+                .mapToInt(detail -> 500 * detail.getQuantity())
+                .sum();
+
+        if (totalWeight <= 0) {
+            totalWeight = 500;
+        }
+
+        BigDecimal shippingFee;
+        try {
+            shippingFee = calculateShippingFee(
+                    customerInfo.getDistrictId(),
+                    customerInfo.getWardCode(),
+                    totalWeight,
+                    30, 20, 10);
+        } catch (Exception e) {
+            LOGGER.error("Lỗi khi tính phí vận chuyển: {}", e.getMessage());
+            shippingFee = FIXED_SHIPPING_COST;
+        }
+
+        bill.setMoneyShip(shippingFee);
+        bill.setReductionAmount(ZERO);
+        bill.setFinalAmount(ZERO);
+        bill.setCustomerPayment(ZERO);
+
+        Bill savedBill = billRepository.save(bill);
+
+        // Convert selected CartDetails to BillDetails
+        for (CartDetail cartDetail : selectedCartDetails) {
+            ProductDetail productDetail = cartDetail.getDetailProduct();
+            if (productDetail.getQuantity() < cartDetail.getQuantity()) {
+                throw new RuntimeException("Số lượng sản phẩm " + productDetail.getCode() + " không đủ trong kho");
+            }
+
+            BillDetail billDetail = new BillDetail();
+            billDetail.setBill(savedBill);
+            billDetail.setDetailProduct(productDetail);
+            billDetail.setQuantity(cartDetail.getQuantity());
+            billDetail.setPrice(productDetail.getPrice());
+            billDetail.setPromotionalPrice(productDetail.getPromotionalPrice());
+            billDetail.setTypeOrder(paymentType == PaymentType.COD ? OrderStatus.CONFIRMING : OrderStatus.PENDING);
+            billDetail.setCreatedAt(Instant.now());
+            billDetail.setUpdatedAt(Instant.now());
+            billDetail.setCreatedBy(user.getName());
+            billDetail.setUpdatedBy(user.getName());
+            billDetail.setDeleted(false);
+
+            billDetailRepository.save(billDetail);
+
+            // Update total bill amount
+            BigDecimal price = productDetail.getPromotionalPrice() != null
+                    ? productDetail.getPromotionalPrice()
+                    : productDetail.getPrice();
+            BigDecimal totalPrice = price.multiply(BigDecimal.valueOf(cartDetail.getQuantity()));
+            savedBill.setTotalMoney(savedBill.getTotalMoney().add(totalPrice));
+
+            // Update inventory
+            productDetail.setQuantity(productDetail.getQuantity() - cartDetail.getQuantity());
+            if (productDetail.getQuantity() <= 0) {
+                productDetail.setStatus(ProductStatus.OUT_OF_STOCK);
+            }
+            productDetailRepository.save(productDetail);
+        }
+
+        // Apply voucher if provided
+        if (voucherId != null) {
+            System.out.println("=== APPLYING VOUCHER ===");
+            System.out.println("DEBUG: userId = " + userId + ", voucherId = " + voucherId);
+            AccountVoucher accountVoucher = accountVoucherRepository
+                    .findByUserEntityIdAndVoucherIdAndDeletedFalse(userId, voucherId);
+            System.out.println("DEBUG: accountVoucher result = " + accountVoucher);
+            if (accountVoucher == null) {
+                throw new RuntimeException("Voucher không có trong tài khoản của bạn");
+            }
+            // Sửa logic: status=false (0) là còn hiệu lực, status=true (1) là đã dùng hết
+            if (accountVoucher.getStatus() == true) {
+                throw new RuntimeException("Voucher đã được sử dụng hoặc không còn hiệu lực");
+            }
+            if (accountVoucher.getQuantity() == null || accountVoucher.getQuantity() <= 0) {
+                throw new RuntimeException("Voucher đã hết số lượng");
+            }
+            Voucher voucher = accountVoucher.getVoucher();
+            if (voucher == null) {
+                throw new RuntimeException("Không tìm thấy thông tin voucher");
+            }
+            if (voucher.getMinOrderValue() != null
+                    && savedBill.getTotalMoney().compareTo(voucher.getMinOrderValue()) < 0) {
+                throw new RuntimeException("Đơn hàng chưa đạt giá trị tối thiểu để áp dụng voucher");
+            }
+            // Kiểm tra thời hạn voucher
+            if (voucher.getEndTime() != null && voucher.getEndTime().isBefore(Instant.now())) {
+                throw new RuntimeException("Voucher đã hết hạn sử dụng");
+            }
+            if (voucher.getStartTime() != null && voucher.getStartTime().isAfter(Instant.now())) {
+                throw new RuntimeException("Voucher chưa đến thời gian sử dụng");
+            }
+            BigDecimal reductionAmount = calculateReductionAmount(voucher, savedBill.getTotalMoney());
+            savedBill.setReductionAmount(reductionAmount);
+            savedBill.setVoucherCode(voucher.getCode());
+            savedBill.setVoucherName(voucher.getName());
+            // Trừ số lượng, set status=false nếu hết
+            if (accountVoucher.getQuantity() > 1) {
+                accountVoucher.setQuantity(accountVoucher.getQuantity() - 1);
+            } else {
+                accountVoucher.setQuantity(0);
+                accountVoucher.setStatus(false);
+            }
+            accountVoucherRepository.save(accountVoucher);
+            System.out.println("Applied voucher: " + voucher.getCode() + ", reduction: " + reductionAmount);
+        }
+
+        // Update final amount
+        savedBill.setFinalAmount(savedBill.getTotalMoney()
+                .subtract(savedBill.getReductionAmount())
+                .add(savedBill.getMoneyShip()));
+        savedBill = billRepository.save(savedBill);
+
+        // Update loyalty points
+        BigDecimal loyaltyPoints = savedBill.getFinalAmount().divide(BigDecimal.valueOf(10000), 0, RoundingMode.FLOOR);
+        user.setLoyaltyPoints(user.getLoyaltyPoints() != null ? user.getLoyaltyPoints() + loyaltyPoints.intValue()
+                : loyaltyPoints.intValue());
+        userRepository.save(user);
+
+        // Clear only selected cart items for COD payment
+        if (paymentType == PaymentType.COD) {
+            System.out.println("CLEARING SELECTED CART ITEMS for COD payment");
+            cartDetailRepository.deleteAll(selectedCartDetails);
+        } else {
+            System.out.println("NOT CLEARING CART - payment type is: " + paymentType);
+        }
+
+        // Log order history
+        OrderHistory orderHistory = new OrderHistory();
+        orderHistory.setBill(savedBill);
+        orderHistory.setStatusOrder(savedBill.getStatus());
+        orderHistory.setActionDescription("Tạo hóa đơn online từ sản phẩm được chọn"
+                + (savedBill.getVoucherCode() != null ? " với voucher " + savedBill.getVoucherCode() : ""));
+        orderHistory.setCreatedAt(Instant.now());
+        orderHistory.setUpdatedAt(Instant.now());
+        orderHistory.setCreatedBy(user.getName());
+        orderHistory.setUpdatedBy(user.getName());
+        orderHistory.setDeleted(false);
+        orderHistoryRepository.save(orderHistory);
+
+        // Create transaction
+        Transaction transaction = new Transaction();
+        transaction.setBill(savedBill);
+        transaction.setType(paymentType == PaymentType.COD ? TransactionType.PAYMENT : TransactionType.ONLINE);
+        transaction.setTotalMoney(savedBill.getFinalAmount());
+        transaction.setStatus(paymentType == PaymentType.COD ? TransactionStatus.PENDING : TransactionStatus.PENDING);
+        transaction.setCreatedAt(Instant.now());
+        transaction.setUpdatedAt(Instant.now());
+        transaction.setDeleted(false);
+        transactionRepository.save(transaction);
+
+        System.out.println("=== CREATE BILL FROM SELECTED ITEMS DEBUG END - Bill ID: " + savedBill.getId() + " ===");
+        return billService.convertToBillResponseDTO(savedBill);
+    }
+
+    @Transactional
+    @Override
+    public void rollbackVoucher(Integer billId) {
+        System.out.println("=== ROLLBACK VOUCHER START ===");
+        System.out.println("Bill ID: " + billId);
+
+        try {
+            Bill bill = billRepository.findById(billId).orElse(null);
+            if (bill != null && bill.getVoucherCode() != null) {
+                System.out.println("Found bill with voucher code: " + bill.getVoucherCode());
+
+                // Tìm AccountVoucher dựa trên userId và voucherCode
+                List<AccountVoucher> accountVouchers = accountVoucherRepository
+                        .findByUserEntityIdAndDeletedFalse(bill.getCustomer().getId());
+
+                AccountVoucher voucherToRestore = accountVouchers.stream()
+                        .filter(av -> av.getVoucher().getCode().equals(bill.getVoucherCode()))
+                        .findFirst()
+                        .orElse(null);
+
+                if (voucherToRestore != null) {
+                    // Hoàn lại số lượng voucher
+                    voucherToRestore.setQuantity(voucherToRestore.getQuantity() + 1);
+                    voucherToRestore.setStatus(false); // Kích hoạt lại voucher
+                    voucherToRestore.setUpdatedAt(Instant.now());
+                    accountVoucherRepository.save(voucherToRestore);
+
+                    System.out.println("ROLLBACK SUCCESS: Voucher " + bill.getVoucherCode() +
+                            " quantity restored to " + voucherToRestore.getQuantity());
+
+                    // Log order history
+                    OrderHistory orderHistory = new OrderHistory();
+                    orderHistory.setBill(bill);
+                    orderHistory.setStatusOrder(bill.getStatus());
+                    orderHistory.setActionDescription(
+                            "Hoàn lại voucher " + bill.getVoucherCode() + " do thanh toán thất bại");
+                    orderHistory.setCreatedAt(Instant.now());
+                    orderHistory.setUpdatedAt(Instant.now());
+                    orderHistory.setCreatedBy("system");
+                    orderHistory.setUpdatedBy("system");
+                    orderHistory.setDeleted(false);
+                    orderHistoryRepository.save(orderHistory);
+                } else {
+                    System.out
+                            .println("ROLLBACK WARNING: Cannot find AccountVoucher for code " + bill.getVoucherCode());
+                }
+            } else {
+                System.out.println("ROLLBACK SKIP: No bill found or no voucher used");
+            }
+        } catch (Exception e) {
+            System.out.println("ROLLBACK ERROR: " + e.getMessage());
+            LOGGER.error("Error during voucher rollback for bill {}: {}", billId, e.getMessage());
+        }
+
+        System.out.println("=== ROLLBACK VOUCHER END ===");
     }
 }

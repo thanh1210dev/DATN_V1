@@ -90,6 +90,12 @@ public class CustomerInformationImpl implements CustomerInformationService {
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy người dùng với ID: " + userId));
 
+        // Kiểm tra giới hạn 4 địa chỉ
+        List<CustomerInformation> existingAddresses = customerInformationRepository.findByCustomerIdAndDeletedFalse(userId);
+        if (existingAddresses.size() >= 4) {
+            throw new IllegalStateException("Bạn chỉ được phép tạo tối đa 4 địa chỉ giao hàng");
+        }
+
         CustomerInformation entity = new CustomerInformation();
         mapToEntity(entity, requestDTO);
         entity.setCustomer(user);
@@ -97,7 +103,6 @@ public class CustomerInformationImpl implements CustomerInformationService {
         entity.setDeleted(false);
 
         // Set as default if it's the first address or explicitly requested
-        List<CustomerInformation> existingAddresses = customerInformationRepository.findByCustomerIdAndDeletedFalse(userId);
         if (existingAddresses.isEmpty() || (requestDTO.getIsDefault() != null && requestDTO.getIsDefault())) {
             entity.setIsDefault(true);
             // Unset default for other addresses
@@ -211,6 +216,19 @@ public class CustomerInformationImpl implements CustomerInformationService {
         }
         if (customerInfo.getPhoneNumber() == null || customerInfo.getPhoneNumber().isEmpty()) {
             throw new IllegalArgumentException("Số điện thoại không được để trống");
+        }
+        
+        // Validate số điện thoại Việt Nam (10 số, bắt đầu bằng 03, 05, 07, 08, 09)
+        if (!customerInfo.getPhoneNumber().matches("^(0[3|5|7|8|9])+([0-9]{8})$")) {
+            throw new IllegalArgumentException("Số điện thoại không hợp lệ. Vui lòng nhập số điện thoại Việt Nam (10 số, bắt đầu bằng 03, 05, 07, 08, 09)");
+        }
+        
+        if (customerInfo.getName() == null || customerInfo.getName().trim().isEmpty()) {
+            throw new IllegalArgumentException("Tên không được để trống");
+        }
+        
+        if (customerInfo.getAddress() == null || customerInfo.getAddress().trim().isEmpty()) {
+            throw new IllegalArgumentException("Địa chỉ chi tiết không được để trống");
         }
     }
 }

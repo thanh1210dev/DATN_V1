@@ -1,8 +1,16 @@
 import React from 'react';
 
-const OrderSummary = ({ cartItems, shippingFee, reductionAmount, onPlaceOrder }) => {
+const OrderSummary = ({ cartItems, shippingFee, reductionAmount, onPlaceOrder, step, selectedAddressId, paymentMethod }) => {
   const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const total = subtotal + shippingFee - (reductionAmount || 0);
+
+  // Debug log cho button state
+  console.log('🔍 [ORDER SUMMARY DEBUG] Current state:', {
+    step, 
+    selectedAddressId, 
+    paymentMethod,
+    shouldEnableButton: step === 2 && selectedAddressId && paymentMethod
+  });
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-md">
@@ -36,27 +44,37 @@ const OrderSummary = ({ cartItems, shippingFee, reductionAmount, onPlaceOrder })
           <span>Tổng cộng:</span>
           <span>{total.toLocaleString('vi-VN')} VND</span>
         </div>
-        <button
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            // Thêm class để nhận dạng (tránh xung đột)
-            const target = e.currentTarget || e.target;
-            if (target && typeof target.className === 'string') {
-              target.className += ' payment-btn-clicked';
-            }
-            
-            // Gọi hàm xử lý với tham số là sự kiện đã xử lý
-            if (typeof onPlaceOrder === 'function') {
-              onPlaceOrder({...e, preventDefault: () => {}, target});
-            }
-          }}
-          type="button"
-          className="w-full px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-300"
-        >
-          Đặt Hàng
-        </button>
+        {/* Chỉ hiển thị nút đặt hàng khi đã hoàn thành tất cả các bước */}
+        {step === 2 && selectedAddressId && paymentMethod ? (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              
+              // Thêm class để nhận dạng (tránh xung đột)
+              const target = e.currentTarget || e.target;
+              if (target && typeof target.className === 'string') {
+                target.className += ' payment-btn-clicked';
+              }
+              
+              // Gọi hàm xử lý với tham số là sự kiện đã xử lý
+              if (typeof onPlaceOrder === 'function') {
+                onPlaceOrder({...e, preventDefault: () => {}, target});
+              }
+            }}
+            type="button"
+            className="w-full px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-300"
+          >
+            Đặt Hàng
+          </button>
+        ) : (
+          <div className="w-full px-6 py-3 bg-gray-400 text-white font-semibold rounded-lg text-center">
+            {step === 1 ? 'Vui lòng chọn địa chỉ giao hàng' : 
+             step === 2 && !selectedAddressId ? 'Vui lòng chọn địa chỉ giao hàng' :
+             step === 2 && !paymentMethod ? 'Vui lòng chọn phương thức thanh toán' :
+             'Hoàn tất các bước để đặt hàng'}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -73,6 +73,12 @@ public class AddressServiceImpl implements AddressService {
             UserEntity user = userRepository.findById(userId)
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng"));
 
+            // Kiểm tra giới hạn 4 địa chỉ
+            long existingAddressCount = customerInformationRepository.countByCustomerIdAndDeletedFalse(userId);
+            if (existingAddressCount >= 4) {
+                throw new RuntimeException("Bạn chỉ được phép tạo tối đa 4 địa chỉ giao hàng");
+            }
+
             // Đồng bộ tên địa chỉ với GHN nếu thiếu hoặc sai
             String provinceName = addressDTO.getProvinceName();
             String districtName = addressDTO.getDistrictName();

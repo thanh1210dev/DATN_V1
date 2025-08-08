@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 
 public interface AccountVoucherRepository extends JpaRepository<AccountVoucher, Integer> {
@@ -27,4 +28,35 @@ public interface AccountVoucherRepository extends JpaRepository<AccountVoucher, 
     List<AccountVoucher> findByUserEntityIdAndStatusTrueAndDeletedFalse(Integer userId);
 
     List<AccountVoucher> findByUserEntityIdAndDeletedFalse(Integer userId);
+
+// show voucher trong client la private
+    @Query("SELECT av FROM AccountVoucher av " +
+       "JOIN FETCH av.voucher v " +
+       "WHERE av.userEntity.id = :userId " +
+       "AND av.status = false " +
+       "AND av.deleted = false " +
+       "AND av.quantity > 0 " +
+       "AND v.status = com.example.datnmainpolo.enums.PromotionStatus.ACTIVE " +
+       "AND v.deleted = false " +
+       "AND (v.endTime IS NULL OR v.endTime > :now) " +
+       "AND (v.startTime IS NULL OR v.startTime <= :now) " +
+       "AND v.typeUser = com.example.datnmainpolo.enums.VoucherTypeUser.PRIVATE")
+List<AccountVoucher> findAvailablePrivateVouchersForUser(@Param("userId") Integer userId, @Param("now") Instant now);
+
+// Lấy voucher PRIVATE của user theo code
+@Query("SELECT av FROM AccountVoucher av " +
+       "JOIN FETCH av.voucher v " +
+       "WHERE av.userEntity.id = :userId " +
+       "AND av.status = false " +
+       "AND av.deleted = false " +
+       "AND av.quantity > 0 " +
+       "AND v.status = com.example.datnmainpolo.enums.PromotionStatus.ACTIVE " +
+       "AND v.deleted = false " +
+       "AND (v.endTime IS NULL OR v.endTime > :now) " +
+       "AND (v.startTime IS NULL OR v.startTime <= :now) " +
+       "AND v.typeUser = com.example.datnmainpolo.enums.VoucherTypeUser.PRIVATE " +
+       "AND v.code = :code")
+AccountVoucher findPrivateVoucherByUserAndCode(@Param("userId") Integer userId, @Param("code") String code, @Param("now") Instant now);
+
+
 }

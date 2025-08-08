@@ -34,7 +34,8 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-
+        System.out.println("=== SECURITY CONFIG DEBUG ===");
+        System.out.println("Configuring security filters...");
         
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -45,7 +46,8 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/swagger-ui.html"
                         ).permitAll()
-                        .requestMatchers("/api/**").permitAll() // API endpoints hoàn toàn public - đặt cuối cùng
+
+                        .requestMatchers("/api/**").permitAll() // API endpoints khác
                         .anyRequest().authenticated()
                 )
 

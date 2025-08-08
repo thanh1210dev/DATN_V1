@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const CartItem = ({ item, onUpdateQuantity, onRemoveItem }) => {
+const CartItem = ({ item, onUpdateQuantity, onRemoveItem, isSelected, onSelectItem }) => {
   const [quantity, setQuantity] = useState(item.quantity);
 
   const handleQuantityChange = (newQuantity) => {
@@ -15,7 +15,15 @@ const CartItem = ({ item, onUpdateQuantity, onRemoveItem }) => {
   };
 
   return (
-    <div className="flex items-center bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition duration-300">
+    <div className={`flex items-center bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition duration-300 ${isSelected ? 'ring-2 ring-indigo-500' : ''}`}>
+      <div className="flex items-center mr-4">
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={(e) => onSelectItem(item.id, e.target.checked)}
+          className="w-5 h-5 text-indigo-600 bg-gray-100 border-gray-300 rounded focus:ring-indigo-500 focus:ring-2"
+        />
+      </div>
       <img
         src={item.images?.[0]?.url ? `http://localhost:8080${item.images[0].url}` : 'https://via.placeholder.com/100'}
         alt={item.productName}

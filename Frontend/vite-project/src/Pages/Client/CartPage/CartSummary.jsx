@@ -4,21 +4,24 @@ import { toast } from 'react-toastify';
 import axiosInstance from '../../../Service/axiosInstance';
 import AuthService from '../../../Service/AuthService';
 
-const CartSummary = ({ cartItems }) => {
+const CartSummary = ({ cartItems, selectedItems }) => {
   const [shippingFee, setShippingFee] = useState(22000);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Đảm bảo cartItems là array trước khi tính toán
+  // Đảm bảo cartItems và selectedItems là array trước khi tính toán
   const safeCartItems = Array.isArray(cartItems) ? cartItems : [];
-  const subtotal = safeCartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const safeSelectedItems = Array.isArray(selectedItems) ? selectedItems : [];
+  
+  // Tính tổng tiền chỉ cho các sản phẩm đã chọn
+  const subtotal = safeSelectedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   useEffect(() => {
     let isMounted = true;
     const controller = new AbortController();
 
     const fetchShippingFee = async () => {
-      // Reset về 0 nếu không có sản phẩm
-      if (!safeCartItems.length) {
+      // Reset về 0 nếu không có sản phẩm được chọn
+      if (!safeSelectedItems.length) {
         setShippingFee(0);
         return;
       }
@@ -88,8 +91,8 @@ const CartSummary = ({ cartItems }) => {
           return;
         }
 
-        // Tính tổng cân nặng (tối thiểu 500g mỗi sản phẩm)
-        const totalWeight = safeCartItems.reduce((sum, item) => {
+        // Tính tổng cân nặng cho các sản phẩm đã chọn (tối thiểu 500g mỗi sản phẩm)
+        const totalWeight = safeSelectedItems.reduce((sum, item) => {
           const weight = item.weight > 0 ? item.weight : 500;
           return sum + (weight * item.quantity);
         }, 0);
@@ -132,7 +135,7 @@ const CartSummary = ({ cartItems }) => {
       isMounted = false;
       controller.abort();
     };
-  }, [safeCartItems]); // Thay đổi dependency từ cartItems sang safeCartItems
+      }, [safeSelectedItems]); // Thay đổi dependency để tính phí ship cho sản phẩm đã chọn
 
   const total = subtotal + shippingFee;
 
@@ -158,12 +161,19 @@ const CartSummary = ({ cartItems }) => {
             <span>Tổng cộng:</span>
             <span>{total.toLocaleString('vi-VN')} VND</span>
           </div>
-          <Link
-            to="/checkout"
-            className="mt-6 block w-full px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-300 text-center"
-          >
-            Tiến hành thanh toán
-          </Link>
+          {safeSelectedItems.length > 0 ? (
+            <Link
+              to="/checkout"
+              state={{ selectedItems: safeSelectedItems }}
+              className="mt-6 block w-full px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-300 text-center"
+            >
+              Tiến hành thanh toán ({safeSelectedItems.length} sản phẩm)
+            </Link>
+          ) : (
+            <div className="mt-6 block w-full px-6 py-3 bg-gray-400 text-white font-semibold rounded-lg text-center cursor-not-allowed">
+              Vui lòng chọn sản phẩm để thanh toán
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -6,16 +6,14 @@ import com.example.datnmainpolo.entity.Bill;
 import com.example.datnmainpolo.entity.CartDetail;
 import com.example.datnmainpolo.enums.OrderStatus;
 import com.example.datnmainpolo.enums.PaymentType;
-import com.example.datnmainpolo.repository.AccountVoucherRepository;
 import com.example.datnmainpolo.repository.BillRepository;
 import com.example.datnmainpolo.repository.CartRepository;
 import com.example.datnmainpolo.repository.CartDetailRepository;
 import com.example.datnmainpolo.repository.BillDetailRepository;
-import com.example.datnmainpolo.repository.ProductDetailRepository;
 import com.example.datnmainpolo.repository.TransactionRepository;
-import com.example.datnmainpolo.repository.VoucherRepository;
 import com.example.datnmainpolo.repository.OrderHistoryRepository;
 import com.example.datnmainpolo.service.BillService;
+import com.example.datnmainpolo.service.CartAndCheckoutService;
 import com.example.datnmainpolo.service.VNPayService;
 import com.example.datnmainpolo.utils.VNPayUtil;
 import jakarta.servlet.http.HttpServletRequest;
@@ -38,17 +36,15 @@ public class VNPayServiceImpl implements VNPayService {
     private final BillService billService;
     private final CartDetailRepository cartDetailRepository;
     private final CartRepository cartRepository;
-    private final AccountVoucherRepository accountVoucherRepository;
     private final BillDetailRepository billDetailRepository;
-    private final ProductDetailRepository productDetailRepository;
     private final TransactionRepository transactionRepository;
-    private final VoucherRepository voucherRepository;
     private final OrderHistoryRepository orderHistoryRepository;
+    private final CartAndCheckoutService cartAndCheckoutService;
 
     @Override
     public String createPaymentUrl(Integer billId, BigDecimal amount, String orderInfo, HttpServletRequest request) {
         LOGGER.info("Creating VNPay payment URL for bill {} with amount {}", billId, amount);
-        
+
         try {
             // Validate bill exists
             billRepository.findById(billId)
@@ -70,36 +66,36 @@ public class VNPayServiceImpl implements VNPayService {
             String sanitizedOrderInfo = VNPayUtil.removeDiacritics(orderInfo)
                     .replaceAll("[^a-zA-Z0-9\\s]", "_"); // Thay thế ký tự đặc biệt bằng dấu gạch dưới
             vnpParams.put("vnp_OrderInfo", sanitizedOrderInfo);
-            
+
             // Log để debug
             System.out.println("Original orderInfo: " + orderInfo);
             System.out.println("Sanitized orderInfo: " + sanitizedOrderInfo);
-            
+
             vnpParams.put("vnp_OrderType", "other");
             vnpParams.put("vnp_Locale", "vn");
             vnpParams.put("vnp_ReturnUrl", vnpayConfig.getReturnUrl());
-            
+
             // Sử dụng IP cố định theo code mẫu GitHub
             String clientIp = "127.0.0.1";
             vnpParams.put("vnp_IpAddr", clientIp);
             System.out.println("Using IP: " + clientIp);
-
 
             // Create date với timezone theo code mẫu GitHub
             Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone("Etc/GMT+7"));
             SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
             String vnpCreateDate = formatter.format(calendar.getTime());
             vnpParams.put("vnp_CreateDate", vnpCreateDate);
-            
+
             // Expire time (15 phút)
             calendar.add(Calendar.MINUTE, 15);
             String vnpExpireDate = formatter.format(calendar.getTime());
             vnpParams.put("vnp_ExpireDate", vnpExpireDate);
 
             // Create payment URL
-            String paymentUrl = VNPayUtil.createPaymentUrl(vnpayConfig.getPayUrl(), vnpayConfig.getHashSecret(), vnpParams);
+            String paymentUrl = VNPayUtil.createPaymentUrl(vnpayConfig.getPayUrl(), vnpayConfig.getHashSecret(),
+                    vnpParams);
             LOGGER.info("VNPay payment URL created successfully for bill {}: {}", billId, paymentUrl);
-            
+
             return paymentUrl;
         } catch (Exception e) {
             LOGGER.error("Error creating VNPay payment URL for bill {}", billId, e);
@@ -111,9 +107,9 @@ public class VNPayServiceImpl implements VNPayService {
     public PaymentResponseDTO processVNPayCallback(Map<String, String> params) {
         System.out.println("=== VNPAY CALLBACK DEBUG START ===");
         System.out.println("Callback params: " + params);
-        
+
         LOGGER.info("Processing VNPay callback with params: {}", params);
-        
+
         try {
             // Verify payment
             if (!verifyPayment(params)) {
@@ -123,7 +119,7 @@ public class VNPayServiceImpl implements VNPayService {
             String responseCode = params.get("vnp_ResponseCode");
             String txnRef = params.get("vnp_TxnRef");
             String amount = params.get("vnp_Amount");
-            
+
             Integer billId = Integer.parseInt(txnRef);
             Bill bill = billRepository.findById(billId)
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
@@ -132,99 +128,48 @@ public class VNPayServiceImpl implements VNPayService {
                 // Payment successful
                 System.out.println("✅ VNPay payment SUCCESS - will clear cart");
                 LOGGER.info("VNPay payment successful for bill {}", billId);
-                
+
                 // Convert VNPay amount back to normal format
                 BigDecimal paidAmount = new BigDecimal(amount).divide(new BigDecimal(100));
                 LOGGER.info("💰 VNPay payment amount: {} (converted from VNPay format: {})", paidAmount, amount);
-                
+
                 // Cập nhật thông tin thanh toán cho bill
                 bill.setCustomerPayment(paidAmount);
                 bill.setType(PaymentType.VNPAY);
                 bill.setStatus(OrderStatus.PAID);
                 bill.setUpdatedAt(java.time.Instant.now());
                 bill.setUpdatedBy("VNPAY_SYSTEM");
-                
+
                 // Lưu bill với thông tin thanh toán đã cập nhật
                 Bill savedBill = billRepository.save(bill);
-                LOGGER.info("✅ Updated bill {} with VNPay payment: customerPayment={}, status={}", 
-                    billId, paidAmount, OrderStatus.PAID);
-                
-                // Cập nhật trạng thái tất cả BillDetail thành PAID và trừ số lượng sản phẩm
+                LOGGER.info("✅ Updated bill {} with VNPay payment: customerPayment={}, status={}",
+                        billId, paidAmount, OrderStatus.PAID);
+
+                // Cập nhật trạng thái tất cả BillDetail thành PAID
                 try {
-                    List<com.example.datnmainpolo.entity.BillDetail> billDetails = 
-                        billDetailRepository.findByBillId(billId);
-                    
+                    List<com.example.datnmainpolo.entity.BillDetail> billDetails = billDetailRepository
+                            .findByBillId(billId);
+
                     for (com.example.datnmainpolo.entity.BillDetail detail : billDetails) {
                         detail.setStatus(com.example.datnmainpolo.enums.BillDetailStatus.PAID);
                         detail.setTypeOrder(OrderStatus.PAID);
                         detail.setUpdatedAt(java.time.Instant.now());
                         detail.setUpdatedBy("VNPAY_SYSTEM");
-                        
-                        // Trừ số lượng sản phẩm khi VNPAY thanh toán thành công
-                        com.example.datnmainpolo.entity.ProductDetail productDetail = detail.getDetailProduct();
-                        if (productDetail != null) {
-                            int availableQuantity = productDetail.getQuantity();
-                            int requiredQuantity = detail.getQuantity();
-                            
-                            if (availableQuantity < requiredQuantity) {
-                                LOGGER.error("❌ Product {} insufficient quantity: available={}, required={}", 
-                                    productDetail.getCode(), availableQuantity, requiredQuantity);
-                                throw new RuntimeException("Sản phẩm " + productDetail.getCode() + 
-                                    " không đủ số lượng trong kho (còn " + availableQuantity + 
-                                    ", cần " + requiredQuantity + ")");
-                            }
-                            
-                            productDetail.setQuantity(availableQuantity - requiredQuantity);
-                            if (productDetail.getQuantity() <= 0) {
-                                productDetail.setStatus(com.example.datnmainpolo.enums.ProductStatus.OUT_OF_STOCK);
-                            }
-                            productDetailRepository.save(productDetail);
-                            LOGGER.info("✅ Reduced product {} quantity: -{} (new quantity: {})", 
-                                productDetail.getCode(), requiredQuantity, productDetail.getQuantity());
-                        }
                     }
-                    
+
                     billDetailRepository.saveAll(billDetails);
-                    LOGGER.info("✅ Updated {} bill details to PAID status and reduced inventory for bill {}", 
-                        billDetails.size(), billId);
-                    
-                    // Trừ số lượng voucher cho VNPAY khi thanh toán thành công
-                    if (savedBill.getVoucherCode() != null) {
-                        try {
-                            // Tìm voucher trong account_voucher của user
-                            com.example.datnmainpolo.entity.Voucher voucher = voucherRepository.findByCodeAndDeletedFalse(savedBill.getVoucherCode())
-                                .orElse(null);
-                            
-                            if (voucher != null && savedBill.getCustomer() != null) {
-                                com.example.datnmainpolo.entity.AccountVoucher accountVoucher = accountVoucherRepository.findByUserEntityIdAndVoucherIdAndDeletedFalse(
-                                    savedBill.getCustomer().getId(), voucher.getId()
-                                );
-                                
-                                if (accountVoucher != null && accountVoucher.getQuantity() > 0) {
-                                    if (accountVoucher.getQuantity() > 1) {
-                                        accountVoucher.setQuantity(accountVoucher.getQuantity() - 1);
-                                    } else {
-                                        accountVoucher.setStatus(false);
-                                    }
-                                    accountVoucherRepository.save(accountVoucher);
-                                    LOGGER.info("✅ Updated voucher {} quantity for VNPAY payment: -1 (new quantity: {})", 
-                                               savedBill.getVoucherCode(), accountVoucher.getQuantity());
-                                }
-                            }
-                        } catch (Exception e) {
-                            LOGGER.error("❌ Failed to update voucher quantity for VNPAY payment", e);
-                        }
-                    }
+                    LOGGER.info("✅ Updated {} bill details to PAID status for bill {}",
+                            billDetails.size(), billId);
                 } catch (Exception e) {
-                    LOGGER.error("❌ Failed to update bill details or reduce inventory for bill {}", billId, e);
+                    LOGGER.error("❌ Failed to update bill details for bill {}", billId, e);
                     // Don't throw exception - payment was successful
                 }
-                
+
                 // Cập nhật transaction status
                 try {
-                    Optional<com.example.datnmainpolo.entity.Transaction> transactionOpt = 
-                        transactionRepository.findByBillId(billId);
-                    
+                    Optional<com.example.datnmainpolo.entity.Transaction> transactionOpt = transactionRepository
+                            .findByBillId(billId);
+
                     if (transactionOpt.isPresent()) {
                         com.example.datnmainpolo.entity.Transaction transaction = transactionOpt.get();
                         transaction.setStatus(com.example.datnmainpolo.enums.TransactionStatus.SUCCESS);
@@ -237,11 +182,10 @@ public class VNPayServiceImpl implements VNPayService {
                 } catch (Exception e) {
                     LOGGER.error("❌ Failed to update transaction for bill {}", billId, e);
                 }
-                
+
                 // Tạo OrderHistory entry
                 try {
-                    com.example.datnmainpolo.entity.OrderHistory orderHistory = 
-                        new com.example.datnmainpolo.entity.OrderHistory();
+                    com.example.datnmainpolo.entity.OrderHistory orderHistory = new com.example.datnmainpolo.entity.OrderHistory();
                     orderHistory.setBill(savedBill);
                     orderHistory.setStatusOrder(OrderStatus.PAID);
                     orderHistory.setActionDescription("Thanh toán VNPay thành công - Số tiền: " + paidAmount + " VND");
@@ -255,27 +199,29 @@ public class VNPayServiceImpl implements VNPayService {
                 } catch (Exception e) {
                     LOGGER.error("❌ Failed to create order history for bill {}", billId, e);
                 }
-                
+
                 // Clear cart after successful payment
                 try {
                     if (bill.getCustomer() != null) {
                         // Find cart using CartRepository
-                        Optional<com.example.datnmainpolo.entity.Cart> cartOpt = 
-                            cartRepository.findByUserEntityId(bill.getCustomer().getId());
-                        
+                        Optional<com.example.datnmainpolo.entity.Cart> cartOpt = cartRepository
+                                .findByUserEntityId(bill.getCustomer().getId());
+
                         if (cartOpt.isPresent()) {
                             List<CartDetail> cartDetails = cartDetailRepository.findByCartId(cartOpt.get().getId());
                             if (!cartDetails.isEmpty()) {
                                 cartDetailRepository.deleteAll(cartDetails);
-                                LOGGER.info("Cleared cart for user {} after successful VNPay payment", bill.getCustomer().getId());
+                                LOGGER.info("Cleared cart for user {} after successful VNPay payment",
+                                        bill.getCustomer().getId());
                             }
                         }
                     }
                 } catch (Exception e) {
                     LOGGER.warn("Failed to clear cart after successful payment for bill {}", billId, e);
-                    // Don't throw exception here - payment was successful, cart clearing is not critical
+                    // Don't throw exception here - payment was successful, cart clearing is not
+                    // critical
                 }
-                
+
                 // Return payment response
                 return PaymentResponseDTO.builder()
                         .bill(billService.convertToBillResponseDTO(savedBill))
@@ -287,7 +233,26 @@ public class VNPayServiceImpl implements VNPayService {
                 System.out.println("❌ VNPay payment FAILED - cart will NOT be cleared");
                 System.out.println("Response code: " + responseCode);
                 LOGGER.warn("VNPay payment failed for bill {} with response code {}", billId, responseCode);
-                
+
+                     
+                // ROLLBACK VOUCHER TRƯỚC KHI HỦY ĐƠN HÀNG
+                if (bill.getVoucherCode() != null) {
+                    try {
+                        System.out.println("🔄 Rolling back voucher for failed payment - Bill ID: " + billId + ", Voucher: " + bill.getVoucherCode());
+                        cartAndCheckoutService.rollbackVoucher(billId);
+                        System.out.println("✅ Successfully rolled back voucher " + bill.getVoucherCode() + " for failed VNPay payment");
+                        LOGGER.info("Successfully rolled back voucher {} for failed VNPay payment of bill {}", bill.getVoucherCode(), billId);
+                    } catch (Exception voucherRollbackException) {
+                        System.out.println("❌ FAILED to rollback voucher for bill " + billId + ": " + voucherRollbackException.getMessage());
+                        LOGGER.error("Failed to rollback voucher for failed VNPay payment of bill {}: {}", billId, voucherRollbackException.getMessage());
+                        // Log chi tiết lỗi nhưng không throw exception để không làm gián đoạn quá trình xử lý
+                        voucherRollbackException.printStackTrace();
+                    }
+                } else {
+                    System.out.println("ℹ️ No voucher to rollback for bill " + billId);
+                    LOGGER.info("No voucher to rollback for failed VNPay payment of bill {}", billId);
+                }
+
                 // Update bill status to CANCELLED
                 try {
                     System.out.println("🔄 Attempting to update bill " + billId + " status to CANCELLED");
@@ -295,11 +260,12 @@ public class VNPayServiceImpl implements VNPayService {
                     System.out.println("✅ Successfully updated bill " + billId + " status to CANCELLED");
                     LOGGER.info("Updated bill {} status to CANCELLED due to failed VNPay payment", billId);
                 } catch (Exception statusUpdateException) {
-                    System.out.println("❌ FAILED to update bill " + billId + " status: " + statusUpdateException.getMessage());
+                    System.out.println(
+                            "❌ FAILED to update bill " + billId + " status: " + statusUpdateException.getMessage());
                     LOGGER.error("Failed to update bill {} status to CANCELLED", billId, statusUpdateException);
                     statusUpdateException.printStackTrace();
                 }
-                
+
                 throw new RuntimeException("Thanh toán VNPay thất bại. Mã lỗi: " + responseCode);
             }
         } catch (Exception e) {
@@ -312,17 +278,17 @@ public class VNPayServiceImpl implements VNPayService {
     public boolean verifyPayment(Map<String, String> params) {
         try {
             String vnpSecureHash = params.get("vnp_SecureHash");
-            
+
             // Remove signature fields from params before verification
             Map<String, String> paramsForHash = new HashMap<>(params);
             paramsForHash.remove("vnp_SecureHashType");
             paramsForHash.remove("vnp_SecureHash");
-            
+
             // Create signature data theo code mẫu GitHub
             List<String> fieldNames = new ArrayList<>(paramsForHash.keySet());
             Collections.sort(fieldNames);
             StringBuilder hashData = new StringBuilder();
-            
+
             Iterator<String> itr = fieldNames.iterator();
             while (itr.hasNext()) {
                 String fieldName = itr.next();
@@ -332,7 +298,8 @@ public class VNPayServiceImpl implements VNPayService {
                         // Encode giống như khi tạo URL
                         hashData.append(fieldName);
                         hashData.append('=');
-                        hashData.append(java.net.URLEncoder.encode(fieldValue, java.nio.charset.StandardCharsets.US_ASCII));
+                        hashData.append(
+                                java.net.URLEncoder.encode(fieldValue, java.nio.charset.StandardCharsets.US_ASCII));
                         if (itr.hasNext()) {
                             hashData.append('&');
                         }
@@ -341,12 +308,12 @@ public class VNPayServiceImpl implements VNPayService {
                     }
                 }
             }
-            
+
             System.out.println("Verify hashData: " + hashData.toString());
             String signValue = VNPayUtil.hmacSHA512(vnpayConfig.getHashSecret(), hashData.toString());
             System.out.println("Verify signature: " + signValue);
             System.out.println("VNPay signature: " + vnpSecureHash);
-            
+
             return signValue.equals(vnpSecureHash);
         } catch (Exception e) {
             LOGGER.error("Error verifying VNPay payment signature", e);

@@ -3,6 +3,7 @@ package com.example.datnmainpolo.service.Impl.AccountVoucherServiceImpl;
 
 import com.example.datnmainpolo.dto.AccountVoucherDTO.AccountVoucherAssignDTO;
 import com.example.datnmainpolo.dto.AccountVoucherDTO.AccountVoucherResponseDTO;
+import com.example.datnmainpolo.dto.AccountVoucherDTO.ClientAccountVoucherDTO;
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.entity.AccountVoucher;
 import com.example.datnmainpolo.entity.UserEntity;
@@ -22,8 +23,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.mail.MessagingException;
 import jakarta.persistence.EntityNotFoundException;
+
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class AccountVoucherServiceImpl implements AccountVoucherService {
@@ -135,4 +139,78 @@ public class AccountVoucherServiceImpl implements AccountVoucherService {
         dto.setCreatedAt(entity.getCreatedAt());
         return dto;
     }
+
+     @Override
+    public List<ClientAccountVoucherDTO> getAvailablePrivateVouchersForUser(Integer userId) {
+        Instant now = Instant.now();
+        List<AccountVoucher> accountVouchers = accountVoucherRepository.findAvailablePrivateVouchersForUser(userId, now);
+
+        return accountVouchers.stream().map(av -> {
+            var v = av.getVoucher();
+            ClientAccountVoucherDTO dto = new ClientAccountVoucherDTO();
+            dto.setId(av.getId());
+            dto.setVoucherId(v.getId());
+            dto.setAccountId(av.getUserEntity().getId());
+            dto.setVoucherCode(v.getCode());
+            dto.setVoucherName(v.getName());
+            dto.setVoucherType(v.getType());
+            dto.setVoucherTypeUser(v.getTypeUser());
+            dto.setVoucherStatus(v.getStatus());
+            dto.setFixedDiscountValue(v.getFixedDiscountValue());
+            dto.setPercentageDiscountValue(v.getPercentageDiscountValue());
+            dto.setMaxDiscountValue(v.getMaxDiscountValue());
+            dto.setMinOrderValue(v.getMinOrderValue());
+            dto.setQuantity(av.getQuantity());
+            dto.setStatus(av.getStatus());
+            dto.setEndTime(v.getEndTime());
+            dto.setCreatedAt(av.getCreatedAt());
+            dto.setUpdatedAt(av.getUpdatedAt());
+            return dto;
+        }).collect(Collectors.toList());
+    }
+
+    @Override
+public ClientAccountVoucherDTO findPrivateVoucherByUserAndCode(Integer userId, String code) {
+    Instant now = Instant.now();
+    AccountVoucher av = accountVoucherRepository.findPrivateVoucherByUserAndCode(userId, code, now);
+    if (av == null) return null;
+    return mapToClientAccountVoucherDTO(av);
+}
+
+@Override
+public ClientAccountVoucherDTO validatePrivateVoucherForUser(Integer userId, String code, BigDecimal orderAmount) {
+    Instant now = Instant.now();
+    AccountVoucher av = accountVoucherRepository.findPrivateVoucherByUserAndCode(userId, code, now);
+    if (av == null) return null;
+    Voucher v = av.getVoucher();
+    // Kiểm tra điều kiện áp dụng
+    if (v.getMinOrderValue() != null && orderAmount.compareTo(v.getMinOrderValue()) < 0) return null;
+    if (av.getQuantity() <= 0) return null;
+    if (v.getStatus() != PromotionStatus.ACTIVE || v.getDeleted()) return null;
+    return mapToClientAccountVoucherDTO(av);
+}
+
+// Hàm map DTO
+private ClientAccountVoucherDTO mapToClientAccountVoucherDTO(AccountVoucher av) {
+    Voucher v = av.getVoucher();
+    ClientAccountVoucherDTO dto = new ClientAccountVoucherDTO();
+    dto.setId(av.getId());
+    dto.setVoucherId(v.getId());
+    dto.setAccountId(av.getUserEntity().getId());
+    dto.setVoucherCode(v.getCode());
+    dto.setVoucherName(v.getName());
+    dto.setVoucherType(v.getType());
+    dto.setVoucherTypeUser(v.getTypeUser());
+    dto.setVoucherStatus(v.getStatus());
+    dto.setFixedDiscountValue(v.getFixedDiscountValue());
+    dto.setPercentageDiscountValue(v.getPercentageDiscountValue());
+    dto.setMaxDiscountValue(v.getMaxDiscountValue());
+    dto.setMinOrderValue(v.getMinOrderValue());
+    dto.setQuantity(av.getQuantity());
+    dto.setStatus(av.getStatus());
+    dto.setEndTime(v.getEndTime());
+    dto.setCreatedAt(av.getCreatedAt());
+    dto.setUpdatedAt(av.getUpdatedAt());
+    return dto;
+}
 }

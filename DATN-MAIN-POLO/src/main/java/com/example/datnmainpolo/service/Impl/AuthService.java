@@ -19,7 +19,9 @@ import java.util.Random;
 
 @Service
 @RequiredArgsConstructor
-public class AuthService {
+public class
+
+AuthService {
     private final AuthenticationManager authManager;
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;

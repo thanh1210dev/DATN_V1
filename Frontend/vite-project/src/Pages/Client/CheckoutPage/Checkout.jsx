@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import AddressSelector from './AddressSelector';
 import PaymentMethod from './PaymentMethod';
@@ -12,6 +12,9 @@ import { getCurrentUserId } from '../../../utils/userUtils';
 
 const Checkout = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Lấy selectedItems từ location.state nếu có, fallback sang []
+  const [selectedItems, setSelectedItems] = useState(() => (location.state && location.state.selectedItems ? location.state.selectedItems : []));
   const [cartItems, setCartItems] = useState([]);
   const [selectedAddressId, setSelectedAddressId] = useState(null);
   const [shippingInfo, setShippingInfo] = useState({
@@ -30,7 +33,9 @@ const Checkout = () => {
   const [paymentMethod, setPaymentMethodState] = useState('COD');
   const [selectedVoucher, setSelectedVoucher] = useState(null);
   
+  // Debug state changes
   const setPaymentMethod = (value) => {
+    console.log('🔍 [CHECKOUT DEBUG] Setting paymentMethod from:', paymentMethod, 'to:', value);
     setPaymentMethodState(value);
   };
   const [billId, setBillId] = useState(null);
@@ -40,6 +45,7 @@ const Checkout = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleContinueFromAddress = () => {
+    console.log('🔍 [FRONTEND DEBUG] User clicked Continue from Address - NOT creating bill yet');
     setStep(2); // Move to payment step (skipping voucher step)
   };
 
@@ -49,20 +55,15 @@ const Checkout = () => {
         // Kiểm tra authentication trước khi load trang checkout
         const user = AuthService.getCurrentUser();
         const token = localStorage.getItem('token');
-        
-
-        
         if (!user || !token) {
           toast.error('Vui lòng đăng nhập để thanh toán', { position: 'top-right', autoClose: 3000 });
           navigate('/login');
           return;
         }
-        
         // Kiểm tra token còn hợp lệ không
         try {
           const tokenPayload = JSON.parse(atob(token.split('.')[1]));
           const currentTime = Date.now() / 1000;
-          
           if (tokenPayload.exp < currentTime) {
             toast.error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', { position: 'top-right', autoClose: 3000 });
             AuthService.logout();
@@ -70,38 +71,31 @@ const Checkout = () => {
             return;
           }
         } catch (error) {
-          console.log('🔍 [CHECKOUT AUTH] Invalid token, redirecting to login');
           toast.error('Phiên đăng nhập không hợp lệ, vui lòng đăng nhập lại', { position: 'top-right', autoClose: 3000 });
           AuthService.logout();
           navigate('/login');
           return;
         }
-        
-        try {
+        // Nếu có selectedItems từ state thì ưu tiên, không thì lấy toàn bộ cart
+        if (selectedItems && selectedItems.length > 0) {
+          setCartItems(selectedItems);
+        } else {
           const userId = await getCurrentUserId();
-          console.log('🔍 [CHECKOUT AUTH] User ID from JWT:', userId);
-          
           if (!userId) {
             toast.error('Không tìm thấy thông tin người dùng, vui lòng đăng nhập lại', { position: 'top-right', autoClose: 3000 });
             AuthService.logout();
             navigate('/login');
             return;
           }
-          
           const response = await axiosInstance.get(`/cart-checkout/cart/${userId}`);
           setCartItems(response.data);
-        } catch (error) {
-          console.error('🔍 [CHECKOUT AUTH] Error getting user ID or cart:', error);
-          toast.error('Lỗi xác thực, vui lòng đăng nhập lại', { position: 'top-right', autoClose: 3000 });
-          AuthService.logout();
-          navigate('/login');
-          return;
         }
       } catch (error) {
         toast.error(error.response?.data?.message || 'Lỗi khi lấy giỏ hàng', { position: 'top-right', autoClose: 3000 });
       }
     };
     fetchCart();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);
 
   // Tính phí vận chuyển khi có địa chỉ được chọn
@@ -337,17 +331,25 @@ const Checkout = () => {
         paymentType: paymentMethod,
         voucherId: selectedVoucher?.id || null
       });
+      console.log('🔍 [FRONTEND DEBUG] selectedVoucher full object:', selectedVoucher);
+      console.log('🔍 [FRONTEND DEBUG] userId type:', typeof userId, ', voucherId type:', typeof selectedVoucher?.id);
       
+      // Chuẩn bị danh sách id các cart item được chọn (ưu tiên selectedItems nếu có)
+      const selectedCartDetailIds = (selectedItems && selectedItems.length > 0 ? selectedItems : cartItems).map(item => item.id);
+
       // Tạo URL với các tham số được mã hóa đúng cách
-      let url = `/cart-checkout/create-bill?userId=${encodeURIComponent(userId)}&addressId=${encodeURIComponent(selectedAddressId)}&paymentType=${encodeURIComponent(paymentMethod)}`;
-      
+      let url = `/cart-checkout/create-bill-from-selected?userId=${encodeURIComponent(userId)}&addressId=${encodeURIComponent(selectedAddressId)}&paymentType=${encodeURIComponent(paymentMethod)}`;
       // Thêm voucherId nếu có
       if (selectedVoucher && selectedVoucher.id) {
         url += `&voucherId=${encodeURIComponent(selectedVoucher.id)}`;
       }
-      
+      // Thêm selectedCartDetailIds (dạng: &selectedCartDetailIds=1&selectedCartDetailIds=2)
+      selectedCartDetailIds.forEach(id => {
+        url += `&selectedCartDetailIds=${encodeURIComponent(id)}`;
+      });
+
       console.log('🔍 [FRONTEND DEBUG] Final URL being sent:', url);
-      
+
       const response = await axiosInstance.post(
         url,
         {}, // empty body
@@ -606,10 +608,13 @@ const Checkout = () => {
             )}
           </div>
           <OrderSummary
-            cartItems={cartItems}
+            cartItems={selectedItems && selectedItems.length > 0 ? selectedItems : cartItems}
             shippingFee={shippingFee}
             reductionAmount={reductionAmount}
             onPlaceOrder={handlePlaceOrder}
+            step={step}
+            selectedAddressId={selectedAddressId}
+            paymentMethod={paymentMethod}
           />
         </div>
       </div>

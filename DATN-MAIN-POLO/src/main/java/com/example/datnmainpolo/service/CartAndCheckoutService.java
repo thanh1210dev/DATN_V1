@@ -21,6 +21,7 @@ public interface CartAndCheckoutService {
     List<CartDetailResponseDTO> getCartItems(Integer userId);
     BillResponseDTO createBillFromCart(Integer userId, Integer addressId, PaymentType paymentType);
     BillResponseDTO createBillFromCart(Integer userId, Integer addressId, PaymentType paymentType, Integer voucherId);
+    BillResponseDTO createBillFromSelectedItems(Integer userId, Integer addressId, PaymentType paymentType, Integer voucherId, List<Integer> selectedCartDetailIds);
     void updateCustomerInformation(Integer billId, Integer addressId);
     PaymentResponseDTO processOnlinePayment(Integer billId, PaymentType paymentType);
     BillResponseDTO confirmOnlinePayment(Integer billId);
@@ -28,4 +29,5 @@ public interface CartAndCheckoutService {
     AccountVoucher applyBestUserVoucher(Integer userId, BigDecimal totalMoney);
     BigDecimal calculateShippingCost(Integer toDistrictId, String toWardCode, Integer weight, Integer length, Integer width, Integer height);
     BigDecimal calculateShippingFee(Integer toDistrictId, String toWardCode, Integer weight, Integer length, Integer width, Integer height);
+    void rollbackVoucher(Integer billId);
 }

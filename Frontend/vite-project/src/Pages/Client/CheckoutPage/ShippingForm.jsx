@@ -113,6 +113,12 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel, isEdit }) => {
     loadEditData();
   }, [isEdit, shippingInfo.provinceId, shippingInfo.districtId]);
 
+  const validatePhoneNumber = (phone) => {
+    // Kiểm tra số điện thoại Việt Nam (10 số, bắt đầu bằng 0)
+    const phoneRegex = /^(0[3|5|7|8|9])+([0-9]{8})$/;
+    return phoneRegex.test(phone);
+  };
+
   const handleSubmit = () => {
     console.log('=== SUBMIT DEBUG ===');
     console.log('isEdit:', isEdit);
@@ -124,6 +130,12 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel, isEdit }) => {
       toast.error('Vui lòng điền đầy đủ thông tin giao hàng', { position: 'top-right', autoClose: 3000 });
       return;
     }
+
+    // Validate số điện thoại
+    if (!validatePhoneNumber(formData.phoneNumber)) {
+      toast.error('Số điện thoại không hợp lệ. Vui lòng nhập số điện thoại Việt Nam (10 số, bắt đầu bằng 0)', { position: 'top-right', autoClose: 5000 });
+      return;
+    }
     
     if (isEdit && !formData.id) {
       toast.error('Không tìm thấy ID địa chỉ để cập nhật!');
@@ -131,11 +143,14 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel, isEdit }) => {
       return;
     }
     
+    // Tạo địa chỉ chi tiết đầy đủ (địa chỉ chi tiết + phường + quận + tỉnh)
+    const fullAddress = `${formData.address}, ${formData.wardName}, ${formData.districtName}, ${formData.provinceName}`;
+    
     // Tạo data để gửi
     const dataToSubmit = {
       name: formData.name,
       phoneNumber: formData.phoneNumber,
-      address: formData.address,
+      address: fullAddress, // Địa chỉ đầy đủ
       provinceId: formData.provinceId,
       provinceName: formData.provinceName,
       districtId: formData.districtId,
@@ -146,7 +161,7 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel, isEdit }) => {
       ...(isEdit ? { id: formData.id } : { isDefault: formData.isDefault || false })
     };
     
-    console.log('Final data to submit (no isDefault in edit):', dataToSubmit);
+    console.log('Final data to submit (with full address):', dataToSubmit);
     setShippingInfo(dataToSubmit);
   };
 
@@ -175,10 +190,25 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel, isEdit }) => {
           <input
             type="text"
             value={formData.phoneNumber}
-            onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
-            className="mt-1 w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            placeholder="Nhập số điện thoại"
+            onChange={(e) => {
+              const value = e.target.value.replace(/\D/g, ''); // Chỉ cho phép số
+              if (value.length <= 10) {
+                setFormData({ ...formData, phoneNumber: value });
+              }
+            }}
+            className={`mt-1 w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
+              formData.phoneNumber && !validatePhoneNumber(formData.phoneNumber)
+                ? 'border-red-300 focus:ring-red-500'
+                : 'border-gray-200 focus:ring-indigo-500'
+            }`}
+            placeholder="Nhập số điện thoại (10 số)"
+            maxLength="10"
           />
+          {formData.phoneNumber && !validatePhoneNumber(formData.phoneNumber) && (
+            <p className="mt-1 text-sm text-red-600">
+              Số điện thoại không hợp lệ (phải có 10 số, bắt đầu bằng 03, 05, 07, 08, 09)
+            </p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700">Tỉnh/Thành Phố</label>

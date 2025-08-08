@@ -4,9 +4,11 @@ import com.example.datnmainpolo.dto.BillDTO.BillResponseDTO;
 import com.example.datnmainpolo.dto.BillDTO.PaymentResponseDTO;
 import com.example.datnmainpolo.dto.CartDetailResponseDTO.CartDetailResponseDTO;
 import com.example.datnmainpolo.dto.CartDetailResponseDTO.CustomerInformationOnlineRequestDTO;
+import com.example.datnmainpolo.entity.AccountVoucher;
 import com.example.datnmainpolo.entity.Bill;
 import com.example.datnmainpolo.entity.CustomerInformation;
 import com.example.datnmainpolo.enums.PaymentType;
+import com.example.datnmainpolo.repository.AccountVoucherRepository;
 import com.example.datnmainpolo.repository.BillRepository;
 import com.example.datnmainpolo.service.AddressService;
 import com.example.datnmainpolo.service.CartAndCheckoutService;
@@ -33,6 +35,7 @@ public class CartAndCheckoutController {
     private final AddressService addressService;
     private final BillRepository billRepository;
     private final VNPayService vnpayService;
+    private final AccountVoucherRepository accountVoucherRepository;
     
     // IN-MEMORY STORE để simulate real operations
     private static final Map<Integer, CustomerInformation> ADDRESS_STORE = new ConcurrentHashMap<>();
@@ -116,6 +119,71 @@ public class CartAndCheckoutController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/create-bill-from-selected")
+    public ResponseEntity<?> createBillFromSelectedItems(
+            @RequestParam Integer userId,
+            @RequestParam Integer addressId,
+            @RequestParam PaymentType paymentType,
+            @RequestParam(required = false) Integer voucherId,
+            @RequestParam List<Integer> selectedCartDetailIds) {
+        System.out.println("=== CREATE BILL FROM SELECTED ITEMS DEBUG ===");
+        System.out.println("UserId: " + userId);
+        System.out.println("AddressId: " + addressId);
+        System.out.println("PaymentType: " + paymentType);
+        System.out.println("VoucherId: " + voucherId);
+        System.out.println("Selected Cart Detail IDs: " + selectedCartDetailIds);
+        
+        // Debug: Kiểm tra dữ liệu AccountVoucher trước
+        if (voucherId != null) {
+            System.out.println("=== DEBUG ACCOUNT VOUCHER DATA ===");
+            List<AccountVoucher> allAccountVouchers = accountVoucherRepository.findAll();
+            System.out.println("Total AccountVoucher records: " + allAccountVouchers.size());
+            
+            List<AccountVoucher> userVouchers = allAccountVouchers.stream()
+                .filter(av -> av.getUserEntity() != null && av.getUserEntity().getId().equals(userId))
+                .collect(java.util.stream.Collectors.toList());
+            System.out.println("AccountVouchers for userId " + userId + ": " + userVouchers.size());
+            
+            for (AccountVoucher av : userVouchers) {
+                System.out.println("- AV ID: " + av.getId() + 
+                    ", User ID: " + av.getUserEntity().getId() + 
+                    ", Voucher ID: " + (av.getVoucher() != null ? av.getVoucher().getId() : "null") +
+                    ", Status: " + av.getStatus() + 
+                    ", Quantity: " + av.getQuantity() + 
+                    ", Deleted: " + av.getDeleted());
+            }
+            
+            List<AccountVoucher> targetVouchers = allAccountVouchers.stream()
+                .filter(av -> av.getVoucher() != null && av.getVoucher().getId().equals(voucherId))
+                .collect(java.util.stream.Collectors.toList());
+            System.out.println("AccountVouchers for voucherId " + voucherId + ": " + targetVouchers.size());
+            
+            for (AccountVoucher av : targetVouchers) {
+                System.out.println("- AV ID: " + av.getId() + 
+                    ", User ID: " + (av.getUserEntity() != null ? av.getUserEntity().getId() : "null") + 
+                    ", Voucher ID: " + av.getVoucher().getId() +
+                    ", Status: " + av.getStatus() + 
+                    ", Quantity: " + av.getQuantity() + 
+                    ", Deleted: " + av.getDeleted());
+            }
+        }
+        
+        try {
+            BillResponseDTO response = cartAndCheckoutService.createBillFromSelectedItems(
+                    userId, addressId, paymentType, voucherId, selectedCartDetailIds);
+            System.out.println("Created bill with reduction: " + response.getReductionAmount());
+            System.out.println("Created bill with finalAmount: " + response.getFinalAmount());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            System.out.println("Error creating bill from selected items: " + e.getMessage());
+            e.printStackTrace();
+            // Trả về lỗi chi tiết cho frontend
+            Map<String, Object> errorBody = new HashMap<>();
+            errorBody.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(errorBody);
+        }
+    }
+
     @PutMapping("/checkout/update-customer-info/{billId}")
     public ResponseEntity<Void> updateCustomerInformation(
             @PathVariable Integer billId,
@@ -159,16 +227,16 @@ public class CartAndCheckoutController {
             return ResponseEntity.ok(paymentUrl);
         }
         
-        // Xử lý cho COD - không cập nhật customerPayment ngay vì khách chưa trả tiền
+        // Xử lý cho COD - chỉ cập nhật customerPayment, không ghi đè finalAmount
         if (paymentType == PaymentType.COD) {
             System.out.println("Processing COD payment with final amount: " + finalAmount);
             System.out.println("Current bill finalAmount (with voucher): " + bill.getFinalAmount());
             
-            // Không cập nhật customerPayment ngay - sẽ cập nhật khi admin xác nhận khách đã trả tiền
-            // bill.setCustomerPayment(finalAmount);
-            // billRepository.save(bill);
+            // Chỉ cập nhật customerPayment, giữ nguyên finalAmount đã tính voucher
+            bill.setCustomerPayment(finalAmount);
+            billRepository.save(bill);
             
-            System.out.println("COD payment - customerPayment will be updated when admin confirms actual payment");
+            System.out.println("Updated bill - customerPayment: " + bill.getCustomerPayment() + ", finalAmount: " + bill.getFinalAmount());
         }
         
         // Các phương thức thanh toán khác vẫn giữ nguyên flow cũ
