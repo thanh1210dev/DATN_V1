@@ -9,6 +9,7 @@ const MyOrders = () => {
   const [orders, setOrders] = useState([]);
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(10);
+  const [statusFilter, setStatusFilter] = useState('');
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -48,7 +49,9 @@ const MyOrders = () => {
           navigate('/login');
           return;
         }
-        const response = await axiosInstance.get(`/bills/customer/${userId}?page=${page}&size=${size}`);
+        let url = `/bills/customer/${userId}?page=${page}&size=${size}`;
+        if (statusFilter) url += `&status=${statusFilter}`;
+        const response = await axiosInstance.get(url);
         setOrders(response.data.content || []);
       } catch (error) {
         console.error('Lỗi khi lấy đơn hàng:', error);
@@ -56,12 +59,66 @@ const MyOrders = () => {
       }
     };
     fetchOrders();
-  }, [page, size]);
+  }, [page, size, statusFilter]);
+
+  const statusOptions = [
+    { value: '', label: 'Tất cả' },
+    { value: 'PENDING', label: 'Chờ xử lý' },
+    { value: 'CONFIRMING', label: 'Đang xác nhận' },
+    { value: 'CONFIRMED', label: 'Đã xác nhận' },
+    { value: 'PACKED', label: 'Đã đóng gói' },
+    { value: 'DELIVERING', label: 'Đang giao hàng' },
+    { value: 'DELIVERED', label: 'Đã giao hàng' },
+    { value: 'PAID', label: 'Đã thanh toán' },
+    { value: 'COMPLETED', label: 'Hoàn thành' },
+    { value: 'CANCELLED', label: 'Đã hủy' },
+    { value: 'RETURN_REQUESTED', label: 'Yêu cầu trả hàng' },
+    { value: 'RETURNED', label: 'Đã trả hàng' },
+    { value: 'REFUNDED', label: 'Đã hoàn tiền' },
+    { value: 'PARTIALLY_REFUNDED', label: 'Đã hoàn tiền một phần' },
+    { value: 'RETURN_COMPLETED', label: 'Đã trả xong' },
+    { value: 'DELIVERY_FAILED', label: 'Giao hàng thất bại' },
+  ];
+
+  // Mapping trạng thái đơn hàng sang tiếng Việt (đồng bộ với admin)
+  const statusMapping = {
+    PENDING: 'Chờ xử lý',
+    CONFIRMING: 'Đang xác nhận',
+    CONFIRMED: 'Đã xác nhận',
+    PACKED: 'Đã đóng gói',
+    DELIVERING: 'Đang giao hàng',
+    DELIVERED: 'Đã giao hàng',
+    PAID: 'Đã thanh toán',
+    COMPLETED: 'Hoàn thành',
+    CANCELLED: 'Đã hủy',
+    RETURN_REQUESTED: 'Yêu cầu trả hàng',
+    RETURNED: 'Đã trả hàng',
+    REFUNDED: 'Đã hoàn tiền',
+    PARTIALLY_REFUNDED: 'Đã hoàn tiền một phần',
+    RETURN_COMPLETED: 'Đã trả xong',
+    DELIVERY_FAILED: 'Giao hàng thất bại',
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         <h2 className="text-3xl font-bold text-gray-900 mb-8">Đơn Hàng Của Tôi</h2>
+        <div className="mb-6 w-full">
+          <div className="flex flex-wrap gap-2 justify-center">
+            {statusOptions.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => { setStatusFilter(opt.value); setPage(0); }}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors border border-gray-300
+                  ${statusFilter === opt.value
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-100'}`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
         {orders.length === 0 ? (
           <p className="text-center text-gray-500 text-lg">Bạn chưa có đơn hàng nào</p>
         ) : (
@@ -82,7 +139,7 @@ const MyOrders = () => {
                 <div className="text-sm text-green-600">
                   {order.reductionAmount > 0 ? `-${order.reductionAmount.toLocaleString('vi-VN')} VND` : 'Không có'}
                 </div>
-                <div className="text-sm text-indigo-600">{order.status === 'CONFIRMING' ? 'Đang xác nhận' : order.status}</div>
+                <div className="text-sm text-indigo-600">{statusMapping[order.status] || order.status || 'N/A'}</div>
                 <div className="text-right">
                   <Link
                     to={`/order/${order.id}`}
