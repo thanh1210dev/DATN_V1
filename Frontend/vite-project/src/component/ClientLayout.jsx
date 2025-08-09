@@ -129,9 +129,23 @@ const ClientLayout = () => {
               >
                 Liên Hệ
               </NavLink>
+              {/* Guest flow is integrated; no separate link needed */}
             </div>
             {/* 3 icon bên phải */}
             <div className="flex items-center space-x-4">
+              {/* Quick link: Tra cứu đơn (right side) */}
+              <NavLink
+                to="/order-lookup"
+                className={({ isActive }) =>
+                  `hidden sm:inline px-3 py-2 rounded-lg text-sm font-semibold transition ${
+                    isActive ? "text-purple-700 bg-purple-100" : "text-purple-700 hover:bg-purple-50"
+                  }`
+                }
+                style={{ textDecoration: "none" }}
+                aria-label="Tra cứu đơn hàng"
+              >
+                Tra Cứu Đơn
+              </NavLink>
               {/* Search icon */}
               <button
                 className="p-2 rounded hover:bg-purple-50 transition"
@@ -261,6 +275,7 @@ const ClientLayout = () => {
               >
                 Liên Hệ
               </NavLink>
+              {/* Guest flow is integrated; no separate link needed in mobile */}
               {user && (
                 <NavLink
                   to="/my-orders"

@@ -67,10 +67,18 @@ public class DeliveryBillService {
             throw new RuntimeException("Thông tin khách hàng (customerName, phoneNumber, addressDetail) không được để trống");
         }
 
-        // Find the bill and validate for delivery
-        Bill bill = billRepository.findById(request.getBillId())
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
-        billService.validateBillForDelivery(request.getBillId());
+    // Find the bill and populate guest info early (if any) before validation
+    Bill bill = billRepository.findById(request.getBillId())
+        .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
+
+    // For visiting guest bills (no registered customer), ensure basic info is copied
+    if (bill.getCustomer() == null) {
+        bill.setCustomerName(request.getCustomerName());
+        bill.setPhoneNumber(request.getPhoneNumber());
+    }
+
+    // Validate eligibility for delivery (supports loyal customers or visiting guests with name + phone)
+    billService.validateBillForDelivery(request.getBillId());
 
         // Create temporary CustomerInformation for GHN API calls
         CustomerInformation customerInfo = new CustomerInformation();

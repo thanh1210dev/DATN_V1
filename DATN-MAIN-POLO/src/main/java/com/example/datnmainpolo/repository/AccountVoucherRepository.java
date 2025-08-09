@@ -33,7 +33,6 @@ public interface AccountVoucherRepository extends JpaRepository<AccountVoucher, 
     @Query("SELECT av FROM AccountVoucher av " +
        "JOIN FETCH av.voucher v " +
        "WHERE av.userEntity.id = :userId " +
-       "AND av.status = false " +
        "AND av.deleted = false " +
        "AND av.quantity > 0 " +
        "AND v.status = com.example.datnmainpolo.enums.PromotionStatus.ACTIVE " +
@@ -47,7 +46,6 @@ List<AccountVoucher> findAvailablePrivateVouchersForUser(@Param("userId") Intege
 @Query("SELECT av FROM AccountVoucher av " +
        "JOIN FETCH av.voucher v " +
        "WHERE av.userEntity.id = :userId " +
-       "AND av.status = false " +
        "AND av.deleted = false " +
        "AND av.quantity > 0 " +
        "AND v.status = com.example.datnmainpolo.enums.PromotionStatus.ACTIVE " +

@@ -591,6 +591,7 @@ const VoucherAdmin = () => {
                 value={formData.typeUser}
                 onChange={handleInputChange}
                 className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${formErrors.typeUser ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-indigo-500"}`}
+                disabled={!!selectedVoucher}
                 required
               >
                 <option value="">Chọn loại người dùng</option>
@@ -601,6 +602,11 @@ const VoucherAdmin = () => {
                 ))}
               </select>
               {formErrors.typeUser && <p className="text-xs text-red-500 mt-1">{formErrors.typeUser}</p>}
+              {selectedVoucher && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Không thể thay đổi Công khai/Riêng tư sau khi tạo voucher.
+                </p>
+              )}
               {formData.typeUser === VoucherTypeUser.PRIVATE && (
                 <p className="text-xs text-gray-500 mt-1">Lưu ý: Voucher riêng tư chỉ áp dụng cho người dùng được chỉ định.</p>
               )}

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import axiosInstance from '../../../Service/axiosInstance';
 
-const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel, isEdit }) => {
+const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel, isEdit, showActions = true }) => {
   // Debug log để kiểm tra dữ liệu truyền vào
   useEffect(() => {
     console.log('=== SHIPPING FORM DEBUG ===');
@@ -19,6 +19,7 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel, isEdit }) => {
     id: shippingInfo.id || null, // Thêm ID để cập nhật
     name: shippingInfo.name || '',
     phoneNumber: shippingInfo.phoneNumber || '',
+  email: shippingInfo.email || '', // Added email field
     address: shippingInfo.address || '',
     provinceName: shippingInfo.provinceName || '',
     provinceId: shippingInfo.provinceId || '',
@@ -43,6 +44,30 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel, isEdit }) => {
     };
     fetchProvinces();
   }, []);
+
+  // Live-update shippingInfo lên parent khi ở chế độ guest (không có nút Lưu/Hủy)
+  useEffect(() => {
+    if (!showActions) {
+      const dataToSubmit = {
+        name: formData.name,
+        phoneNumber: formData.phoneNumber,
+        email: formData.email,
+        address: formData.address,
+        provinceId: formData.provinceId,
+        provinceName: formData.provinceName,
+        districtId: formData.districtId,
+        districtName: formData.districtName,
+        wardCode: formData.wardCode,
+        wardName: formData.wardName,
+      };
+      // Chỉ cập nhật khi dữ liệu thực sự thay đổi để tránh rerender vòng lặp
+      setShippingInfo(prev => {
+        const prevStr = JSON.stringify(prev || {});
+        const nextStr = JSON.stringify(dataToSubmit);
+        return prevStr === nextStr ? prev : dataToSubmit;
+      });
+    }
+  }, [formData, showActions, setShippingInfo]);
 
   useEffect(() => {
     const fetchDistricts = async () => {
@@ -119,6 +144,13 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel, isEdit }) => {
     return phoneRegex.test(phone);
   };
 
+  const validateEmail = (email) => {
+    if (!email) return false; // Check if email is provided
+    // Đơn giản, tránh chặn các email hợp lệ ít gặp
+    const re = /[^\s@]+@[^\s@]+\.[^\s@]+/;
+    return re.test(email); // Validate email format
+  };
+
   const handleSubmit = () => {
     console.log('=== SUBMIT DEBUG ===');
     console.log('isEdit:', isEdit);
@@ -126,7 +158,7 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel, isEdit }) => {
     console.log('formData.id:', formData.id);
     console.log('formData.isDefault:', formData.isDefault);
     
-    if (!formData.name || !formData.phoneNumber || !formData.address || !formData.provinceId || !formData.districtId || !formData.wardCode) {
+    if (!formData.name || !formData.phoneNumber || !formData.email || !formData.address || !formData.provinceId || !formData.districtId || !formData.wardCode) {
       toast.error('Vui lòng điền đầy đủ thông tin giao hàng', { position: 'top-right', autoClose: 3000 });
       return;
     }
@@ -136,6 +168,11 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel, isEdit }) => {
       toast.error('Số điện thoại không hợp lệ. Vui lòng nhập số điện thoại Việt Nam (10 số, bắt đầu bằng 0)', { position: 'top-right', autoClose: 5000 });
       return;
     }
+
+    if (!validateEmail(formData.email)) {
+      toast.error('Email không hợp lệ. Vui lòng nhập đúng định dạng email', { position: 'top-right', autoClose: 5000 });
+      return; // Validate email
+    }
     
     if (isEdit && !formData.id) {
       toast.error('Không tìm thấy ID địa chỉ để cập nhật!');
@@ -143,14 +180,12 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel, isEdit }) => {
       return;
     }
     
-    // Tạo địa chỉ chi tiết đầy đủ (địa chỉ chi tiết + phường + quận + tỉnh)
-    const fullAddress = `${formData.address}, ${formData.wardName}, ${formData.districtName}, ${formData.provinceName}`;
-    
-    // Tạo data để gửi
+    // Không nối thêm tỉnh/quận/phường vào address. Chỉ lưu địa chỉ chi tiết (số nhà/đường).
     const dataToSubmit = {
       name: formData.name,
       phoneNumber: formData.phoneNumber,
-      address: fullAddress, // Địa chỉ đầy đủ
+  email: formData.email,
+      address: formData.address, // chỉ phần địa chỉ chi tiết
       provinceId: formData.provinceId,
       provinceName: formData.provinceName,
       districtId: formData.districtId,
@@ -161,7 +196,7 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel, isEdit }) => {
       ...(isEdit ? { id: formData.id } : { isDefault: formData.isDefault || false })
     };
     
-    console.log('Final data to submit (with full address):', dataToSubmit);
+    console.log('Final data to submit (address detail only):', dataToSubmit);
     setShippingInfo(dataToSubmit);
   };
 
@@ -208,6 +243,23 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel, isEdit }) => {
             <p className="mt-1 text-sm text-red-600">
               Số điện thoại không hợp lệ (phải có 10 số, bắt đầu bằng 03, 05, 07, 08, 09)
             </p>
+          )}
+        </div>
+  <div>
+          <label className="block text-sm font-medium text-gray-700">Email</label>
+          <input
+            type="email"
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value.trim() })}
+            className={`${
+              formData.email && !validateEmail(formData.email)
+                ? 'border-red-300 focus:ring-red-500'
+                : 'border-gray-200 focus:ring-indigo-500'
+            } mt-1 w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2`}
+            placeholder="Nhập email để nhận xác nhận đơn hàng"
+          />
+          {formData.email && !validateEmail(formData.email) && (
+            <p className="mt-1 text-sm text-red-600">Email không hợp lệ</p>
           )}
         </div>
         <div>
@@ -287,23 +339,29 @@ const ShippingForm = ({ shippingInfo, setShippingInfo, onCancel, isEdit }) => {
             className="mt-1 w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             placeholder="Nhập địa chỉ chi tiết"
           />
+          {/* Preview địa chỉ đầy đủ (read-only) */}
+          {formData.address && formData.wardName && formData.districtName && formData.provinceName && (
+            <p className="mt-2 text-xs text-gray-500">Địa chỉ đầy đủ: {`${formData.address}, ${formData.wardName}, ${formData.districtName}, ${formData.provinceName}`}</p>
+          )}
         </div>
         {/* ❌ LOẠI BỎ phần "Đặt làm địa chỉ mặc định" khỏi form update */}
         {/* Logic set mặc định sẽ được tách riêng thành nút riêng */}
-        <div className="flex gap-4">
-          <button
-            onClick={handleSubmit}
-            className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-300"
-          >
-            {isEdit ? 'Cập nhật địa chỉ' : 'Lưu địa chỉ'}
-          </button>
-          <button
-            onClick={onCancel}
-            className="px-6 py-3 bg-gray-300 text-gray-900 font-semibold rounded-lg hover:bg-gray-400 transition duration-300"
-          >
-            Hủy
-          </button>
-        </div>
+        {showActions && (
+          <div className="flex gap-4">
+            <button
+              onClick={handleSubmit}
+              className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-300"
+            >
+              {isEdit ? 'Cập nhật địa chỉ' : 'Lưu địa chỉ'}
+            </button>
+            <button
+              onClick={onCancel}
+              className="px-6 py-3 bg-gray-300 text-gray-900 font-semibold rounded-lg hover:bg-gray-400 transition duration-300"
+            >
+              Hủy
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

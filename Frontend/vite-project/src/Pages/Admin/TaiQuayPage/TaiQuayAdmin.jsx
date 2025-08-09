@@ -475,32 +475,15 @@ const TaiQuayAdmin = () => {
       toast.error('Vui lòng chọn hóa đơn');
       return;
     }
-    const finalAmount = selectedBill.finalAmount || 0;
-    if (paymentType === 'CASH') {
-      const amount = parseFloat(cashPaid);
-      if (isNaN(amount) || amount <= 0) {
-        toast.error('Số tiền phải là số dương');
-        return;
-      }
-      if (amount < finalAmount) {
-        toast.error('Số tiền phải lớn hơn hoặc bằng tổng thanh toán');
-        return;
-      }
-      if (amount > 999999999999999.99) {
-        toast.error('Số tiền vượt quá giới hạn cho phép');
-        return;
-      }
-    }
     try {
       setIsLoading(true);
-      const response = await axiosInstance.post(
-        `/bills/${selectedBill.id}/payment`,
-        {},
-        { params: { paymentType, amount: paymentType === 'CASH' ? parseFloat(cashPaid) : undefined } }
-      );
+      const response = await axiosInstance.post(`/bills/${selectedBill.id}/payment`, null, {
+        params: { paymentType, amount: paymentType === 'CASH' ? cashPaid : null },
+      });
       setSelectedBill(response.data.bill || null);
       await fetchBills();
       if (paymentType === 'BANKING') {
+        // Save banking info to show QR + amount
         setBankingDetails(response.data);
         setShowBankingInfo(true);
       } else {
@@ -578,6 +561,37 @@ const TaiQuayAdmin = () => {
     }
   };
 
+  // Update bill status (workflow transitions)
+  const updateBillStatus = async (newStatus) => {
+    if (!selectedBill) {
+      toast.error('Vui lòng chọn hóa đơn');
+      return;
+    }
+    try {
+      setIsLoading(true);
+      const response = await axiosInstance.put(`/bills/${selectedBill.id}/status`, null, { params: { status: newStatus } });
+      setSelectedBill(response.data);
+      await fetchBills();
+      if (newStatus === 'DELIVERED') {
+        toast.success('Đã cập nhật: Đã giao hàng');
+      } else if (newStatus === 'DELIVERING') {
+        toast.success('Đã cập nhật: Đang giao hàng');
+      } else if (newStatus === 'PACKED') {
+        toast.success('Đã cập nhật: Đã đóng gói');
+      } else if (newStatus === 'CONFIRMED') {
+        toast.success('Đã cập nhật: Đã xác nhận');
+      } else if (newStatus === 'COMPLETED') {
+        toast.success('Đã hoàn thành đơn');
+      } else {
+        toast.success('Cập nhật trạng thái thành công');
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Không thể cập nhật trạng thái');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Handle QR scan
   const handleQRScan = async (decodedText) => {
     console.log('QR code scanned:', decodedText);
@@ -620,6 +634,14 @@ const TaiQuayAdmin = () => {
     }));
   };
 
+  // Handle page size change per section
+  const handlePageSizeChange = (section, size) => {
+    setPagination((prev) => ({
+      ...prev,
+      [section]: { ...prev[section], size: Number(size) || 10, page: 0 },
+    }));
+  };
+
   // Handle filter change
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
@@ -634,13 +656,30 @@ const TaiQuayAdmin = () => {
 
   // Handle address selection
   const handleAddressChange = (field, value) => {
-    setDeliveryForm((prev) => ({ ...prev, [field]: value }));
+    // Normalize incoming types: province/district numeric, wardCode string
+    const normalized = (() => {
+      if (field === 'provinceId' || field === 'districtId') return value != null ? Number(value) : null;
+      if (field === 'wardCode') return value != null ? String(value) : null;
+      return value;
+    })();
+
+    // Merge updates in a single state change to avoid race conditions
+    setDeliveryForm((prev) => {
+      const next = { ...prev, [field]: normalized };
+      if (field === 'provinceId') {
+        next.districtId = null;
+        next.wardCode = null;
+      } else if (field === 'districtId') {
+        next.wardCode = null;
+      }
+      return next;
+    });
+
+    // Trigger cascaded loads after state update
     if (field === 'provinceId') {
-      setDeliveryForm((prev) => ({ ...prev, districtId: null, wardCode: null }));
-      fetchDistricts(value);
+      fetchDistricts(normalized);
     } else if (field === 'districtId') {
-      setDeliveryForm((prev) => ({ ...prev, wardCode: null }));
-      fetchWards(value);
+      fetchWards(normalized);
     }
   };
 
@@ -680,24 +719,46 @@ const TaiQuayAdmin = () => {
   // Initial fetch
   useEffect(() => {
     fetchBills();
-    fetchProvinces();
   }, [pagination.bills.page]);
 
   useEffect(() => {
     fetchProductDetails();
-  }, [pagination.productDetails.page, filters]);
+  }, [pagination.productDetails.page, pagination.productDetails.size, filters]);
+
+  useEffect(() => {
+    if (selectedBill) {
+      fetchBillDetails(selectedBill.id);
+    }
+  }, [selectedBill, pagination.billDetails.page]);
 
   useEffect(() => {
     fetchVouchers();
   }, [pagination.vouchers.page]);
 
+  // NEW: Ensure provinces are loaded on mount
   useEffect(() => {
-    if (selectedBill) {
-      fetchBillDetails(selectedBill.id);
-    } else {
-      setBillDetails([]);
+    if (!provinces || provinces.length === 0) {
+      fetchProvinces();
     }
-  }, [selectedBill, pagination.billDetails.page]);
+  }, []);
+
+  // NEW: When opening Delivery modal, ensure lists are loaded and cascade if IDs exist
+  useEffect(() => {
+    if (!showDeliveryModal) return;
+
+    // Load provinces if empty
+    if (!provinces || provinces.length === 0) {
+      fetchProvinces();
+    }
+
+    // Always refresh dependent lists to avoid stale options
+    if (deliveryForm?.provinceId) {
+      fetchDistricts(deliveryForm.provinceId);
+    }
+    if (deliveryForm?.districtId) {
+      fetchWards(deliveryForm.districtId);
+    }
+  }, [showDeliveryModal, deliveryForm?.provinceId, deliveryForm?.districtId]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6 font-sans">
@@ -750,6 +811,7 @@ const TaiQuayAdmin = () => {
         filters={filters}
         productQuantities={productQuantities}
         handlePaginationChange={handlePaginationChange}
+        handlePageSizeChange={handlePageSizeChange}
         handleFilterChange={handleFilterChange}
         handleQuantityChange={handleQuantityChange}
         addProductToBill={addProductToBill}
@@ -759,6 +821,7 @@ const TaiQuayAdmin = () => {
         processPayment={processPayment}
         confirmBankingPayment={confirmBankingPayment}
         cancelBill={cancelBill}
+        updateBillStatus={updateBillStatus}
         handleQRScan={handleQRScan}
         appliedVoucher={appliedVoucher}
         setAppliedVoucher={setAppliedVoucher}

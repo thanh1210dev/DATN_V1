@@ -1,5 +1,6 @@
 package com.example.datnmainpolo.dto.BillDTO;
 
+import com.example.datnmainpolo.dto.BillDetailDTO.BillDetailResponseDTO;
 import com.example.datnmainpolo.enums.BillType;
 import com.example.datnmainpolo.enums.OrderStatus;
 import com.example.datnmainpolo.enums.PaymentType;
@@ -11,6 +12,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 @Getter
 @Setter
@@ -32,6 +34,9 @@ public class BillResponseDTO {
     private BigDecimal moneyShip;
     private BigDecimal finalAmount;
     private BigDecimal customerPayment; // New field for customer payment
+
+    private com.example.datnmainpolo.enums.PaymentStatus paymentStatus; // new
+    private com.example.datnmainpolo.enums.FulfillmentStatus fulfillmentStatus; // new
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "Asia/Ho_Chi_Minh")
     private Instant confirmationDate;
@@ -57,4 +62,7 @@ public class BillResponseDTO {
     private String voucherName;
     private BigDecimal voucherDiscountAmount;
     private VoucherType voucherType;
+    
+    // Items list for bill details
+    private List<BillDetailResponseDTO> items;
 }

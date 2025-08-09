@@ -60,6 +60,11 @@ public class AccountVoucherServiceImpl implements AccountVoucherService {
         Voucher voucher = voucherRepository.findByIdAndDeletedFalse(assignDTO.getVoucherId())
                 .orElseThrow(() -> new EntityNotFoundException("Voucher không tồn tại"));
 
+        // Chỉ cho phép phân cho người dùng khi voucher là PRIVATE
+        if (voucher.getTypeUser() == null || voucher.getTypeUser() != com.example.datnmainpolo.enums.VoucherTypeUser.PRIVATE) {
+            throw new IllegalArgumentException("Chỉ voucher PRIVATE mới được phân cho người dùng");
+        }
+
         if (voucher.getStatus() != PromotionStatus.COMING_SOON && voucher.getStatus() != PromotionStatus.ACTIVE) {
             throw new IllegalArgumentException("Chỉ có thể gán voucher ở trạng thái Sắp ra mắt hoặc Đang hoạt động");
         }
@@ -77,24 +82,35 @@ public class AccountVoucherServiceImpl implements AccountVoucherService {
             UserEntity user = userRepository.findByIdAndDeletedFalse(userId)
                     .orElseThrow(() -> new EntityNotFoundException("Người dùng không tồn tại với ID: " + userId));
 
-            if (accountVoucherRepository.existsByVoucherIdAndUserEntityIdAndDeletedFalse(assignDTO.getVoucherId(), userId)) {
-                continue;
+            // If already assigned, increase quantity; else create new
+            AccountVoucher accountVoucher = accountVoucherRepository
+                    .findByUserEntityIdAndVoucherIdAndDeletedFalse(userId, assignDTO.getVoucherId());
+
+            if (accountVoucher != null) {
+                int newQty = (accountVoucher.getQuantity() == null ? 0 : accountVoucher.getQuantity()) + assignQuantity;
+                accountVoucher.setQuantity(newQty);
+                accountVoucher.setUpdatedAt(Instant.now());
+                // Keep status as-is; ensure not deleted
+                accountVoucher.setDeleted(false);
+                accountVoucherRepository.save(accountVoucher);
+            } else {
+                accountVoucher = new AccountVoucher();
+                accountVoucher.setVoucher(voucher);
+                accountVoucher.setUserEntity(user);
+                accountVoucher.setQuantity(assignQuantity);
+                // status=false means available/unused
+                accountVoucher.setStatus(false);
+                accountVoucher.setCreatedAt(Instant.now());
+                accountVoucher.setUpdatedAt(Instant.now());
+                accountVoucher.setDeleted(false);
+                accountVoucherRepository.save(accountVoucher);
             }
 
-            AccountVoucher accountVoucher = new AccountVoucher();
-            accountVoucher.setVoucher(voucher);
-            accountVoucher.setUserEntity(user);
-            accountVoucher.setQuantity(assignQuantity);
-            accountVoucher.setStatus(true);
-            accountVoucher.setCreatedAt(Instant.now());
-            accountVoucher.setUpdatedAt(Instant.now());
-            accountVoucher.setDeleted(false);
-
-            accountVoucherRepository.save(accountVoucher);
-
-            // Trừ số lượng voucher
+            // Trừ số lượng voucher kho tổng
             voucher.setQuantity(voucher.getQuantity() - assignQuantity);
-            if (voucher.getQuantity() == null) {
+            // Mark USED_UP when quantity reaches 0 (or below)
+            if (voucher.getQuantity() != null && voucher.getQuantity() <= 0) {
+                voucher.setQuantity(0);
                 voucher.setStatus(PromotionStatus.USED_UP);
             }
             voucher.setUpdatedAt(Instant.now());
@@ -123,7 +139,7 @@ public class AccountVoucherServiceImpl implements AccountVoucherService {
     public PaginationResponse<AccountVoucherResponseDTO> getVouchersByUserId(Integer userId, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
         Page<AccountVoucher> pageData = accountVoucherRepository.findByUserId(userId, pageable);
-        return new PaginationResponse(pageData.map(this::toResponse));
+        return new PaginationResponse<AccountVoucherResponseDTO>(pageData.map(this::toResponse));
     }
 
     private AccountVoucherResponseDTO toResponse(AccountVoucher entity) {

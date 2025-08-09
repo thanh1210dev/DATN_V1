@@ -58,6 +58,9 @@ spring:
           connectiontimeout: 5000
           timeout: 3000
           writetimeout: 5000
+  jackson:
+    time-zone: Asia/Ho_Chi_Minh
+    date-format: yyyy-MM-dd'T'HH:mm:ssXXX
 upload:
   dir: uploads/images
 

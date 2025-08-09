@@ -13,7 +13,7 @@ const instance = axios.create({
 });
 
 // Hàm utility
-const isAddressEndpoint = (url) => url?.includes('/cart-checkout/address/');
+const isAddressEndpoint = (url) => url?.includes('/cart-checkout/address');
 const isShippingEndpoint = (url) => url?.includes('/calculate-shipping');
 
 // Validate userId
@@ -75,15 +75,21 @@ instance.interceptors.response.use(
     console.log('✅ [AXIOS RESPONSE] Received response from:', response.config.url);
     console.log('✅ [AXIOS RESPONSE] Status:', response.status);
     console.log('✅ [AXIOS RESPONSE] Response data type:', typeof response.data);
-    console.log('✅ [AXIOS RESPONSE] Response data preview:', 
+    console.log('✅ [AXIOS RESPONSE] Response data preview:',
       typeof response.data === 'string' ? response.data.substring(0, 100) + '...' : response.data);
-    
+
     // Đảm bảo dữ liệu trả về đúng định dạng
     if (isAddressEndpoint(response.config.url)) {
-      return {
-        ...response,
-        data: Array.isArray(response.data) ? response.data : []
-      };
+      // Chỉ ép kiểu về mảng cho các request GET danh sách địa chỉ
+      const method = (response.config.method || 'get').toLowerCase();
+      if (method === 'get') {
+        return {
+          ...response,
+          data: Array.isArray(response.data) ? response.data : []
+        };
+      }
+      // Với POST/PUT/DELETE, trả về dữ liệu gốc để component xử lý
+      return response;
     }
     if (isShippingEndpoint(response.config.url)) {
       const fee = Number(response.data);
@@ -123,6 +129,12 @@ instance.interceptors.response.use(
     // Xử lý lỗi 401 Unauthorized
     if (response && response.status === 401) {
       console.warn('Token expired or invalid');
+      // Không ép redirect với các flow guest/public
+      const url = config?.url || '';
+  const isGuestFlow = url.includes('/guest-checkout/order') || url.includes('/guest-checkout/process-payment') || url.includes('/ghn-address/') || url.includes('/cart-checkout/calculate-shipping');
+      if (isGuestFlow) {
+        return Promise.reject(new Error('Authentication required'));
+      }
       
       // Kiểm tra xem có phải đang trong quá trình thanh toán VNPAY không
       const isVnpayFlow = window.location.pathname.includes('/payment-result') || 
@@ -132,7 +144,7 @@ instance.interceptors.response.use(
       
       // Chỉ clear token và redirect nếu đây KHÔNG phải là request test token 
       // và KHÔNG trong quá trình thanh toán VNPAY
-      if (!config?.url?.includes('/api/user/me') && !isVnpayFlow) {
+  if (!config?.url?.includes('/api/user/me') && !isVnpayFlow) {
         console.log('Clearing authentication due to 401 error');
         localStorage.removeItem('token');
         localStorage.removeItem('userId');
@@ -154,7 +166,13 @@ instance.interceptors.response.use(
     // Xử lý endpoint address
     if (isAddressEndpoint(config?.url)) {
       console.log('Lỗi khi gọi API address:', error.message);
-      return { data: [] };
+      const method = (config?.method || 'get').toLowerCase();
+      // Với GET: trả về mảng rỗng để UI an toàn khi render
+      if (method === 'get') {
+        return { data: [] };
+      }
+      // Với POST/PUT/DELETE: propagate lỗi để component có thể hiện toast
+      return Promise.reject(error);
     }
     
     // Xử lý endpoint shipping

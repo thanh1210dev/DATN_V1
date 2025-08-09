@@ -1,7 +1,6 @@
 package com.example.datnmainpolo.entity;
 
 import com.example.datnmainpolo.enums.BillDetailStatus;
-import com.example.datnmainpolo.enums.OrderStatus;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -38,10 +37,7 @@ public class BillDetail {
     @Column(name = "status", length = 50)
     private BillDetailStatus status;
 
-
-    @Column(name = "order-type")
-    @Enumerated(EnumType.STRING)
-    private OrderStatus typeOrder;
+    // Removed deprecated per-line workflow status (typeOrder) to avoid duplication with bill status
 
     @Column(name = "promotional_price", precision = 10, scale = 2)
     private BigDecimal promotionalPrice;
@@ -63,4 +59,5 @@ public class BillDetail {
     @Column(name = "deleted")
     private Boolean deleted;
 
+    // typeOrder removed
 }

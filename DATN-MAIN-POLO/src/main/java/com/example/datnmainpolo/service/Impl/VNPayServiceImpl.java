@@ -5,16 +5,21 @@ import com.example.datnmainpolo.dto.BillDTO.PaymentResponseDTO;
 import com.example.datnmainpolo.entity.Bill;
 import com.example.datnmainpolo.entity.CartDetail;
 import com.example.datnmainpolo.enums.OrderStatus;
+import com.example.datnmainpolo.enums.PaymentStatus;
 import com.example.datnmainpolo.enums.PaymentType;
+import com.example.datnmainpolo.enums.FulfillmentStatus;
+import com.example.datnmainpolo.enums.BillType;
 import com.example.datnmainpolo.repository.BillRepository;
 import com.example.datnmainpolo.repository.CartRepository;
 import com.example.datnmainpolo.repository.CartDetailRepository;
 import com.example.datnmainpolo.repository.BillDetailRepository;
 import com.example.datnmainpolo.repository.TransactionRepository;
+import com.example.datnmainpolo.repository.ProductDetailRepository;
 import com.example.datnmainpolo.repository.OrderHistoryRepository;
 import com.example.datnmainpolo.service.BillService;
 import com.example.datnmainpolo.service.CartAndCheckoutService;
 import com.example.datnmainpolo.service.VNPayService;
+import com.example.datnmainpolo.service.Impl.Email.EmailService;
 import com.example.datnmainpolo.utils.VNPayUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +45,8 @@ public class VNPayServiceImpl implements VNPayService {
     private final TransactionRepository transactionRepository;
     private final OrderHistoryRepository orderHistoryRepository;
     private final CartAndCheckoutService cartAndCheckoutService;
+    private final EmailService emailService;
+    private final ProductDetailRepository productDetailRepository;
 
     @Override
     public String createPaymentUrl(Integer billId, BigDecimal amount, String orderInfo, HttpServletRequest request) {
@@ -137,6 +144,11 @@ public class VNPayServiceImpl implements VNPayService {
                 bill.setCustomerPayment(paidAmount);
                 bill.setType(PaymentType.VNPAY);
                 bill.setStatus(OrderStatus.PAID);
+                // new axes
+                bill.setPaymentStatus(PaymentStatus.PAID);
+                if (bill.getFulfillmentStatus() == null || bill.getFulfillmentStatus() == FulfillmentStatus.PENDING) {
+                    bill.setFulfillmentStatus(FulfillmentStatus.CONFIRMING);
+                }
                 bill.setUpdatedAt(java.time.Instant.now());
                 bill.setUpdatedBy("VNPAY_SYSTEM");
 
@@ -152,7 +164,7 @@ public class VNPayServiceImpl implements VNPayService {
 
                     for (com.example.datnmainpolo.entity.BillDetail detail : billDetails) {
                         detail.setStatus(com.example.datnmainpolo.enums.BillDetailStatus.PAID);
-                        detail.setTypeOrder(OrderStatus.PAID);
+                        // typeOrder removed from BillDetail
                         detail.setUpdatedAt(java.time.Instant.now());
                         detail.setUpdatedBy("VNPAY_SYSTEM");
                     }
@@ -160,6 +172,28 @@ public class VNPayServiceImpl implements VNPayService {
                     billDetailRepository.saveAll(billDetails);
                     LOGGER.info("✅ Updated {} bill details to PAID status for bill {}",
                             billDetails.size(), billId);
+
+                    // ⭐ Deduct inventory NOW (payment succeeded) only for ONLINE orders.
+                    if (savedBill.getBillType() == BillType.ONLINE) {
+                        for (com.example.datnmainpolo.entity.BillDetail detail : billDetails) {
+                            com.example.datnmainpolo.entity.ProductDetail pd = detail.getDetailProduct();
+                            if (pd != null) {
+                                int available = pd.getQuantity();
+                                int need = detail.getQuantity();
+                                if (available < need) {
+                                    throw new RuntimeException("Sản phẩm " + pd.getCode() + " không đủ số lượng trong kho (còn " + available + ", cần " + need + ")");
+                                }
+                                pd.setQuantity(available - need);
+                                if (pd.getQuantity() <= 0) {
+                                    pd.setStatus(com.example.datnmainpolo.enums.ProductStatus.OUT_OF_STOCK);
+                                }
+                                productDetailRepository.save(pd);
+                            }
+                        }
+                        LOGGER.info("✅ Deducted inventory after VNPay success for ONLINE bill {}", billId);
+                    } else {
+                        LOGGER.info("ℹ️ Skipping inventory deduction for non-ONLINE bill {} after VNPay success", billId);
+                    }
                 } catch (Exception e) {
                     LOGGER.error("❌ Failed to update bill details for bill {}", billId, e);
                     // Don't throw exception - payment was successful
@@ -222,6 +256,31 @@ public class VNPayServiceImpl implements VNPayService {
                     // critical
                 }
 
+                // Send order confirmation email (prefer account email, fallback to guest email on Bill)
+                try {
+                    String to = null;
+                    String userName = savedBill.getCustomerName();
+                    if (savedBill.getCustomer() != null && savedBill.getCustomer().getEmail() != null) {
+                        to = savedBill.getCustomer().getEmail();
+                        if (savedBill.getCustomer().getName() != null) userName = savedBill.getCustomer().getName();
+                    } else if (savedBill.getCustomerEmail() != null && !savedBill.getCustomerEmail().isEmpty()) {
+                        to = savedBill.getCustomerEmail();
+                    }
+                    if (to != null) {
+                        String billCode = savedBill.getCode();
+                        BigDecimal finalAmount = savedBill.getFinalAmount();
+                        String address = savedBill.getAddress();
+                        String phone = savedBill.getPhoneNumber();
+                        String paymentMethod = savedBill.getType() != null ? savedBill.getType().name() : "VNPAY";
+                        emailService.sendOrderConfirmationEmail(to, userName, billCode, finalAmount, address, phone, paymentMethod);
+                        LOGGER.info("📧 Sent order confirmation email to {} for bill {}", to, billId);
+                    } else {
+                        LOGGER.warn("Skipping order confirmation email: no email for bill {}", billId);
+                    }
+                } catch (Exception emailEx) {
+                    LOGGER.error("Failed to send order confirmation email for bill {}: {}", billId, emailEx.getMessage());
+                }
+
                 // Return payment response
                 return PaymentResponseDTO.builder()
                         .bill(billService.convertToBillResponseDTO(savedBill))
@@ -265,6 +324,12 @@ public class VNPayServiceImpl implements VNPayService {
                     LOGGER.error("Failed to update bill {} status to CANCELLED", billId, statusUpdateException);
                     statusUpdateException.printStackTrace();
                 }
+
+                // reflect payment failure axis
+                bill.setPaymentStatus(PaymentStatus.FAILED);
+                bill.setUpdatedAt(java.time.Instant.now());
+                bill.setUpdatedBy("VNPAY_SYSTEM");
+                billRepository.save(bill);
 
                 throw new RuntimeException("Thanh toán VNPay thất bại. Mã lỗi: " + responseCode);
             }

@@ -129,8 +129,7 @@ const AddressSelector = ({ selectedAddressId, setSelectedAddressId, setShippingI
             districtName: defaultAddress.districtName || '',
             districtId: defaultAddress.districtId,
             wardName: defaultAddress.wardName || '',
-            wardCode: defaultAddress.wardCode,
-            shippingFee: 22000,
+            wardCode: defaultAddress.wardCode
           });
         }
       } catch (error) {
@@ -169,8 +168,7 @@ const AddressSelector = ({ selectedAddressId, setSelectedAddressId, setShippingI
           districtName: defaultAddress.districtName || '',
           districtId: defaultAddress.districtId,
           wardName: defaultAddress.wardName || '',
-          wardCode: defaultAddress.wardCode,
-          shippingFee: 22000,
+          wardCode: defaultAddress.wardCode
         });
       } else if (addresses.length === 1) {
         // Nếu chỉ có 1 địa chỉ thì tự động chọn
@@ -187,8 +185,7 @@ const AddressSelector = ({ selectedAddressId, setSelectedAddressId, setShippingI
           districtName: singleAddress.districtName || '',
           districtId: singleAddress.districtId,
           wardName: singleAddress.wardName || '',
-          wardCode: singleAddress.wardCode,
-          shippingFee: 22000,
+          wardCode: singleAddress.wardCode
         });
       }
     }
@@ -269,8 +266,7 @@ const AddressSelector = ({ selectedAddressId, setSelectedAddressId, setShippingI
       setAddresses(updatedAddresses);
       setSelectedAddressId(newAddressWithId.id);
       setShippingInfo({
-        ...newAddressWithId,
-        shippingFee: 22000,
+        ...newAddressWithId
       });
       setIsAddingNew(false);
         
@@ -288,8 +284,7 @@ const AddressSelector = ({ selectedAddressId, setSelectedAddressId, setShippingI
               console.log('Confirming added address selection:', addedAddress.id);
               setSelectedAddressId(addedAddress.id);
               setShippingInfo({
-                ...addedAddress,
-                shippingFee: 22000,
+                ...addedAddress
               });
             } else {
               // Nếu không tìm thấy address vừa add, chọn default
@@ -298,8 +293,7 @@ const AddressSelector = ({ selectedAddressId, setSelectedAddressId, setShippingI
                 console.log('Re-selecting default address after add:', refreshedDefault.id);
                 setSelectedAddressId(refreshedDefault.id);
                 setShippingInfo({
-                  ...refreshedDefault,
-                  shippingFee: 22000,
+                  ...refreshedDefault
                 });
               }
             }
@@ -398,20 +392,9 @@ const AddressSelector = ({ selectedAddressId, setSelectedAddressId, setShippingI
             // Re-check địa chỉ mặc định sau khi refresh
             const refreshedDefault = refreshedAddresses.find(addr => addr.isDefault);
             if (refreshedDefault && !selectedAddressId) {
-              console.log('Re-selecting default address after refresh:', refreshedDefault.id);
               setSelectedAddressId(refreshedDefault.id);
               setShippingInfo({
-                id: refreshedDefault.id,
-                name: refreshedDefault.name,
-                phoneNumber: refreshedDefault.phoneNumber,
-                address: refreshedDefault.address,
-                provinceName: refreshedDefault.provinceName,
-                provinceId: refreshedDefault.provinceId,
-                districtName: refreshedDefault.districtName,
-                districtId: refreshedDefault.districtId,
-                wardName: refreshedDefault.wardName,
-                wardCode: refreshedDefault.wardCode,
-                shippingFee: 22000,
+                ...refreshedDefault
               });
             }
           } catch (refreshError) {
@@ -434,8 +417,7 @@ const AddressSelector = ({ selectedAddressId, setSelectedAddressId, setShippingI
             districtName: updatedAddressData.districtName,
             districtId: updatedAddressData.districtId,
             wardName: updatedAddressData.wardName,
-            wardCode: updatedAddressData.wardCode,
-            shippingFee: 22000,
+            wardCode: updatedAddressData.wardCode
           });
         }
       }
@@ -491,8 +473,7 @@ const AddressSelector = ({ selectedAddressId, setSelectedAddressId, setShippingI
                   districtName: refreshedDefault.districtName,
                   districtId: refreshedDefault.districtId,
                   wardName: refreshedDefault.wardName,
-                  wardCode: refreshedDefault.wardCode,
-                  shippingFee: 22000,
+                  wardCode: refreshedDefault.wardCode
                 });
               }
             }
@@ -572,8 +553,7 @@ const AddressSelector = ({ selectedAddressId, setSelectedAddressId, setShippingI
           districtName: selectedAddress.districtName,
           districtId: selectedAddress.districtId,
           wardName: selectedAddress.wardName,
-          wardCode: selectedAddress.wardCode,
-          shippingFee: 22000,
+          wardCode: selectedAddress.wardCode
         });
       }
       toast.success('Đã đặt làm địa chỉ mặc định!', { position: 'top-right', autoClose: 3000 });
@@ -601,7 +581,7 @@ const AddressSelector = ({ selectedAddressId, setSelectedAddressId, setShippingI
       toast.error('Vui lòng chọn hoặc thêm địa chỉ giao hàng', { position: 'top-right', autoClose: 3000 });
       return;
     }
-    setShippingInfo((prev) => ({ ...prev, shippingFee: 22000 }));
+    setShippingInfo((prev) => ({ ...prev }));
     onNext();
   };
 
@@ -665,8 +645,7 @@ const AddressSelector = ({ selectedAddressId, setSelectedAddressId, setShippingI
                         districtName: address.districtName,
                         districtId: address.districtId,
                         wardName: address.wardName,
-                        wardCode: address.wardCode,
-                        shippingFee: 22000,
+                        wardCode: address.wardCode
                       });
                     }}
                     className="w-5 h-5 text-indigo-600 border-gray-300 focus:ring-indigo-500"

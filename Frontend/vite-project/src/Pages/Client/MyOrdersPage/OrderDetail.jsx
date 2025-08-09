@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import axiosInstance from '../../../Service/axiosInstance';
+import HoaDonApi from '../../../Service/AdminHoaDonService/HoaDonApi';
 import AuthService from '../../../Service/AuthService';
 
 const OrderDetail = () => {
@@ -10,31 +11,48 @@ const OrderDetail = () => {
   const [order, setOrder] = useState(null);
   const [orderDetails, setOrderDetails] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnReason, setReturnReason] = useState('Sản phẩm lỗi/không đúng mô tả');
+  const [returnItems, setReturnItems] = useState({}); // billDetailId -> qty
+  const [returnFiles, setReturnFiles] = useState([]);
+  const [creatingReturn, setCreatingReturn] = useState(false);
 
-  // Mapping trạng thái đơn hàng
+  // Mapping trạng thái đơn hàng (đồng bộ backend)
   const statusMapping = {
-    'PENDING': 'Chờ xử lý',
-    'CONFIRMING': 'Đang xác nhận',
-    'DELIVERING': 'Đang giao hàng',
-    'PAID': 'Đã thanh toán',
-    'COMPLETED': 'Hoàn thành',
-    'CANCELLED': 'Đã hủy',
-    'RETURNED': 'Đã trả hàng',
-    'REFUNDED': 'Đã hoàn tiền',
-    'RETURN_COMPLETED': 'Hoàn tất trả hàng'
+    PENDING: 'Chờ xử lý',
+    CONFIRMING: 'Đang xác nhận',
+    CONFIRMED: 'Đã xác nhận',
+    PACKED: 'Đã đóng gói',
+    DELIVERING: 'Đang giao hàng',
+    DELIVERED: 'Đã giao hàng',
+    PAID: 'Đã thanh toán',
+    COMPLETED: 'Hoàn thành',
+    CANCELLED: 'Đã hủy',
+    RETURN_REQUESTED: 'Yêu cầu trả hàng',
+    RETURNED: 'Đã trả hàng',
+  REFUNDED: 'Đã hoàn tiền',
+  PARTIALLY_REFUNDED: 'Đã hoàn tiền một phần',
+    RETURN_COMPLETED: 'Đã trả xong',
+    DELIVERY_FAILED: 'Giao hàng thất bại',
   };
 
   // Màu sắc cho từng trạng thái
   const statusColors = {
-    'PENDING': 'bg-yellow-100 text-yellow-800',
-    'CONFIRMING': 'bg-blue-100 text-blue-800',
-    'DELIVERING': 'bg-purple-100 text-purple-800',
-    'PAID': 'bg-green-100 text-green-800',
-    'COMPLETED': 'bg-green-100 text-green-800',
-    'CANCELLED': 'bg-red-100 text-red-800',
-    'RETURNED': 'bg-orange-100 text-orange-800',
-    'REFUNDED': 'bg-gray-100 text-gray-800',
-    'RETURN_COMPLETED': 'bg-gray-100 text-gray-800'
+    PENDING: 'bg-yellow-100 text-yellow-800',
+    CONFIRMING: 'bg-blue-100 text-blue-800',
+    CONFIRMED: 'bg-blue-100 text-blue-800',
+    PACKED: 'bg-cyan-100 text-cyan-800',
+    DELIVERING: 'bg-purple-100 text-purple-800',
+    DELIVERED: 'bg-teal-100 text-teal-800',
+    PAID: 'bg-green-100 text-green-800',
+    COMPLETED: 'bg-green-100 text-green-800',
+    CANCELLED: 'bg-red-100 text-red-800',
+    RETURN_REQUESTED: 'bg-orange-50 text-orange-700',
+    RETURNED: 'bg-orange-100 text-orange-800',
+    REFUNDED: 'bg-gray-100 text-gray-800',
+    RETURN_COMPLETED: 'bg-gray-100 text-gray-800',
+    DELIVERY_FAILED: 'bg-red-100 text-red-800',
   };
 
   useEffect(() => {
@@ -100,6 +118,68 @@ const OrderDetail = () => {
 
   const formatPrice = (price) => {
     return price?.toLocaleString('vi-VN') + ' VND' || '0 VND';
+  };
+
+  const translateStatusVi = (status) => ({
+    PENDING: 'Chờ xử lý',
+    CONFIRMING: 'Đang xác nhận',
+    CONFIRMED: 'Đã xác nhận',
+    PACKED: 'Đã đóng gói',
+    DELIVERING: 'Đang giao hàng',
+    DELIVERED: 'Đã giao hàng',
+    PAID: 'Đã thanh toán',
+    COMPLETED: 'Hoàn thành',
+    CANCELLED: 'Đã hủy',
+    RETURN_REQUESTED: 'Yêu cầu trả hàng',
+    RETURNED: 'Đã trả hàng',
+  REFUNDED: 'Đã hoàn tiền',
+  PARTIALLY_REFUNDED: 'Đã hoàn tiền một phần',
+    RETURN_COMPLETED: 'Đã trả xong',
+  }[status] || status);
+
+  const cancelOrder = async () => {
+    if (!order) return;
+    if (!['PENDING','CONFIRMING'].includes(order.status)) {
+      toast.error('Chỉ có thể hủy khi đơn đang chờ xử lý/xác nhận');
+      return;
+    }
+    try {
+      setSubmitting(true);
+      await axiosInstance.put(`/bills/${orderId}/status`, null, { params: { status: 'CANCELLED' }});
+      toast.success('Đã hủy đơn hàng');
+      fetchOrderDetail();
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Hủy đơn hàng thất bại');
+    } finally { setSubmitting(false); }
+  };
+
+  const requestReturn = async () => {
+    if (!order) return;
+    if (!['DELIVERED','COMPLETED'].includes(order.status)) {
+      toast.error('Chỉ có thể yêu cầu trả hàng khi đơn đã giao/hoàn thành');
+      return;
+    }
+    // Initialize quantities to 0 for all items
+    const init = {};
+    (orderDetails || []).forEach(it => { if (it?.id != null) init[it.id] = 0; });
+    setReturnItems(init);
+    setShowReturnModal(true);
+  };
+
+  const requestRefund = async () => {
+    if (!order) return;
+    if (order.status !== 'RETURNED') {
+      toast.error('Chỉ hoàn tiền sau khi hàng đã được trả về');
+      return;
+    }
+    try {
+      setSubmitting(true);
+      await axiosInstance.put(`/bills/${orderId}/status`, null, { params: { status: 'REFUNDED' }});
+      toast.success('Đã yêu cầu hoàn tiền');
+      fetchOrderDetail();
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Yêu cầu hoàn tiền thất bại');
+    } finally { setSubmitting(false); }
   };
 
   if (loading) {
@@ -234,8 +314,8 @@ const OrderDetail = () => {
             </div>
             <div className="px-6 py-4">
               <div className="space-y-4">
-                {Array.isArray(orderDetails) && orderDetails.length > 0 ? (
-                  orderDetails.map((item, index) => (
+                {Array.isArray(orderDetails) && orderDetails.filter(it => it.status !== 'RETURNED').length > 0 ? (
+                  orderDetails.filter(it => it.status !== 'RETURNED').map((item, index) => (
                     <div key={item.id || index} className="flex items-center py-4 border-b border-gray-100 last:border-b-0">
                       <img
                         src={
@@ -276,9 +356,9 @@ const OrderDetail = () => {
                       </div>
                     </div>
                   ))
-                ) : (
+        ) : (
                   <div className="text-center py-8">
-                    <p className="text-gray-500">Không có sản phẩm nào trong đơn hàng này.</p>
+          <p className="text-gray-500">Không có sản phẩm hiển thị (các sản phẩm đã trả sẽ được ẩn khỏi danh sách).</p>
                   </div>
                 )}
               </div>
@@ -362,15 +442,20 @@ const OrderDetail = () => {
           {/* Actions */}
           <div className="bg-white shadow-sm rounded-lg overflow-hidden">
             <div className="px-6 py-4">
-              <div className="flex space-x-3">
-                {order.status === 'PENDING' && (
-                  <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700">
+              <div className="flex flex-wrap gap-3">
+                {['PENDING','CONFIRMING'].includes(order.status) && (
+                  <button onClick={cancelOrder} disabled={submitting} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 disabled:opacity-50">
                     Hủy đơn hàng
                   </button>
                 )}
-                {order.status === 'COMPLETED' && (
-                  <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
-                    Mua lại
+                {['DELIVERED','COMPLETED'].includes(order.status) && (
+                  <button onClick={requestReturn} disabled={submitting} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700 disabled:opacity-50">
+                    Yêu cầu trả hàng
+                  </button>
+                )}
+                {order.status === 'RETURNED' && (
+                  <button onClick={requestRefund} disabled={submitting} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50">
+                    Yêu cầu hoàn tiền
                   </button>
                 )}
                 <Link
@@ -384,6 +469,83 @@ const OrderDetail = () => {
           </div>
         </div>
       </div>
+
+      {/* Return Request Modal */}
+      {showReturnModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6">
+            <h3 className="text-lg font-semibold mb-4">Tạo yêu cầu trả hàng</h3>
+            <div className="space-y-4 max-h-[70vh] overflow-auto pr-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Lý do</label>
+                <textarea className="w-full border rounded px-3 py-2 text-sm" rows={3}
+                          value={returnReason} onChange={e=>setReturnReason(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Chọn sản phẩm và số lượng trả</label>
+                <div className="space-y-2">
+                  {(orderDetails||[]).filter(it => it.status !== 'RETURNED').map(it => {
+                    const maxQty = it.quantity || 0;
+                    const imgSrc = (it.productImage && Array.isArray(it.productImage) && it.productImage.length > 0)
+                      ? `http://localhost:8080${it.productImage[0].url}`
+                      : (it.images && Array.isArray(it.images) && it.images.length > 0)
+                      ? `http://localhost:8080${it.images[0].url}`
+                      : (it.productDetailImage && Array.isArray(it.productDetailImage) && it.productDetailImage.length > 0)
+                      ? `http://localhost:8080${it.productDetailImage[0].url}`
+                      : 'https://via.placeholder.com/40';
+                    return (
+                      <div key={it.id} className="flex items-center justify-between gap-3 border rounded p-2">
+                        <div className="flex items-center gap-3">
+                          <img src={imgSrc} className="w-10 h-10 object-cover rounded" />
+                          <div>
+                            <div className="text-sm font-medium">{it.productName || it.name || 'Sản phẩm'}</div>
+                            <div className="text-xs text-gray-500">SL mua: {maxQty}</div>
+                          </div>
+                        </div>
+                        <input type="number" min={0} max={maxQty}
+                               value={returnItems[it.id] ?? 0}
+                               onChange={e => setReturnItems(prev=>({
+                                 ...prev,
+                                 [it.id]: Math.max(0, Math.min(maxQty, Number(e.target.value)||0))
+                               }))}
+                               className="w-24 border rounded px-2 py-1 text-sm text-right" />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Hình ảnh/Video minh chứng</label>
+                <input type="file" accept="image/*,video/*" multiple onChange={(e)=>setReturnFiles(Array.from(e.target.files||[]))} />
+                <p className="text-xs text-gray-500 mt-1">Tối đa ~15MB mỗi file (theo cấu hình backend).</p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button className="px-4 py-2 text-sm border rounded" onClick={()=>setShowReturnModal(false)}>Hủy</button>
+              <button className="px-4 py-2 text-sm bg-indigo-600 text-white rounded disabled:opacity-50" disabled={creatingReturn}
+                      onClick={async ()=>{
+                        try {
+                          const payloadItems = Object.entries(returnItems)
+                            .filter(([,qty])=> (qty||0) > 0)
+                            .map(([billDetailId,qty])=>({ billDetailId: Number(billDetailId), quantity: Number(qty) }));
+                          if (payloadItems.length === 0) { toast.error('Vui lòng chọn sản phẩm và số lượng cần trả'); return; }
+                          setCreatingReturn(true);
+                          const payload = { reason: returnReason, fullReturn: false, items: payloadItems };
+                          await HoaDonApi.createReturnWithFiles(orderId, payload, returnFiles);
+                          toast.success('Đã gửi yêu cầu trả hàng');
+                          setShowReturnModal(false);
+                          await fetchOrderDetail();
+                        } catch (err) {
+                          toast.error(err.message || 'Không gửi được yêu cầu trả');
+                        } finally {
+                          setCreatingReturn(false);
+                        }
+                      }}> {creatingReturn ? 'Đang gửi...' : 'Gửi yêu cầu'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

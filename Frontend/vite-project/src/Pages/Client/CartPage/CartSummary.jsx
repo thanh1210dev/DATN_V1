@@ -149,6 +149,38 @@ const CartSummary = ({ cartItems, selectedItems }) => {
         </div>
       ) : (
         <div className="space-y-4">
+          {/* Hiển thị danh sách sản phẩm đã chọn */}
+          {safeSelectedItems.length > 0 && (
+            <div className="border-b pb-4 mb-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Sản phẩm đã chọn:</h3>
+              <div className="space-y-2">
+                {safeSelectedItems.map((item) => (
+                  <div key={item.id} className="flex items-center space-x-2 text-xs text-gray-600">
+                    <img
+                      src={item.images?.[0]?.url ? `http://localhost:8080${item.images[0].url}` : '/no-image.jpg'}
+                      alt={item.productName}
+                      className="w-8 h-8 object-cover rounded"
+                      onError={(e) => {
+                        e.target.src = '/no-image.jpg';
+                      }}
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium">{item.productName}</div>
+                      <div className="text-xs space-x-2">
+                        {item.productColor && <span className="text-blue-600">Màu: {item.productColor}</span>}
+                        {item.productSize && <span className="text-green-600">Size: {item.productSize}</span>}
+                        <span>x{item.quantity}</span>
+                      </div>
+                    </div>
+                    <div className="text-right font-medium">
+                      {(item.price * item.quantity).toLocaleString('vi-VN')}₫
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
           <div className="flex justify-between text-sm text-gray-600">
             <span>Tạm tính:</span>
             <span>{subtotal.toLocaleString('vi-VN')} VND</span>
@@ -164,7 +196,7 @@ const CartSummary = ({ cartItems, selectedItems }) => {
           {safeSelectedItems.length > 0 ? (
             <Link
               to="/checkout"
-              state={{ selectedItems: safeSelectedItems }}
+              state={{ selectedItems: safeSelectedItems.map(it => ({...it, id: it.id || `guest-${it.productDetailId}`})) }}
               className="mt-6 block w-full px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-300 text-center"
             >
               Tiến hành thanh toán ({safeSelectedItems.length} sản phẩm)

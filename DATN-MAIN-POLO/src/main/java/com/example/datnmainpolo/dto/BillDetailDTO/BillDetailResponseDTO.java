@@ -1,7 +1,6 @@
 package com.example.datnmainpolo.dto.BillDetailDTO;
 
 import com.example.datnmainpolo.enums.BillDetailStatus;
-import com.example.datnmainpolo.enums.OrderStatus; // Import OrderStatus
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.*;
 
@@ -29,7 +28,6 @@ public class BillDetailResponseDTO {
     private Integer quantity;
     private BigDecimal totalPrice;
     private BillDetailStatus status;
-    private OrderStatus typeOrder; // Added typeOrder field
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "Asia/Ho_Chi_Minh")
     private Instant createdAt;
     private Instant updatedAt;

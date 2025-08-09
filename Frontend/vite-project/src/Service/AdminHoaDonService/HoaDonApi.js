@@ -232,6 +232,89 @@ const HoaDonApi = {
       throw new Error(error.response?.data?.message || 'Lỗi khi lấy danh sách phường/xã');
     }
   },
+
+  // Public order lookup (guest)
+  lookupOrder: async (code, phone) => {
+    try {
+      const response = await axiosInstance.get('/orders/lookup', { params: { code, phone } });
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Không tìm thấy đơn hàng');
+    }
+  },
+
+  // Public order cancel (guest)
+  cancelOrder: async (code, phone) => {
+    try {
+      const response = await axiosInstance.post('/orders/cancel', null, { params: { code, phone } });
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Không thể hủy đơn');
+    }
+  },
+
+  // Create a return (full or partial)
+  createReturn: async (billId, payload) => {
+    try {
+      const response = await axiosInstance.post(`/returns/bills/${billId}`, payload);
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Lỗi khi tạo phiếu trả hàng');
+    }
+  },
+
+  // Create a return with attachments (multipart)
+  createReturnWithFiles: async (billId, payload, files = []) => {
+    try {
+      const form = new FormData();
+      form.append('payload', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+      (files || []).forEach((f) => form.append('files', f));
+      const response = await axiosInstance.post(`/returns/bills/${billId}/with-files`, form);
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Lỗi khi tạo yêu cầu trả hàng (multipart)');
+    }
+  },
+
+  // List returns by bill (for history or follow-up)
+  getReturnsByBill: async (billId) => {
+    try {
+      const response = await axiosInstance.get(`/returns/bills/${billId}`);
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Lỗi khi lấy danh sách trả hàng');
+    }
+  },
+
+  // Complete a return (finalize refund and statuses)
+  completeReturn: async (returnId) => {
+    try {
+      const response = await axiosInstance.post(`/returns/${returnId}/complete`);
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Lỗi khi hoàn tất trả hàng');
+    }
+  },
+
+  // Approve a return request
+  approveReturn: async (returnId) => {
+    try {
+      const response = await axiosInstance.post(`/returns/${returnId}/approve`);
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Lỗi khi duyệt yêu cầu trả hàng');
+    }
+  },
+
+  // Reject a return request
+  rejectReturn: async (returnId, reason) => {
+    try {
+      const response = await axiosInstance.post(`/returns/${returnId}/reject`, null, { params: { reason } });
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Lỗi khi từ chối yêu cầu trả hàng');
+    }
+  },
 };
 
 export default HoaDonApi;

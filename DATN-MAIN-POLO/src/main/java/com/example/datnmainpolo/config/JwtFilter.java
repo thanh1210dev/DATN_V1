@@ -46,19 +46,26 @@ public class JwtFilter extends OncePerRequestFilter {
             System.out.println("   " + headerName + ": " + request.getHeader(headerName));
         });
         
-        // Bỏ qua kiểm tra token cho các endpoint công khai
-        if (
-                uri.startsWith("/login") ||
-                        uri.startsWith("/oauth2") ||
-                        uri.startsWith("/api") ||
-                        uri.startsWith("/v3/api-docs") ||
-                        uri.startsWith("/swagger-ui") ||         // bao phủ index.html, *.js, *.css
-                        uri.equals("/swagger-ui.html")
-        ) {
-            System.out.println("Skipping JWT validation for public endpoint: " + uri);
-            chain.doFilter(request, response);
-            return;
-        }
+    // Bỏ qua kiểm tra token cho các endpoint công khai (allowlist)
+    boolean isPublicApi =
+        uri.equals("/api/user/login") ||
+        uri.equals("/api/user/register") ||
+        uri.equals("/api/user/forgot-password") ||
+        uri.equals("/api/user/reset-password") ||
+        uri.startsWith("/api/ghn-address") ||
+        uri.startsWith("/api/guest-checkout") ||
+        uri.startsWith("/api/vnpay") ||
+        uri.startsWith("/login") ||
+        uri.startsWith("/oauth2") ||
+        uri.startsWith("/v3/api-docs") ||
+        uri.startsWith("/swagger-ui") ||
+        uri.equals("/swagger-ui.html");
+
+    if (isPublicApi) {
+        System.out.println("Skipping JWT validation for public endpoint: " + uri);
+        chain.doFilter(request, response);
+        return;
+    }
 
         System.out.println("Applying JWT validation for endpoint: " + uri);
         final String authHeader = request.getHeader("Authorization");

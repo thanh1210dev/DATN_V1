@@ -18,11 +18,17 @@ public class JacksonConfig {
         // Thêm module để xử lý Java Time (từ AppConfig)
         mapper.registerModule(new JavaTimeModule());
         
-        // Tắt lỗi khi serialize empty beans
+    // Ghi ngày tháng dạng chuỗi theo timezone VN thay vì epoch timestamp
+    mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
+    // Tắt lỗi khi serialize empty beans
         mapper.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
         
         // Tắt lỗi khi gặp unknown properties
         mapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        
+    // Đặt timezone mặc định cho mapper (cũng đã cấu hình trong application.yml)
+    mapper.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Ho_Chi_Minh"));
         
         return mapper;
     }

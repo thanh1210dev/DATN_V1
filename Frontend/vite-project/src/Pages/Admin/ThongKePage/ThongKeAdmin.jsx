@@ -63,6 +63,7 @@ const ThongKeAdmin = () => {
     CANCELLED: 'Đã Hủy',
     RETURNED: 'Đã Trả Hàng',
     REFUNDED: 'Đã Hoàn Tiền',
+  PARTIALLY_REFUNDED: 'Hoàn Tiền Một Phần',
     RETURN_COMPLETED: 'Hoàn Trả Hoàn Tất',
   };
 

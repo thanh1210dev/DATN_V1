@@ -11,7 +11,6 @@ function RegisterPage() {
   const [formData, setFormData] = useState({
     password: "",
     name: "",
-    role: "CLIENT",
     email: "",
     phoneNumber: "",
     birthDay: "",
@@ -19,7 +18,7 @@ function RegisterPage() {
     birthYear: "",
   });
 
-  const roles = ["Staff", "ADMIN", "CLIENT"];
+  // Role is fixed to CLIENT on backend; no selection needed
 
   // Generate options for day, month, and year
   const days = Array.from({ length: 31 }, (_, i) => i + 1);
@@ -53,16 +52,16 @@ function RegisterPage() {
     }
 
     try {
-      const payload = {
-        ...rest,
-        birthDate,
-      };
+  const { role, ...restNoRole } = rest; // ensure no role sent
+  const payload = { ...restNoRole, birthDate };
       await axios.post("http://localhost:8080/api/user/register", payload);
       toast.success("Đăng ký thành công!");
       navigate("/login");
     } catch (error) {
       const errData = error?.response?.data;
-      if (errData?.message) {
+      if (typeof errData === "string") {
+        toast.error(errData);
+      } else if (errData?.message) {
         toast.error(errData.message);
       } else {
         toast.error("Đã có lỗi xảy ra!");
@@ -238,21 +237,7 @@ function RegisterPage() {
                   </select>
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Vai trò</label>
-                <select
-                  name="role"
-                  value={formData.role}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 mt-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-600"
-                >
-                  {roles.map((role) => (
-                    <option key={role} value={role}>
-                      {role}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* Role selection removed: defaults to CLIENT */}
               <button
                 type="submit"
                 className="w-full bg-purple-600 text-white py-2 rounded-md hover:bg-purple-700 transition duration-300"

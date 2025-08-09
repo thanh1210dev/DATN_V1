@@ -47,6 +47,11 @@ const VoucherAdminDetail = () => {
     PERCENT: "Giảm phần trăm",
   };
 
+  const typeUserLabels = {
+    PUBLIC: "Công khai",
+    PRIVATE: "Riêng tư",
+  };
+
   const memberTierOptions = [
     { value: "", label: "Tất cả hạng thành viên" },
     { value: "BRONZE", label: "Đồng (< 500 điểm)", icon: <FaMedal className="inline-block mr-2 text-bronze-600" /> },
@@ -237,6 +242,10 @@ const VoucherAdminDetail = () => {
             <p className="text-sm font-medium text-gray-800">{statusLabels[voucher.status]}</p>
           </div>
           <div className="p-4 bg-gray-50 rounded-lg shadow-sm">
+            <p className="text-xs font-semibold text-gray-500 uppercase">Loại người dùng</p>
+            <p className="text-sm font-medium text-gray-800">{typeUserLabels[voucher.typeUser] || voucher.typeUser}</p>
+          </div>
+          <div className="p-4 bg-gray-50 rounded-lg shadow-sm">
             <p className="text-xs font-semibold text-gray-500 uppercase">Số lượng</p>
             <p className="text-sm font-medium text-gray-800">{voucher.quantity || "-"}</p>
           </div>
@@ -367,8 +376,18 @@ const VoucherAdminDetail = () => {
             {selectAll ? "Bỏ chọn tất cả" : "Chọn tất cả"}
           </button>
           <button
-            onClick={openAssignModal}
-            className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+            onClick={() => {
+              if (voucher.typeUser !== 'PRIVATE') {
+                toast.warn('Chỉ voucher Riêng tư (PRIVATE) mới được phân cho người dùng', {
+                  position: 'top-right',
+                  autoClose: 5000,
+                });
+                return;
+              }
+              openAssignModal();
+            }}
+            className={`px-4 py-2 text-white text-sm font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 ${voucher.typeUser !== 'PRIVATE' ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
+            disabled={voucher.typeUser !== 'PRIVATE'}
           >
             Phân Voucher
           </button>

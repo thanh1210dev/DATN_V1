@@ -1,7 +1,7 @@
 package com.example.datnmainpolo.controller;
 
-import com.example.datnmainpolo.config.VNPAYConfig;
 import com.example.datnmainpolo.service.VNPayService;
+import com.example.datnmainpolo.dto.BillDTO.PaymentResponseDTO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +22,6 @@ public class VNPayController {
     private static final Logger LOGGER = LoggerFactory.getLogger(VNPayController.class);
 
     private final VNPayService vnpayService;
-    private final VNPAYConfig vnpayConfig;
 
     @GetMapping("/callback")
     public void vnpayCallback(@RequestParam Map<String, String> params,
@@ -33,7 +32,7 @@ public class VNPayController {
 
         try {
             // URL cơ sở để redirect về frontend
-            String baseUrl = vnpayConfig.getPaymentBackReturnUrl();
+            // Điều hướng về trang tra cứu đơn hàng công khai của frontend
             UriComponentsBuilder urlBuilder;
 
             // Xác thực chữ ký trước khi xử lý
@@ -41,45 +40,60 @@ public class VNPayController {
                 if ("00".equals(responseCode)) {
                     // Payment successful
                     LOGGER.info("VNPay payment successful for bill {}", billId);
-                    vnpayService.processVNPayCallback(params); // Xử lý nghiệp vụ
+                    PaymentResponseDTO pr = vnpayService.processVNPayCallback(params); // Xử lý nghiệp vụ
+                    String code = (pr != null && pr.getBill() != null) ? pr.getBill().getCode() : null;
+                    String phone = (pr != null && pr.getBill() != null) ? pr.getBill().getPhoneNumber() : null;
 
-                    urlBuilder = UriComponentsBuilder.fromUriString(baseUrl)
-                            .queryParam("status", "success")
-                            .queryParam("billId", billId);
+                    urlBuilder = UriComponentsBuilder
+                        .fromUriString("http://localhost:3000/order-lookup")
+                        .queryParam("status", "success")
+                        .queryParam(code != null ? "code" : "billId", code != null ? code : billId)
+                        .queryParam(phone != null ? "phone" : "_", phone != null ? phone : "");
                 } else {
                     // Payment failed - MUST process callback to update bill status
                     LOGGER.warn("VNPay payment failed for bill {} with response code {}", billId, responseCode);
                     
                     // Process callback to update bill status to CANCELLED
                     try {
-                        vnpayService.processVNPayCallback(params);
+                        PaymentResponseDTO pr = vnpayService.processVNPayCallback(params);
+                        String code = (pr != null && pr.getBill() != null) ? pr.getBill().getCode() : null;
+                        String phone = (pr != null && pr.getBill() != null) ? pr.getBill().getPhoneNumber() : null;
+                        urlBuilder = UriComponentsBuilder
+                            .fromUriString("http://localhost:3000/order-lookup")
+                            .queryParam("status", "failed")
+                            .queryParam(code != null ? "code" : "billId", code != null ? code : billId)
+                            .queryParam(phone != null ? "phone" : "_", phone != null ? phone : "")
+                            .queryParam("error", responseCode);
                     } catch (Exception callbackException) {
                         // Even if callback processing fails, we still need to redirect user
                         LOGGER.error("Failed to process VNPay callback for failed payment", callbackException);
-                    }
-                    
-                    urlBuilder = UriComponentsBuilder.fromUriString(baseUrl)
+                        urlBuilder = UriComponentsBuilder
+                            .fromUriString("http://localhost:3000/order-lookup")
                             .queryParam("status", "failed")
                             .queryParam("billId", billId)
+                            .queryParam("phone", "")
                             .queryParam("error", responseCode);
+                    }
                 }
             } else {
                 // Invalid signature
                 LOGGER.error("Invalid VNPay signature for bill {}", billId);
-                urlBuilder = UriComponentsBuilder.fromUriString(baseUrl)
-                        .queryParam("status", "error")
-                        .queryParam("billId", billId)
-                        .queryParam("message", "Invalid signature");
+        urlBuilder = UriComponentsBuilder
+            .fromUriString("http://localhost:3000/order-lookup")
+            .queryParam("status", "error")
+            .queryParam("billId", billId)
+            .queryParam("message", "Invalid signature");
             }
             response.sendRedirect(urlBuilder.toUriString());
 
         } catch (Exception e) {
             LOGGER.error("Error processing VNPay callback for bill {}", billId, e);
-            String errorRedirectUrl = UriComponentsBuilder.fromUriString(vnpayConfig.getPaymentBackReturnUrl())
-                    .queryParam("status", "error")
-                    .queryParam("billId", billId)
-                    .queryParam("message", "System error during callback processing")
-                    .toUriString();
+        String errorRedirectUrl = UriComponentsBuilder
+            .fromUriString("http://localhost:3000/order-lookup")
+            .queryParam("status", "error")
+            .queryParam("billId", billId)
+            .queryParam("message", "System error during callback processing")
+            .toUriString();
             response.sendRedirect(errorRedirectUrl);
         }
     }

@@ -53,4 +53,7 @@ public interface BillRepository extends JpaRepository<Bill, Integer> {
 
     Page<Bill> findByCustomerIdAndDeletedFalse(Integer userId, Pageable pageable);
     Page<Bill> findByCustomerIdAndStatusAndDeletedFalse(Integer customerId, OrderStatus status, Pageable pageable);
+
+    // Public lookup by exact code and phone, not deleted
+    Optional<Bill> findByCodeAndPhoneNumberAndDeletedFalse(String code, String phoneNumber);
 }

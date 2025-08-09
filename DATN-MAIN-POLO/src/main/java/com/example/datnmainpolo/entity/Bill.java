@@ -42,6 +42,10 @@ public class Bill {
     @Column(name = "address", columnDefinition = "NVARCHAR(255)")
     private String address;
 
+    @Size(max = 100)
+    @Column(name = "customer_email", length = 100)
+    private String customerEmail;
+
 
     @Column(name = "confirmation_date")
     private Instant confirmationDate;   //ngay xac nhan don hang
@@ -123,5 +127,13 @@ public class Bill {
 
     @Column(name = "deleted")
     private Boolean deleted;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", length = 30)
+    private com.example.datnmainpolo.enums.PaymentStatus paymentStatus; // new
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "fulfillment_status", length = 30)
+    private com.example.datnmainpolo.enums.FulfillmentStatus fulfillmentStatus; // new
 
 }

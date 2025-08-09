@@ -20,12 +20,14 @@ import com.example.datnmainpolo.repository.BillRepository;
 import com.example.datnmainpolo.repository.CustomerInformationRepository;
 import com.example.datnmainpolo.repository.OrderHistoryRepository;
 import com.example.datnmainpolo.repository.TransactionRepository;
+import com.example.datnmainpolo.repository.UserRepository;
 import com.example.datnmainpolo.service.BillDetailService;
 import com.example.datnmainpolo.service.BillService;
 import com.example.datnmainpolo.service.OnlineOrderConfirmationService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,6 +51,22 @@ public class OnlineOrderConfirmationServiceImpl implements OnlineOrderConfirmati
     private final TransactionRepository transactionRepository;
     private final DeliveryBillService deliveryBillService;
     private final CustomerInformationRepository customerInformationRepository;
+    private final UserRepository userRepository;
+
+    private String getActor() {
+        try {
+            String username = SecurityContextHolder.getContext() != null &&
+                    SecurityContextHolder.getContext().getAuthentication() != null
+                    ? SecurityContextHolder.getContext().getAuthentication().getName()
+                    : null;
+            if (username == null || "anonymousUser".equalsIgnoreCase(username)) return "system";
+            return userRepository.findByEmail(username)
+                    .map(u -> u.getName() != null ? u.getName() : username)
+                    .orElse(username);
+        } catch (Exception e) {
+            return "system";
+        }
+    }
 
     @Override
     @Transactional
@@ -68,8 +86,8 @@ public class OnlineOrderConfirmationServiceImpl implements OnlineOrderConfirmati
         bill.setStatus(OrderStatus.CONFIRMING);
         bill.setConfirmationDate(Instant.now());
         bill.setUpdatedAt(Instant.now());
-        bill.setUpdatedBy("system");
-        billDetailService.updateBillDetailTypeOrder(billId, OrderStatus.CONFIRMING);
+        bill.setUpdatedBy(getActor());
+    // typeOrder removed; skip per-line update
 
         OrderHistory orderHistory = new OrderHistory();
         orderHistory.setBill(bill);
@@ -77,8 +95,8 @@ public class OnlineOrderConfirmationServiceImpl implements OnlineOrderConfirmati
         orderHistory.setActionDescription("Xác nhận đơn hàng online");
         orderHistory.setCreatedAt(Instant.now());
         orderHistory.setUpdatedAt(Instant.now());
-        orderHistory.setCreatedBy("system");
-        orderHistory.setUpdatedBy("system");
+        orderHistory.setCreatedBy(getActor());
+        orderHistory.setUpdatedBy(getActor());
         orderHistory.setDeleted(false);
         orderHistoryRepository.save(orderHistory);
 
@@ -105,8 +123,8 @@ public class OnlineOrderConfirmationServiceImpl implements OnlineOrderConfirmati
         orderHistory.setActionDescription("Thêm sản phẩm (ID: " + request.getProductDetailId() + ", Số lượng: " + request.getQuantity() + ") vào đơn hàng");
         orderHistory.setCreatedAt(Instant.now());
         orderHistory.setUpdatedAt(Instant.now());
-        orderHistory.setCreatedBy("system");
-        orderHistory.setUpdatedBy("system");
+        orderHistory.setCreatedBy(getActor());
+        orderHistory.setUpdatedBy(getActor());
         orderHistory.setDeleted(false);
         orderHistoryRepository.save(orderHistory);
 
@@ -137,8 +155,8 @@ public class OnlineOrderConfirmationServiceImpl implements OnlineOrderConfirmati
         orderHistory.setActionDescription("Xóa sản phẩm (ID: " + billDetail.getDetailProduct().getId() + ", Số lượng: " + billDetail.getQuantity() + ") khỏi đơn hàng");
         orderHistory.setCreatedAt(Instant.now());
         orderHistory.setUpdatedAt(Instant.now());
-        orderHistory.setCreatedBy("system");
-        orderHistory.setUpdatedBy("system");
+        orderHistory.setCreatedBy(getActor());
+        orderHistory.setUpdatedBy(getActor());
         orderHistory.setDeleted(false);
         orderHistoryRepository.save(orderHistory);
 
@@ -165,8 +183,7 @@ public class OnlineOrderConfirmationServiceImpl implements OnlineOrderConfirmati
 
 
 
-        // Update BillDetail typeOrder using the service method
-        billDetailService.updateBillDetailTypeOrder(billId, newStatus);
+    // typeOrder removed; skip per-line update
 
         if (newStatus == OrderStatus.COMPLETED) {
             bill.setCompletionDate(Instant.now());
@@ -186,7 +203,7 @@ public class OnlineOrderConfirmationServiceImpl implements OnlineOrderConfirmati
 
         bill.setStatus(newStatus);
         bill.setUpdatedAt(Instant.now());
-        bill.setUpdatedBy("system");
+        bill.setUpdatedBy(getActor());
 
         OrderHistory orderHistory = new OrderHistory();
         orderHistory.setBill(bill);
@@ -194,8 +211,8 @@ public class OnlineOrderConfirmationServiceImpl implements OnlineOrderConfirmati
         orderHistory.setActionDescription("Cập nhật trạng thái đơn hàng sang " + newStatus);
         orderHistory.setCreatedAt(Instant.now());
         orderHistory.setUpdatedAt(Instant.now());
-        orderHistory.setCreatedBy("system");
-        orderHistory.setUpdatedBy("system");
+        orderHistory.setCreatedBy(getActor());
+        orderHistory.setUpdatedBy(getActor());
         orderHistory.setDeleted(false);
         orderHistoryRepository.save(orderHistory);
 
@@ -236,8 +253,8 @@ public class OnlineOrderConfirmationServiceImpl implements OnlineOrderConfirmati
         orderHistory.setActionDescription("Cập nhật số tiền thanh toán COD: " + amount);
         orderHistory.setCreatedAt(Instant.now());
         orderHistory.setUpdatedAt(Instant.now());
-        orderHistory.setCreatedBy("system");
-        orderHistory.setUpdatedBy("system");
+        orderHistory.setCreatedBy(getActor());
+        orderHistory.setUpdatedBy(getActor());
         orderHistory.setDeleted(false);
         orderHistoryRepository.save(orderHistory);
 
@@ -258,7 +275,7 @@ public class OnlineOrderConfirmationServiceImpl implements OnlineOrderConfirmati
 
         bill.setCustomerPayment(amount.setScale(2, RoundingMode.HALF_UP));
         bill.setUpdatedAt(Instant.now());
-        bill.setUpdatedBy("system");
+        bill.setUpdatedBy(getActor());
 
         OrderHistory orderHistory = new OrderHistory();
         orderHistory.setBill(bill);
@@ -266,8 +283,8 @@ public class OnlineOrderConfirmationServiceImpl implements OnlineOrderConfirmati
         orderHistory.setActionDescription("Cập nhật số tiền khách trả: " + amount);
         orderHistory.setCreatedAt(Instant.now());
         orderHistory.setUpdatedAt(Instant.now());
-        orderHistory.setCreatedBy("system");
-        orderHistory.setUpdatedBy("system");
+        orderHistory.setCreatedBy(getActor());
+        orderHistory.setUpdatedBy(getActor());
         orderHistory.setDeleted(false);
         orderHistoryRepository.save(orderHistory);
 
@@ -331,7 +348,7 @@ public class OnlineOrderConfirmationServiceImpl implements OnlineOrderConfirmati
         bill.setDesiredDate(request.getDesiredDate() != null ? request.getDesiredDate() : Instant.now());
         bill.setFinalAmount(bill.getTotalMoney().subtract(bill.getReductionAmount()).add(shippingFee));
         bill.setUpdatedAt(Instant.now());
-        bill.setUpdatedBy("system");
+        bill.setUpdatedBy(getActor());
 
         // Don't apply public voucher automatically - let user choose in frontend
         // billService.applyBestPublicVoucher(bill);
@@ -360,8 +377,8 @@ public class OnlineOrderConfirmationServiceImpl implements OnlineOrderConfirmati
         orderHistory.setActionDescription(String.format("Cập nhật địa chỉ giao hàng: %s, Phí ship: %s", bill.getAddress(), shippingFee));
         orderHistory.setCreatedAt(Instant.now());
         orderHistory.setUpdatedAt(Instant.now());
-        orderHistory.setCreatedBy("system");
-        orderHistory.setUpdatedBy("system");
+        orderHistory.setCreatedBy(getActor());
+        orderHistory.setUpdatedBy(getActor());
         orderHistory.setDeleted(false);
         orderHistoryRepository.save(orderHistory);
 
@@ -395,8 +412,8 @@ public class OnlineOrderConfirmationServiceImpl implements OnlineOrderConfirmati
 
         bill.setStatus(previousStatus);
         bill.setUpdatedAt(Instant.now());
-        bill.setUpdatedBy("system");
-        billDetailService.updateBillDetailTypeOrder(billId, previousStatus);
+        bill.setUpdatedBy(getActor());
+    // typeOrder removed; skip per-line update
 
         OrderHistory orderHistory = new OrderHistory();
         orderHistory.setBill(bill);
@@ -404,8 +421,8 @@ public class OnlineOrderConfirmationServiceImpl implements OnlineOrderConfirmati
         orderHistory.setActionDescription("Quay lại trạng thái " + previousStatus);
         orderHistory.setCreatedAt(Instant.now());
         orderHistory.setUpdatedAt(Instant.now());
-        orderHistory.setCreatedBy("system");
-        orderHistory.setUpdatedBy("system");
+        orderHistory.setCreatedBy(getActor());
+        orderHistory.setUpdatedBy(getActor());
         orderHistory.setDeleted(false);
         orderHistoryRepository.save(orderHistory);
 

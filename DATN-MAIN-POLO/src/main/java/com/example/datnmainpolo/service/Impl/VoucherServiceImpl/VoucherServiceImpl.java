@@ -156,11 +156,18 @@ public class VoucherServiceImpl implements VoucherService {
     @Override
     @Transactional
     public VoucherResponseDTO updateVoucher(Integer id, VoucherRequestDTO requestDTO) {
-        validateRequestDTO(requestDTO);
+    validateRequestDTO(requestDTO);
 
-        Voucher voucher = voucherRepository.findByIdAndDeletedFalse(id)
-                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy voucher"));
-        updateEntityFromRequestDTO(voucher, requestDTO);
+    Voucher voucher = voucherRepository.findByIdAndDeletedFalse(id)
+        .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy voucher"));
+
+    // Không cho phép thay đổi loại hiển thị PUBLIC/PRIVATE sau khi tạo
+    if (requestDTO.getTypeUser() != null && voucher.getTypeUser() != null
+        && requestDTO.getTypeUser() != voucher.getTypeUser()) {
+        throw new IllegalArgumentException("Không được phép thay đổi loại voucher (PUBLIC/PRIVATE) sau khi tạo");
+    }
+
+    updateEntityFromRequestDTO(voucher, requestDTO);
         voucher.setStatus(determineStatus(requestDTO.getStartTime(), requestDTO.getEndTime(), requestDTO.getStatus()));
         voucher.setUpdatedAt(Instant.now());
 
@@ -315,7 +322,7 @@ public class VoucherServiceImpl implements VoucherService {
         voucher.setPercentageDiscountValue(dto.getPercentageDiscountValue());
         voucher.setMaxDiscountValue(dto.getMaxDiscountValue());
         voucher.setMinOrderValue(dto.getMinOrderValue());
-        voucher.setTypeUser(dto.getTypeUser()); // New field
+    // Giữ nguyên typeUser (PUBLIC/PRIVATE) sau khi tạo, không cho phép cập nhật
         UserEntity user = userEntityRepository.findById(dto.getCreatedByUserId())
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy người dùng"));
         voucher.setCreatedByUser(user);

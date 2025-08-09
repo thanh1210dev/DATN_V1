@@ -1,9 +1,8 @@
-
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { HiArrowLeft, HiOutlinePlus, HiOutlineX, HiCheckCircle, HiClock, HiXCircle, HiCurrencyDollar, HiUser, HiOutlineTruck, HiArchive } from 'react-icons/hi';
+import { HiArrowLeft, HiOutlinePlus, HiOutlineX, HiCheckCircle, HiClock, HiXCircle, HiCurrencyDollar, HiUser, HiOutlineTruck, HiArchive, HiOutlinePrinter } from 'react-icons/hi';
 import Select from 'react-select';
 import HoaDonApi from '../../../Service/AdminHoaDonService/HoaDonApi';
 
@@ -20,7 +19,13 @@ const BillDetail = () => {
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showReturnModal, setShowReturnModal] = useState(false);
   const [customerPayment, setCustomerPayment] = useState('');
+  const [returnReason, setReturnReason] = useState('');
+  const [isFullReturn, setIsFullReturn] = useState(true);
+  const [returnQuantities, setReturnQuantities] = useState({}); // billDetailId -> qty
+  const [returnFiles, setReturnFiles] = useState([]); // attachments for return request
+  const [creatingReturn, setCreatingReturn] = useState(false);
   const [addressForm, setAddressForm] = useState({
     customerName: '',
     phoneNumber: '',
@@ -47,12 +52,47 @@ const BillDetail = () => {
     size: 10,
     totalPages: 1,
   });
+  const [returnsHistory, setReturnsHistory] = useState([]);
 
+  const handlePrintInvoice = async () => {
+    try {
+      if (!id) {
+        toast.error('Không tìm thấy hóa đơn để in');
+        return;
+      }
+      const base64PDF = await HoaDonApi.printInvoice(id);
+      const byteCharacters = atob(base64PDF);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `invoice_${id}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success('Đã tải hóa đơn thành công');
+    } catch (error) {
+      toast.error(error.message || 'Lỗi khi in hóa đơn');
+    }
+  };
+
+  // Có yêu cầu trả hàng đang chờ duyệt không?
+  const hasPendingReturn = useMemo(() => {
+    try {
+      return Array.isArray(returnsHistory) && returnsHistory.some(r => r?.status === 'REQUESTED');
+    } catch (_) {
+      return false;
+    }
+  }, [returnsHistory]);
+
+  // Trạng thái chi tiết đơn giản: chỉ 4 trạng thái theo yêu cầu
   const billDetailStatusOptions = [
-    { value: 'PENDING', label: 'Chờ thanh toán', color: 'bg-yellow-100 text-yellow-800' },
+    { value: 'PENDING', label: 'Chưa thanh toán', color: 'bg-yellow-100 text-yellow-800' },
     { value: 'PAID', label: 'Đã thanh toán', color: 'bg-green-100 text-green-800' },
-    { value: 'SHIPPED', label: 'Đã gửi hàng', color: 'bg-indigo-100 text-indigo-800' },
-    { value: 'DELIVERED', label: 'Đã giao hàng', color: 'bg-teal-100 text-teal-800' },
     { value: 'RETURNED', label: 'Đã trả hàng', color: 'bg-orange-100 text-orange-800' },
     { value: 'CANCELLED', label: 'Đã hủy', color: 'bg-red-100 text-red-800' },
   ];
@@ -75,7 +115,7 @@ const BillDetail = () => {
 
   const billTypeOptions = [
     { value: 'OFFLINE', label: 'Tại quầy', color: 'bg-cyan-100 text-cyan-800' },
-    { value: 'ONLINE', label: 'Online', color: 'bg-lime-100 text-lime-800' },
+    { value: 'ONLINE', label: 'Trực tuyến', color: 'bg-lime-100 text-lime-800' },
   ];
 
   const paymentTypeOptions = [
@@ -84,6 +124,40 @@ const BillDetail = () => {
     { value: 'BANKING', label: 'Chuyển khoản', color: 'bg-violet-100 text-violet-800' },
     { value: 'VNPAY', label: 'VNPAY', color: 'bg-emerald-100 text-emerald-800' },
   ];
+
+  // Payment status (tiền tệ) - độc lập với OrderStatus
+  const paymentStatusOptions = [
+    { value: 'UNPAID', label: 'Chưa thanh toán', color: 'bg-gray-100 text-gray-800' },
+    { value: 'PENDING', label: 'Đang chờ thanh toán', color: 'bg-yellow-100 text-yellow-800' },
+    { value: 'PAID', label: 'Đã thanh toán', color: 'bg-green-100 text-green-800' },
+    { value: 'FAILED', label: 'Thanh toán thất bại', color: 'bg-red-100 text-red-800' },
+    { value: 'REFUNDED', label: 'Đã hoàn tiền', color: 'bg-purple-100 text-purple-800' },
+    { value: 'PARTIALLY_REFUNDED', label: 'Hoàn tiền một phần', color: 'bg-indigo-100 text-indigo-800' },
+  ];
+
+  // Fulfillment status (giao vận) - hiển thị/analytics, có thể suy từ OrderStatus
+  const fulfillmentStatusOptions = [
+  { value: 'PENDING', label: 'Chờ xử lý', color: 'bg-gray-100 text-gray-800' },
+  { value: 'CONFIRMING', label: 'Đang xác nhận', color: 'bg-blue-100 text-blue-800' },
+  { value: 'CONFIRMED', label: 'Đã xác nhận', color: 'bg-cyan-100 text-cyan-800' },
+  { value: 'PACKED', label: 'Đã đóng gói', color: 'bg-purple-100 text-purple-800' },
+  { value: 'DELIVERING', label: 'Đang giao hàng', color: 'bg-indigo-100 text-indigo-800' },
+  { value: 'DELIVERED', label: 'Đã giao hàng', color: 'bg-emerald-100 text-emerald-800' },
+  { value: 'DELIVERY_FAILED', label: 'Giao thất bại', color: 'bg-red-100 text-red-800' },
+  { value: 'RETURN_REQUESTED', label: 'Yêu cầu trả hàng', color: 'bg-amber-100 text-amber-800' },
+  { value: 'RETURNED', label: 'Đã trả hàng', color: 'bg-orange-100 text-orange-800' },
+  { value: 'RETURN_COMPLETED', label: 'Hoàn tất trả hàng', color: 'bg-teal-100 text-teal-800' },
+  { value: 'CANCELLED', label: 'Đã hủy', color: 'bg-red-100 text-red-800' },
+  { value: 'COMPLETED', label: 'Hoàn thành', color: 'bg-green-100 text-green-800' },
+  ];
+
+  // Return request status mapping (admin view)
+  const returnStatusMap = {
+    REQUESTED: { label: 'Đã gửi yêu cầu', color: 'bg-amber-100 text-amber-800' },
+    APPROVED: { label: 'Đã duyệt', color: 'bg-green-100 text-green-800' },
+    REJECTED: { label: 'Bị từ chối', color: 'bg-red-100 text-red-800' },
+    COMPLETED: { label: 'Hoàn tất', color: 'bg-indigo-100 text-indigo-800' },
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -231,9 +305,9 @@ const BillDetail = () => {
   // Get available next statuses for dropdown based on current status and bill conditions
   const getAvailableNextStatuses = (currentStatus) => {
     if (!currentStatus) return [];
-    
-    const hasDeliveryAddress = bill?.address && bill.address.trim() !== '' && bill.address !== 'N/A';
-    
+  // Cho phép thao tác cả các trạng thái trả hàng trong dropdown theo quy trình mong muốn
+  const hasDeliveryAddress = !!(bill?.address && bill.address.trim() !== '');
+
     switch (currentStatus) {
       case 'PENDING':
         // Đơn hàng mới tạo - có thể hủy hoặc xác nhận
@@ -355,29 +429,54 @@ const BillDetail = () => {
         }
         
       case 'RETURN_REQUESTED':
-        // Yêu cầu trả hàng - xử lý trả hàng
+        // Yêu cầu trả hàng - có thể duyệt nhận hàng trả về hoặc từ chối để quay lại 'Đã giao hàng'
         return [
-          { value: 'RETURNED', label: 'Đã trả hàng' },
+          { value: 'RETURNED', label: 'Đã nhận hàng trả về' },
           { value: 'DELIVERED', label: 'Từ chối trả hàng (giao lại)' }
         ];
         
       case 'RETURNED':
-        // Đã trả hàng - hoàn tiền
+        // Đã nhận hàng trả về - tiếp tục hoàn tiền
         return [
           { value: 'REFUNDED', label: 'Đã hoàn tiền' }
         ];
         
       case 'REFUNDED':
-        // Đã hoàn tiền - hoàn tất trả hàng
-        return [
-          { value: 'RETURN_COMPLETED', label: 'Hoàn tất trả hàng' }
-        ];
+        // Đã hoàn tiền - cho phép thu nốt tiền nếu COD chưa thanh toán và còn số tiền phải thu (>0)
+        {
+          const amountDue = Number(bill?.finalAmount || 0);
+          const opts = [{ value: 'RETURN_COMPLETED', label: 'Hoàn tất trả hàng' }];
+          if (bill?.type === 'COD' && ['UNPAID', 'REFUNDED'].includes(bill?.paymentStatus) && amountDue > 0) {
+            opts.unshift({ value: 'PAID', label: 'Khách đã thanh toán' });
+          }
+          return opts;
+        }
         
       case 'COMPLETED':
       case 'CANCELLED':
-      case 'RETURN_COMPLETED':
-        // Trạng thái cuối - không thể chuyển tiếp
         return [];
+
+      case 'RETURN_COMPLETED':
+        // Sau khi hoàn tất trả hàng: nếu COD chưa thanh toán và còn số tiền phải thu (>0), cho phép thu tiền (PAID)
+        // Luôn cho phép trả hàng lại
+        {
+          const amountDue = Number(bill?.finalAmount || 0);
+          console.log('[RETURN_COMPLETED dropdown]', {
+            billType: bill?.type,
+            paymentStatus: bill?.paymentStatus,
+            finalAmount: bill?.finalAmount,
+            showPaid: bill?.type === 'COD' && ['UNPAID', 'REFUNDED'].includes(bill?.paymentStatus) && amountDue > 0
+          });
+          const opts = [{ value: 'RETURN_REQUESTED', label: 'Khách yêu cầu trả hàng' }];
+          if (bill?.type === 'COD' && ['UNPAID', 'REFUNDED'].includes(bill?.paymentStatus) && amountDue > 0) {
+            opts.unshift({ value: 'PAID', label: 'Khách đã thanh toán' });
+          }
+          // Nếu là VNPAY, đã thanh toán, còn sản phẩm chưa trả, cho phép hoàn thành đơn
+          if (bill?.type === 'VNPAY' && bill?.paymentStatus === 'PAID' && amountDue > 0) {
+            opts.unshift({ value: 'COMPLETED', label: 'Hoàn thành' });
+          }
+          return opts;
+        }
         
       default:
         return [];
@@ -394,7 +493,7 @@ const BillDetail = () => {
       case 'DELIVERING': return 'PACKED';
       case 'DELIVERED': return 'DELIVERING';
       case 'COMPLETED': return 'DELIVERED';
-      case 'RETURN_REQUESTED': return 'DELIVERED';
+      case 'RETURN_REQUESTED': return 'DELIVERING';
       case 'RETURNED': return 'RETURN_REQUESTED';
       case 'REFUNDED': return 'RETURNED';
       case 'RETURN_COMPLETED': return 'REFUNDED';
@@ -423,6 +522,18 @@ const BillDetail = () => {
   const handleStatusChange = async (newStatus) => {
     if (!bill || !newStatus) {
       toast.error('Không thể cập nhật trạng thái');
+      return;
+    }
+
+    // Nếu đang có phiếu trả hàng chờ duyệt, không cho chuyển trạng thái
+    if (hasPendingReturn) {
+      toast.error('Đang có yêu cầu trả hàng chưa duyệt. Vui lòng xử lý trước khi chuyển trạng thái.');
+      return;
+    }
+
+    // If admin chooses "Khách yêu cầu trả hàng" from dropdown -> open return request modal instead of direct status change
+    if (newStatus === 'RETURN_REQUESTED') {
+      openReturnModal();
       return;
     }
 
@@ -630,6 +741,11 @@ const BillDetail = () => {
       toast.error('Không thể trả hàng: Hóa đơn chưa tải');
       return;
     }
+
+    if (hasPendingReturn) {
+      toast.error('Đang có yêu cầu trả hàng chưa duyệt. Không thể tạo thêm.');
+      return;
+    }
     
     const returnStatus = getReturnStatus(bill.status);
     if (!returnStatus) {
@@ -737,11 +853,220 @@ const BillDetail = () => {
     return amount == null ? '0 ₫' : Number(amount).toLocaleString('vi-VN', { style: 'currency', currency: 'VND' });
   };
 
+  // Lấy đơn giá an toàn: ưu tiên promotionalPrice nếu hợp lệ (>0),
+  // nếu không thì fallback về price; tránh trường hợp promotionalPrice rỗng/NaN làm tổng = 0
+  const getSafeUnitPrice = (row) => {
+    const promo = Number(row?.promotionalPrice);
+    const base = Number(row?.price);
+    if (Number.isFinite(promo) && promo > 0) return promo;
+    return Number.isFinite(base) ? base : 0;
+  };
+
   const calculateRemainingAmount = () => {
     if (!customerPayment || isNaN(customerPayment) || Number(customerPayment) <= 0) {
       return bill?.finalAmount || 0;
     }
     return Math.max(0, (bill?.finalAmount || 0) - Number(customerPayment));
+  };
+
+  const openReturnModal = async () => {
+    console.log('🟠 openReturnModal clicked');
+    if (!bill) {
+      toast.error('Chưa tải được hóa đơn');
+      return;
+    }
+    if (hasPendingReturn) {
+      toast.error('Đang có yêu cầu trả hàng chưa duyệt. Không thể tạo thêm.');
+      return;
+    }
+    const allowed = ['PAID','DELIVERED','COMPLETED','RETURN_REQUESTED','RETURNED','RETURN_COMPLETED'];
+    let canReturn = allowed.includes(bill.status);
+    if (!canReturn) {
+      toast.error('Chỉ cho phép trả hàng khi đơn đã thanh toán/đã giao/hoàn thành/đã trả xong');
+      return;
+    }
+    setShowReturnModal(true);
+    try {
+      const data = await HoaDonApi.getReturnsByBill(id);
+      setReturnsHistory(data || []);
+    } catch (e) {
+      console.warn('⚠️ getReturnsByBill failed:', e);
+    }
+  };
+
+  const closeReturnModal = () => {
+    setShowReturnModal(false);
+    setReturnReason('');
+    setIsFullReturn(true);
+    setReturnQuantities({});
+  setReturnFiles([]);
+  setCreatingReturn(false);
+  };
+
+  const handleReturnQtyChange = (billDetailId, value) => {
+    const qty = Math.max(0, parseInt(value) || 0);
+    setReturnQuantities(prev => ({ ...prev, [billDetailId]: qty }));
+  };
+
+  // Toggle select helper for partial return (checkbox)
+  const toggleSelectReturnItem = (billDetailId, checked, maxQty) => {
+    setReturnQuantities(prev => ({ ...prev, [billDetailId]: checked ? Math.min(1, maxQty || 1) : 0 }));
+  };
+
+  // Returns management (admin)
+  const loadReturns = async () => {
+    if (!id) return;
+    try {
+      const data = await HoaDonApi.getReturnsByBill(id);
+      setReturnsHistory(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.warn('⚠️ loadReturns failed:', e?.message || e);
+    }
+  };
+
+  const handleApproveReturn = async (returnId) => {
+    try {
+      setLoading(true);
+      await HoaDonApi.approveReturn(returnId);
+      toast.success('Đã duyệt yêu cầu trả hàng');
+      await loadReturns();
+      await fetchData();
+      await fetchOrderHistory();
+    } catch (e) {
+      toast.error(e.message || 'Lỗi khi duyệt yêu cầu');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRejectReturn = async (returnId) => {
+    const reason = window.prompt('Nhập lý do từ chối:', 'Không đủ điều kiện trả hàng');
+    if (reason === null) return;
+    try {
+      setLoading(true);
+      await HoaDonApi.rejectReturn(returnId, reason || 'Từ chối');
+      toast.success('Đã từ chối yêu cầu trả hàng');
+      await loadReturns();
+      await fetchData();
+      await fetchOrderHistory();
+    } catch (e) {
+      toast.error(e.message || 'Lỗi khi từ chối yêu cầu');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCompleteReturn = async (returnId) => {
+    if (!window.confirm('Xác nhận hoàn tất trả hàng? Thao tác này sẽ hoàn kho/cập nhật thanh toán.')) return;
+    try {
+      setLoading(true);
+      await HoaDonApi.completeReturn(returnId);
+      toast.success('Đã hoàn tất trả hàng');
+      await loadReturns();
+      await fetchData();
+      await fetchOrderHistory();
+    } catch (e) {
+      toast.error(e.message || 'Lỗi khi hoàn tất trả hàng');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isImageUrl = (url) => {
+    if (!url || typeof url !== 'string') return false;
+    return /(\.png|\.jpg|\.jpeg|\.webp|\.gif)$/i.test(url);
+  };
+
+  const submitReturn = async () => {
+    if (!bill) return;
+    if (hasPendingReturn) {
+      toast.error('Đang có yêu cầu trả hàng chưa duyệt. Không thể tạo thêm.');
+      return;
+    }
+    const payload = {
+      reason: returnReason || 'Khách trả hàng',
+      fullReturn: isFullReturn,
+      items: [],
+    };
+    if (!isFullReturn) {
+      payload.items = billDetails
+        .filter(it => it.status !== 'RETURNED')
+        .map(it => ({
+          billDetailId: it.id,
+          quantity: Number(returnQuantities[it.id] || 0) || 0,
+          max: (it.remainingQty != null ? it.remainingQty : it.quantity) || 0
+        }))
+        .filter(row => row.quantity > 0 && row.max > 0)
+        .map(row => ({ billDetailId: row.billDetailId, quantity: Math.min(row.quantity, row.max) }));
+      if (payload.items.length === 0) {
+        toast.error('Vui lòng chọn ít nhất 1 sản phẩm và số lượng');
+        return;
+      }
+    } else {
+      // Trả toàn bộ: gửi kèm đầy đủ các dòng sản phẩm với số lượng đã mua
+      payload.items = billDetails
+        .filter(it => it.status !== 'RETURNED')
+        .map(it => ({ billDetailId: it.id, quantity: ((it.remainingQty != null ? it.remainingQty : it.quantity) || 0) }));
+    }
+    try {
+  setCreatingReturn(true);
+  console.log('🟠 createReturnWithFiles payload:', payload, 'files:', returnFiles);
+  await HoaDonApi.createReturnWithFiles(id, payload, returnFiles);
+  toast.success('Đã gửi yêu cầu trả hàng');
+      closeReturnModal();
+  await fetchData();
+  await fetchOrderHistory();
+  await loadReturns();
+    } catch (err) {
+      console.error('❌ Return flow failed:', err);
+      toast.error(err.message || 'Lỗi khi trả hàng');
+    } finally {
+  setCreatingReturn(false);
+    }
+  };
+
+  // Helper: translate enum tokens inside descriptions to Vietnamese labels
+  const translateActionDescription = (desc) => {
+  if (!desc) return 'Không có';
+    let text = String(desc);
+
+    const orderMap = {};
+    try {
+      (orderStatusOptions || []).forEach(opt => {
+        if (opt?.value && opt?.label) orderMap[opt.value] = opt.label;
+      });
+    } catch (_) {}
+
+    const paymentStatusMap = {
+      UNPAID: 'Chưa thanh toán',
+      PENDING: 'Đang chờ thanh toán',
+      PAID: 'Đã thanh toán',
+      FAILED: 'Thanh toán thất bại',
+      REFUNDED: 'Đã hoàn tiền',
+      PARTIALLY_REFUNDED: 'Hoàn tiền một phần',
+    };
+    const paymentTypeMap = {
+      CASH: 'Tiền mặt',
+      COD: 'Thanh toán khi nhận hàng',
+      BANKING: 'Chuyển khoản',
+      VNPAY: 'VNPAY',
+    };
+
+    const replaceByMap = (str, mapObj) => {
+      let out = str;
+      Object.entries(mapObj).forEach(([key, label]) => {
+        try {
+          const re = new RegExp(`\\b${key}\\b`, 'g');
+          out = out.replace(re, label);
+        } catch (_) {}
+      });
+      return out;
+    };
+
+    text = replaceByMap(text, orderMap);
+    text = replaceByMap(text, paymentStatusMap);
+    text = replaceByMap(text, paymentTypeMap);
+    return text;
   };
 
   useEffect(() => {
@@ -752,6 +1077,7 @@ const BillDetail = () => {
     }
     fetchData();
     fetchOrderHistory();
+  loadReturns();
   }, [id, navigate, pagination.page, productFilters]);
 
   useEffect(() => {
@@ -769,10 +1095,21 @@ const BillDetail = () => {
     };
   }, []);
 
+  // Initialize partial return quantities when switching from full to partial
+  useEffect(() => {
+    if (!isFullReturn && Array.isArray(billDetails)) {
+      const init = {};
+      billDetails.forEach(bd => { init[bd.id] = 0; });
+      setReturnQuantities(init);
+    }
+  }, [isFullReturn, billDetails]);
+
   const formatDate = (dateStr) => {
-    if (!dateStr) return 'N/A';
+    if (!dateStr) return 'Không có';
     const date = new Date(dateStr);
-    return isNaN(date.getTime()) ? 'N/A' : date.toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'medium' });
+    return isNaN(date.getTime())
+      ? 'Không có'
+      : date.toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'medium', timeZone: 'Asia/Ho_Chi_Minh' });
   };
 
   const filteredStatusOptions = bill?.billType === 'ONLINE'
@@ -803,7 +1140,7 @@ const BillDetail = () => {
       <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} newestOnTop closeOnClick pauseOnHover theme="light" />
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-8">
-          <h2 className="text-3xl font-semibold text-gray-900">Chi tiết hóa đơn #{bill?.code || 'N/A'}</h2>
+          <h2 className="text-3xl font-semibold text-gray-900">Chi tiết hóa đơn #{bill?.code || 'Không có'}</h2>
           <div className="flex space-x-4">
             <button
               onClick={() => setShowModal(true)}
@@ -812,10 +1149,23 @@ const BillDetail = () => {
               <HiClock className="mr-2" /> Xem lịch sử
             </button>
             <button
+              onClick={handlePrintInvoice}
+              className="flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+              title="In hóa đơn"
+            >
+              <HiOutlinePrinter className="mr-2" /> In hóa đơn
+            </button>
+            <button
               onClick={() => navigate('/admin/bills')}
               className="flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
             >
               <HiArrowLeft className="mr-2" /> Quay lại
+            </button>
+            <button
+              onClick={openReturnModal}
+              className="flex items-center px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors"
+            >
+              Trả hàng
             </button>
           </div>
         </div>
@@ -837,8 +1187,8 @@ const BillDetail = () => {
                       value={null}
                       onChange={(option) => handleStatusChange(option.value)}
                       className="min-w-64"
-                      placeholder="Chọn trạng thái tiếp theo..."
-                      isDisabled={loading}
+                      placeholder={hasPendingReturn ? 'Đang chờ duyệt trả hàng...' : 'Chọn trạng thái tiếp theo...'}
+                      isDisabled={loading || hasPendingReturn}
                       styles={{
                         control: (base) => ({
                           ...base,
@@ -868,6 +1218,11 @@ const BillDetail = () => {
                 )}
               </div>
             </div>
+            {hasPendingReturn && (
+              <div className="mb-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                Đang có yêu cầu trả hàng chưa duyệt. Vui lòng duyệt hoặc từ chối trước khi chuyển trạng thái hay tạo yêu cầu mới.
+              </div>
+            )}
             <div className="overflow-x-auto">
               <div className="flex items-center space-x-6">
                 {orderHistory.map((history, index) => (
@@ -882,7 +1237,7 @@ const BillDetail = () => {
                       </div>
                       <span className="mt-2 text-sm text-gray-600">{formatDate(history.createdAt)}</span>
                       <span className="text-sm font-medium text-gray-800 mt-1">
-                        {orderStatusOptions.find(opt => opt.value === history.statusOrder)?.label || 'N/A'}
+                        {orderStatusOptions.find(opt => opt.value === history.statusOrder)?.label || 'Không có'}
                       </span>
                     </div>
                     {index < orderHistory.length - 1 && (
@@ -910,24 +1265,36 @@ const BillDetail = () => {
               <div className="space-y-6">
                 <div className="flex items-center">
                   <span className="font-medium text-gray-700 w-40">Mã hóa đơn:</span>
-                  <span className="text-gray-900">{bill?.code || 'N/A'}</span>
+                  <span className="text-gray-900">{bill?.code || 'Không có'}</span>
                 </div>
                 <div className="flex items-center">
                   <span className="font-medium text-gray-700 w-40">Loại hóa đơn:</span>
                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${billTypeOptions.find(opt => opt.value === bill?.billType)?.color || 'bg-gray-200 text-gray-800'}`}>
-                    {billTypeOptions.find(opt => opt.value === bill?.billType)?.label || bill?.billType || 'N/A'}
+                    {billTypeOptions.find(opt => opt.value === bill?.billType)?.label || bill?.billType || 'Không có'}
                   </span>
                 </div>
                 <div className="flex items-center">
                   <span className="font-medium text-gray-700 w-40">Trạng thái hóa đơn:</span>
                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${orderStatusOptions.find(opt => opt.value === bill?.status)?.color || 'bg-gray-200 text-gray-800'}`}>
-                    {orderStatusOptions.find(opt => opt.value === bill?.status)?.label || bill?.status || 'N/A'}
+                    {orderStatusOptions.find(opt => opt.value === bill?.status)?.label || bill?.status || 'Không có'}
+                  </span>
+                </div>
+                <div className="flex items-center">
+                  <span className="font-medium text-gray-700 w-40">Trạng thái thanh toán:</span>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${paymentStatusOptions.find(opt => opt.value === bill?.paymentStatus)?.color || 'bg-gray-200 text-gray-800'}`}>
+                    {paymentStatusOptions.find(opt => opt.value === bill?.paymentStatus)?.label || bill?.paymentStatus || 'Không có'}
+                  </span>
+                </div>
+                <div className="flex items-center">
+                  <span className="font-medium text-gray-700 w-40">Trạng thái giao vận:</span>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${fulfillmentStatusOptions.find(opt => opt.value === bill?.fulfillmentStatus)?.color || 'bg-gray-200 text-gray-800'}`}>
+                    {fulfillmentStatusOptions.find(opt => opt.value === bill?.fulfillmentStatus)?.label || bill?.fulfillmentStatus || 'Không có'}
                   </span>
                 </div>
                 <div className="flex items-center">
                   <span className="font-medium text-gray-700 w-40">Hình thức thanh toán:</span>
                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${paymentTypeOptions.find(opt => opt.value === bill?.type)?.color || 'bg-gray-200 text-gray-800'}`}>
-                    {paymentTypeOptions.find(opt => opt.value === bill?.type)?.label || bill?.type || 'N/A'}
+                    {paymentTypeOptions.find(opt => opt.value === bill?.type)?.label || bill?.type || 'Không có'}
                   </span>
                 </div>
                 <div className="flex items-center">
@@ -957,33 +1324,37 @@ const BillDetail = () => {
               <div className="space-y-6">
                 <div className="flex items-center">
                   <span className="font-medium text-gray-700 w-40">Tên khách hàng:</span>
-                  <span className="text-gray-900">{bill?.customerName || 'N/A'}</span>
+                  <span className="text-gray-900">{bill?.customerName || 'Không có'}</span>
                 </div>
                 <div className="flex items-center">
                   <span className="font-medium text-gray-700 w-40">Số điện thoại:</span>
-                  <span className="text-gray-900">{bill?.phoneNumber || 'N/A'}</span>
+                  <span className="text-gray-900">{bill?.phoneNumber || 'Không có'}</span>
                 </div>
                 <div className="flex items-center">
                   <span className="font-medium text-gray-700 w-40">Địa chỉ:</span>
-                  <span className="text-gray-900">{bill?.address || 'N/A'}</span>
+                  <span className="text-gray-900">{bill?.address || 'Không có'}</span>
                 </div>
                 {bill?.billType === 'ONLINE' && (bill?.status === 'PENDING' || bill?.status === 'CONFIRMING') && (
-                  <div className="flex items-center">
+                  <div className="flex items-center gap-3">
                     <button
                       onClick={() => setShowAddressModal(true)}
                       className="flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
                     >
                       <HiUser className="mr-2" /> Cập nhật địa chỉ
                     </button>
+                    <button
+                      onClick={openReturnModal}
+                      disabled={hasPendingReturn}
+                      title={hasPendingReturn ? 'Đang có yêu cầu trả hàng chờ duyệt' : ''}
+                      className={`flex items-center px-4 py-2 text-white text-sm font-medium rounded-lg focus:outline-none focus:ring-2 transition-colors ${hasPendingReturn ? 'bg-gray-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700 focus:ring-orange-500'}`}
+                    >
+                      Trả hàng
+                    </button>
                   </div>
                 )}
                 <div className="flex items-center">
-                  <span className="font-medium text-gray-700 w-40">Mã khuyến mãi:</span>
-                  <span className="text-gray-900">{bill?.voucherCode || 'N/A'}</span>
-                </div>
-                <div className="flex items-center">
                   <span className="font-medium text-gray-700 w-40">Tên khuyến mãi:</span>
-                  <span className="text-gray-900">{bill?.voucherName || 'N/A'}</span>
+                  <span className="text-gray-900">{bill?.voucherName || 'Không có'}</span>
                 </div>
                 <div className="flex items-center">
                   <span className="font-medium text-gray-700 w-40">Số tiền giảm KM:</span>
@@ -991,7 +1362,7 @@ const BillDetail = () => {
                 </div>
                 <div className="flex items-center">
                   <span className="font-medium text-gray-700 w-40">Nhân viên tạo:</span>
-                  <span className="text-gray-900">{bill?.employeeName || 'N/A'}</span>
+                  <span className="text-gray-900">{bill?.employeeName || 'Không có'}</span>
                 </div>
               </div>
             </div>
@@ -1020,7 +1391,7 @@ const BillDetail = () => {
                     <th className="px-6 py-3 w-16">#</th>
                     <th className="px-6 py-3">Sản phẩm</th>
                     <th className="px-6 py-3">Mã SP</th>
-                    <th className="px-6 py-3">Size</th>
+                    <th className="px-6 py-3">Kích cỡ</th>
                     <th className="px-6 py-3">Màu</th>
                     <th className="px-6 py-3">Số lượng</th>
                     <th className="px-6 py-3">Đơn giá</th>
@@ -1044,20 +1415,20 @@ const BillDetail = () => {
                               className="w-10 h-10 object-cover rounded"
                             />
                           ) : (
-                            <span className="text-gray-500">N/A</span>
+                            <span className="text-gray-500">Không có</span>
                           )}
-                          <span>{item.productName || 'N/A'}</span>
+                          <span>{item.productName || 'Không có'}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4">{item.productDetailCode || 'N/A'}</td>
-                      <td className="px-6 py-4">{item.productSize || 'N/A'}</td>
-                      <td className="px-6 py-4">{item.productColor || 'N/A'}</td>
+                      <td className="px-6 py-4">{item.productDetailCode || 'Không có'}</td>
+                      <td className="px-6 py-4">{item.productSize || 'Không có'}</td>
+                      <td className="px-6 py-4">{item.productColor || 'Không có'}</td>
                       <td className="px-6 py-4">{item.quantity || '0'}</td>
-                      <td className="px-6 py-4">{formatMoney(item.price)}</td>
-                      <td className="px-6 py-4">{formatMoney(item.promotionalPrice * item.quantity)}</td>
+                      <td className="px-6 py-4">{formatMoney(getSafeUnitPrice(item))}</td>
+                      <td className="px-6 py-4">{formatMoney(getSafeUnitPrice(item) * Number(item.quantity || 0))}</td>
                       <td className="px-6 py-4">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${billDetailStatusOptions.find(opt => opt.value === item.status)?.color || 'bg-gray-100 text-gray-800'}`}>
-                          {billDetailStatusOptions.find(opt => opt.value === item.status)?.label || item.status || 'N/A'}
+                          {billDetailStatusOptions.find(opt => opt.value === item.status)?.label || item.status || 'Không có'}
                         </span>
                       </td>
                       {canAddProducts(bill?.status) && (
@@ -1129,7 +1500,7 @@ const BillDetail = () => {
                       <th className="px-6 py-3 w-16">#</th>
                       <th className="px-6 py-3">Sản phẩm</th>
                       <th className="px-6 py-3">Mã SP</th>
-                      <th className="px-6 py-3">Size</th>
+                      <th className="px-6 py-3">Kích cỡ</th>
                       <th className="px-6 py-3">Màu</th>
                       <th className="px-6 py-3">Số lượng</th>
                       <th className="px-6 py-3">Số lượng tồn</th>
@@ -1151,14 +1522,14 @@ const BillDetail = () => {
                                 className="w-10 h-10 object-cover rounded"
                               />
                             ) : (
-                              <span className="text-gray-500">N/A</span>
+                              <span className="text-gray-500">Không có</span>
                             )}
                             <span>{detail.productName}</span>
                           </div>
                         </td>
                         <td className="px-6 py-4">{detail.code}</td>
-                        <td className="px-6 py-4">{detail.sizeName || 'N/A'}</td>
-                        <td className="px-6 py-4">{detail.colorName || 'N/A'}</td>
+                        <td className="px-6 py-4">{detail.sizeName || 'Không có'}</td>
+                        <td className="px-6 py-4">{detail.colorName || 'Không có'}</td>
                         <td className="px-6 py-4">
                           <input
                             type="number"
@@ -1304,14 +1675,14 @@ const BillDetail = () => {
                             <span className={`mr-2 px-2 py-1 rounded-full text-xs ${orderStatusOptions.find(opt => opt.value === history.statusOrder)?.color || 'bg-gray-100 text-gray-800'}`}>
                               {getStatusIcon(history.statusOrder)}
                             </span>
-                            {orderStatusOptions.find(opt => opt.value === history.statusOrder)?.label || history.statusOrder || 'N/A'}
+                            {orderStatusOptions.find(opt => opt.value === history.statusOrder)?.label || history.statusOrder || 'Không có'}
                           </p>
-                          <p className="text-sm text-gray-600 mt-1">Mô tả: {history.actionDescription || 'N/A'}</p>
-                          <p className="text-sm text-gray-600 mt-1">Thời gian: {formatDate(history.createdAt)}</p>
+                          <p className="text-sm text-gray-600 mt-1">Mô tả: {translateActionDescription(history.actionDescription || 'Không có')}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Người thực hiện: {history.createdBy || history.updatedBy || history.actorName || 'Hệ thống'}
+                          </p>
                         </div>
-                        <div>
-                          <p className="text-sm text-gray-600">Người thực hiện: {history.createdBy || 'N/A'}</p>
-                        </div>
+                        <div className="text-sm text-gray-500">{formatDate(history.createdAt)}</div>
                       </div>
                     </div>
                   ))}
@@ -1471,6 +1842,217 @@ const BillDetail = () => {
             </div>
           </div>
         )}
+
+        {/* Return Modal */}
+        {showReturnModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">Xử lý trả hàng</h3>
+                <button onClick={closeReturnModal} className="text-gray-500 hover:text-gray-700"><span className="sr-only">Đóng</span>×</button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="flex items-center space-x-3">
+                    <input type="checkbox" checked={isFullReturn} onChange={(e) => setIsFullReturn(e.target.checked)} />
+                    <span>Trả toàn bộ</span>
+                  </label>
+                </div>
+
+                {!isFullReturn && (
+                  <div className="border rounded-md divide-y">
+                    {billDetails
+                      .filter((bd) => bd.status !== 'RETURNED')
+                      .map((bd) => (
+                      <div key={bd.id} className="p-3 grid grid-cols-12 gap-2 items-center">
+                        <div className="col-span-6">
+                          <div className="font-medium">{bd.productName || bd.detailProduct?.code || 'SP #' + bd.id}</div>
+                          <div className="text-sm text-gray-500">SL mua: {bd.quantity} | Giá: {(bd.promotionalPrice ?? bd.price)?.toLocaleString('vi-VN')}</div>
+                        </div>
+                        <div className="col-span-2 flex items-center gap-2">
+                          <label className="inline-flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={(returnQuantities[bd.id] || 0) > 0}
+                              onChange={(e) => toggleSelectReturnItem(bd.id, e.target.checked, bd.quantity)}
+                            />
+                            <span>Chọn</span>
+                          </label>
+                        </div>
+                        <div className="col-span-4 flex items-center justify-end">
+                          <input
+                            type="number"
+                            min={0}
+                            max={bd.quantity}
+                            value={returnQuantities[bd.id] || 0}
+                            onChange={(e) => handleReturnQtyChange(bd.id, e.target.value)}
+                            className="w-24 border rounded px-2 py-1 text-right"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Lý do</label>
+                  <textarea value={returnReason} onChange={(e) => setReturnReason(e.target.value)} className="w-full border rounded px-3 py-2" rows={3} placeholder="Nhập lý do trả hàng..." />
+                </div>
+
+                {returnsHistory?.length > 0 && (
+                  <div className="bg-gray-50 p-3 rounded">
+                    <div className="text-sm font-medium mb-2">Lịch sử trả hàng</div>
+                    <ul className="text-sm list-disc pl-5 space-y-1">
+                      {returnsHistory.map(r => (
+                        <li key={r.id}>#{r.id} • {returnStatusMap[r.status]?.label || r.status} • {formatDate(r.createdAt)} • Hoàn: {Number(r.totalRefundAmount || 0).toLocaleString('vi-VN')}₫</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 flex justify-end space-x-3">
+                <button onClick={closeReturnModal} className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300">Hủy</button>
+                <button onClick={submitReturn} className="px-4 py-2 rounded bg-orange-600 text-white hover:bg-orange-700">Xác nhận</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Return Requests (Admin) */}
+        <div className="bg-white shadow-lg rounded-lg p-6 mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-xl font-semibold text-gray-900">Yêu cầu trả hàng</h3>
+            <button
+              onClick={loadReturns}
+              className="px-3 py-1.5 text-sm rounded bg-gray-100 hover:bg-gray-200"
+              disabled={loading}
+            >Làm mới</button>
+          </div>
+          {returnsHistory && returnsHistory.length > 0 ? (
+            <div className="space-y-4">
+              {returnsHistory.map((r) => (() => {
+                // Fallback compute total refund from items if API doesn't populate it
+                let computedRefund = 0;
+                if (Array.isArray(r.items)) {
+                  computedRefund = r.items.reduce((sum, it) => {
+                    const bdId = it.billDetailId ?? it.id;
+                    const bd = (billDetails || []).find(b => b.id === bdId);
+                    const unitPrice = (typeof it.unitPrice === 'number' ? it.unitPrice : (bd?.promotionalPrice ?? bd?.price)) || 0;
+                    const qty = it.quantity || 0;
+                    const lineTotal = (typeof it.totalAmount === 'number' ? it.totalAmount : unitPrice * qty) || 0;
+                    return sum + lineTotal;
+                  }, 0);
+                }
+                const displayRefund = (typeof r.totalRefundAmount === 'number' && r.totalRefundAmount > 0)
+                  ? r.totalRefundAmount
+                  : computedRefund;
+
+                return (
+                <div key={r.id} className="border rounded-md p-4">
+                  <div className="flex flex-wrap justify-between gap-3 items-center">
+                    <div className="space-y-1">
+                      <div className="text-sm text-gray-600">Mã phiếu: <span className="font-medium">#{r.id}</span></div>
+                      <div className="text-sm text-gray-600">Trạng thái: <span className={`px-2 py-1 rounded-full text-xs font-medium ${returnStatusMap[r.status]?.color || 'bg-gray-100 text-gray-800'}`}>{returnStatusMap[r.status]?.label || r.status || 'Không có'}</span></div>
+                      <div className="text-sm text-gray-600">Tổng hoàn: <span className="font-medium text-red-600">{formatMoney(displayRefund)}</span></div>
+                      <div className="text-xs text-gray-500">Tạo lúc: {formatDate(r.createdAt)}</div>
+                      {r.reason && <div className="text-sm text-gray-600">Lý do: <span className="font-medium">{r.reason}</span></div>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {r.status === 'REQUESTED' && (
+                        <>
+                          <button onClick={() => handleApproveReturn(r.id)} className="px-3 py-1.5 rounded bg-green-600 text-white text-sm hover:bg-green-700" disabled={loading}>Duyệt</button>
+                          <button onClick={() => handleRejectReturn(r.id)} className="px-3 py-1.5 rounded bg-red-600 text-white text-sm hover:bg-red-700" disabled={loading}>Từ chối</button>
+                        </>
+                      )}
+                      {/* Sau khi duyệt, không hiển thị nút Hoàn tất ở đây theo yêu cầu */}
+                    </div>
+                  </div>
+                  {Array.isArray(r.attachments) && r.attachments.length > 0 && (
+                    <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {r.attachments.map((url, idx) => (
+                        <div key={idx} className="border rounded overflow-hidden bg-gray-50">
+                          {isImageUrl(url) ? (
+                            <img src={url.startsWith('http') ? url : `http://localhost:8080${url}`} alt={`attachment-${idx}`} className="w-full h-32 object-cover" />
+                          ) : (
+                            <video controls className="w-full h-32">
+                              <source src={url.startsWith('http') ? url : `http://localhost:8080${url}`} />
+                            </video>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {Array.isArray(r.items) && r.items.length > 0 && (() => {
+                    // Enrich return items with bill detail info for clearer display and computed totals
+                    const viewItems = r.items.map((it) => {
+                      const bdId = it.billDetailId ?? it.id;
+                      const bd = (billDetails || []).find(b => b.id === bdId);
+                      const unitPrice = (typeof it.unitPrice === 'number' ? it.unitPrice : (bd?.promotionalPrice ?? bd?.price)) || 0;
+                      const lineTotal = (typeof it.totalAmount === 'number' ? it.totalAmount : unitPrice * (it.quantity || 0)) || 0;
+                      return {
+                        key: it.id ?? `${bdId}`,
+                        code: bd?.productDetailCode || it.productDetailCode || (bdId != null ? `#${bdId}` : 'Không có'),
+                        name: bd?.productName || it.productName || 'Không có',
+                        size: bd?.productSize || it.size || '—',
+                        color: bd?.productColor || it.color || '—',
+                        image: Array.isArray(bd?.productImage) && bd.productImage[0]?.url ? `http://localhost:8080${bd.productImage[0].url}` : null,
+                        qty: it.quantity || 0,
+                        unitPrice,
+                        lineTotal,
+                      };
+                    });
+
+                    return (
+                      <div className="mt-3 overflow-x-auto">
+                        <table className="w-full text-sm text-left text-gray-600">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-3 py-2">#</th>
+                              <th className="px-3 py-2">Sản phẩm</th>
+                              <th className="px-3 py-2">Mã SP</th>
+                              <th className="px-3 py-2">Kích cỡ</th>
+                              <th className="px-3 py-2">Màu</th>
+                              <th className="px-3 py-2">SL trả</th>
+                              <th className="px-3 py-2">Đơn giá</th>
+                              <th className="px-3 py-2">Tổng</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {viewItems.map((row, i) => (
+                              <tr key={row.key} className="border-t">
+                                <td className="px-3 py-2">{i + 1}</td>
+                                <td className="px-3 py-2">
+                                  <div className="flex items-center gap-2">
+                                    {row.image ? (
+                                      <img src={row.image} alt={row.name} className="w-8 h-8 object-cover rounded" />
+                                    ) : (
+                                      <span className="text-gray-400">—</span>
+                                    )}
+                                    <span className="font-medium text-gray-800">{row.name}</span>
+                                  </div>
+                                </td>
+                                <td className="px-3 py-2">{row.code}</td>
+                                <td className="px-3 py-2">{row.size}</td>
+                                <td className="px-3 py-2">{row.color}</td>
+                                <td className="px-3 py-2">{row.qty}</td>
+                                <td className="px-3 py-2">{formatMoney(row.unitPrice)}</td>
+                                <td className="px-3 py-2">{formatMoney(row.lineTotal)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
+                </div>
+                )})())}
+            </div>
+          ) : (
+            <p className="text-center text-gray-500">Chưa có yêu cầu trả hàng</p>
+          )}
+        </div>
       </div>
     </div>
   );

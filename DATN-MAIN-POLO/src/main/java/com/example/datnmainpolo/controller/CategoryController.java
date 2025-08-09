@@ -7,7 +7,6 @@ import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.service.CategoryService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -48,11 +47,14 @@ public class CategoryController {
     
     @PutMapping("/{id}")
     public ResponseEntity<CategoryResponseDTO> update(
-        @PathVariable Integer id,
-        @Valid @RequestPart("category") CategoryRequestDTO requestDTO,
-        @RequestPart(value = "image", required = false) MultipartFile image
-    ) {
-        return ResponseEntity.ok(categoryService.update(id, requestDTO,image));
+            @PathVariable Integer id,
+            @RequestParam("category") String categoryJson,
+            @RequestPart(value = "image", required = false) MultipartFile image
+    ) throws com.fasterxml.jackson.core.JsonProcessingException {
+        // Parse JSON string to DTO to be consistent with create()
+        com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        CategoryRequestDTO requestDTO = objectMapper.readValue(categoryJson, CategoryRequestDTO.class);
+        return ResponseEntity.ok(categoryService.update(id, requestDTO, image));
     }
 
     @DeleteMapping("/{id}")

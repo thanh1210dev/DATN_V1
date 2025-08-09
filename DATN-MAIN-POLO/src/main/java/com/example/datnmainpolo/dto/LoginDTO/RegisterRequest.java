@@ -26,8 +26,7 @@ public class RegisterRequest {
     @Size(max = 100, message = "Tên không được vượt quá 100 ký tự")
     private String name;
 
-    @NotBlank(message = "Vai trò không được để trống")
-    private String role;
+    // Vai trò sẽ được đặt mặc định là CLIENT ở backend, không cần client gửi lên
 
     @Email(message = "Email không hợp lệ")
     @Size(max = 100, message = "Email không được vượt quá 100 ký tự")

@@ -29,7 +29,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/cart-checkout")
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173", "http://localhost:63342"}, allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.OPTIONS}, allowCredentials = "true")
+@CrossOrigin(
+    origins = {"http://localhost:3000", "http://localhost:5173", "http://localhost:63342"},
+    allowedHeaders = "*",
+    methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS},
+    allowCredentials = "true"
+)
 public class CartAndCheckoutController {
     private final CartAndCheckoutService cartAndCheckoutService;
     private final AddressService addressService;
@@ -227,16 +232,9 @@ public class CartAndCheckoutController {
             return ResponseEntity.ok(paymentUrl);
         }
         
-        // Xử lý cho COD - chỉ cập nhật customerPayment, không ghi đè finalAmount
+        // COD: không cập nhật customerPayment tại bước tạo yêu cầu thanh toán; sẽ thu khi giao hàng
         if (paymentType == PaymentType.COD) {
-            System.out.println("Processing COD payment with final amount: " + finalAmount);
-            System.out.println("Current bill finalAmount (with voucher): " + bill.getFinalAmount());
-            
-            // Chỉ cập nhật customerPayment, giữ nguyên finalAmount đã tính voucher
-            bill.setCustomerPayment(finalAmount);
-            billRepository.save(bill);
-            
-            System.out.println("Updated bill - customerPayment: " + bill.getCustomerPayment() + ", finalAmount: " + bill.getFinalAmount());
+            System.out.println("Processing COD - defer customerPayment until delivery");
         }
         
         // Các phương thức thanh toán khác vẫn giữ nguyên flow cũ

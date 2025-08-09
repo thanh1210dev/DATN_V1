@@ -16,15 +16,21 @@ const MyOrders = () => {
 
   // Mapping trạng thái đơn hàng
   const statusMapping = {
-    'PENDING': 'Chờ xử lý',
-    'CONFIRMING': 'Đang xác nhận',
-    'DELIVERING': 'Đang giao hàng',
-    'PAID': 'Đã thanh toán',
-    'COMPLETED': 'Hoàn thành',
-    'CANCELLED': 'Đã hủy',
-    'RETURNED': 'Đã trả hàng',
-    'REFUNDED': 'Đã hoàn tiền',
-    'RETURN_COMPLETED': 'Hoàn tất trả hàng'
+    PENDING: 'Chờ xử lý',
+    CONFIRMING: 'Đang xác nhận',
+    CONFIRMED: 'Đã xác nhận',
+    PACKED: 'Đã đóng gói',
+    DELIVERING: 'Đang giao hàng',
+    DELIVERED: 'Đã giao hàng',
+    PAID: 'Đã thanh toán',
+    COMPLETED: 'Hoàn thành',
+    CANCELLED: 'Đã hủy',
+    RETURN_REQUESTED: 'Yêu cầu trả hàng',
+    RETURNED: 'Đã trả hàng',
+  REFUNDED: 'Đã hoàn tiền',
+  PARTIALLY_REFUNDED: 'Đã hoàn tiền một phần',
+    RETURN_COMPLETED: 'Đã trả xong',
+    DELIVERY_FAILED: 'Giao hàng thất bại',
   };
 
   // Màu sắc cho từng trạng thái

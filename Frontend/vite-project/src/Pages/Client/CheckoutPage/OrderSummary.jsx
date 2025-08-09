@@ -1,6 +1,6 @@
 import React from 'react';
 
-const OrderSummary = ({ cartItems, shippingFee, reductionAmount, onPlaceOrder, step, selectedAddressId, paymentMethod }) => {
+const OrderSummary = ({ cartItems, shippingFee, reductionAmount, onPlaceOrder, step, selectedAddressId, paymentMethod, allowPlaceOrder }) => {
   const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const total = subtotal + shippingFee - (reductionAmount || 0);
 
@@ -9,21 +9,58 @@ const OrderSummary = ({ cartItems, shippingFee, reductionAmount, onPlaceOrder, s
     step, 
     selectedAddressId, 
     paymentMethod,
-    shouldEnableButton: step === 2 && selectedAddressId && paymentMethod
+    allowPlaceOrder
   });
+
+  // Debug log cho cartItems
+  console.log('🛒 [ORDER SUMMARY DEBUG] Cart items:', cartItems.map(item => ({
+    id: item.id,
+    productName: item.productName,
+    productColor: item.productColor,
+    productSize: item.productSize,
+    hasColor: !!item.productColor,
+    hasSize: !!item.productSize
+  })));
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-md">
       <h2 className="text-xl font-semibold text-gray-900 mb-6">Tóm Tắt Đơn Hàng</h2>
       <div className="space-y-4">
         {cartItems.map((item) => (
-          <div key={item.id} className="flex justify-between text-sm text-gray-600">
-            <span>
-              {item.productName} ({item.productColor}, {item.productSize}) x {item.quantity}
-              <br />
-              <span className="text-xs">Trọng lượng: {(item.weight || 500) * item.quantity}g</span>
-            </span>
-            <span>{(item.price * item.quantity).toLocaleString('vi-VN')} VND</span>
+          <div key={item.id} className="flex items-start space-x-3 text-sm">
+            <img
+              src={item.images?.[0]?.url ? `http://localhost:8080${item.images[0].url}` : '/no-image.jpg'}
+              alt={item.productName}
+              className="w-12 h-12 object-cover rounded-md"
+              onError={(e) => {
+                e.target.src = '/no-image.jpg';
+              }}
+            />
+            <div className="flex-1">
+              <div className="font-medium text-gray-900">{item.productName}</div>
+              <div className="text-xs text-gray-500 space-y-1">
+                {item.productColor ? (
+                  <div>Màu: <span className="font-medium text-blue-600">{item.productColor}</span></div>
+                ) : (
+                  <div className="text-orange-500">⚠️ Chưa có thông tin màu</div>
+                )}
+                {item.productSize ? (
+                  <div>Size: <span className="font-medium text-green-600">{item.productSize}</span></div>
+                ) : (
+                  <div className="text-orange-500">⚠️ Chưa có thông tin size</div>
+                )}
+                <div>Số lượng: <span className="font-medium">{item.quantity}</span></div>
+                <div>Trọng lượng: <span className="font-medium">{(item.weight || 500) * item.quantity}g</span></div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="font-medium text-gray-900">
+                {(item.price * item.quantity).toLocaleString('vi-VN')} VND
+              </div>
+              <div className="text-xs text-gray-500">
+                {item.price.toLocaleString('vi-VN')} × {item.quantity}
+              </div>
+            </div>
           </div>
         ))}
         <div className="flex justify-between text-sm text-gray-600">
@@ -44,8 +81,8 @@ const OrderSummary = ({ cartItems, shippingFee, reductionAmount, onPlaceOrder, s
           <span>Tổng cộng:</span>
           <span>{total.toLocaleString('vi-VN')} VND</span>
         </div>
-        {/* Chỉ hiển thị nút đặt hàng khi đã hoàn thành tất cả các bước */}
-        {step === 2 && selectedAddressId && paymentMethod ? (
+    {/* Nút đặt hàng: dùng allowPlaceOrder để hỗ trợ cả guest và logged-in */}
+    {allowPlaceOrder ? (
           <button
             onClick={(e) => {
               e.preventDefault();
@@ -69,10 +106,9 @@ const OrderSummary = ({ cartItems, shippingFee, reductionAmount, onPlaceOrder, s
           </button>
         ) : (
           <div className="w-full px-6 py-3 bg-gray-400 text-white font-semibold rounded-lg text-center">
-            {step === 1 ? 'Vui lòng chọn địa chỉ giao hàng' : 
-             step === 2 && !selectedAddressId ? 'Vui lòng chọn địa chỉ giao hàng' :
-             step === 2 && !paymentMethod ? 'Vui lòng chọn phương thức thanh toán' :
-             'Hoàn tất các bước để đặt hàng'}
+      {step === 1 ? 'Vui lòng nhập địa chỉ giao hàng' : 
+       step === 2 && !paymentMethod ? 'Vui lòng chọn phương thức thanh toán' :
+       'Hoàn tất các bước để đặt hàng'}
           </div>
         )}
       </div>

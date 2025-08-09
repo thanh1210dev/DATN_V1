@@ -5,6 +5,7 @@ import AddressSelector from './AddressSelector';
 import PaymentMethod from './PaymentMethod';
 import VoucherSelector from './VoucherSelector';
 import OrderSummary from './OrderSummary';
+import ShippingForm from './ShippingForm';
 import axiosInstance from '../../../Service/axiosInstance';
 import AuthService from '../../../Service/AuthService';
 import { redirectToVnpay, safePaymentHandler } from '../../../utils/paymentUtils';
@@ -21,6 +22,7 @@ const Checkout = () => {
     id: null,
     name: '',
     phoneNumber: '',
+  email: '',
     address: '',
     provinceName: '',
     provinceId: '',
@@ -52,31 +54,26 @@ const Checkout = () => {
   useEffect(() => {
     const fetchCart = async () => {
       try {
-        // Kiểm tra authentication trước khi load trang checkout
+        // Kiểm tra authentication
         const user = AuthService.getCurrentUser();
         const token = localStorage.getItem('token');
-        if (!user || !token) {
-          toast.error('Vui lòng đăng nhập để thanh toán', { position: 'top-right', autoClose: 3000 });
-          navigate('/login');
-          return;
-        }
-        // Kiểm tra token còn hợp lệ không
-        try {
-          const tokenPayload = JSON.parse(atob(token.split('.')[1]));
-          const currentTime = Date.now() / 1000;
-          if (tokenPayload.exp < currentTime) {
-            toast.error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', { position: 'top-right', autoClose: 3000 });
-            AuthService.logout();
-            navigate('/login');
-            return;
+        const isAuthed = !!user && !!token;
+        if (!isAuthed) {
+          // Guest: lấy selectedItems từ state nếu có, không thì từ localStorage
+          if (selectedItems && selectedItems.length > 0) {
+            setCartItems(selectedItems);
+          } else {
+            const raw = localStorage.getItem('guest_cart');
+            let list = [];
+            try {
+              const parsed = JSON.parse(raw || '[]');
+              list = Array.isArray(parsed) ? parsed : [];
+            } catch (e) { list = []; }
+            setCartItems(list);
           }
-        } catch (error) {
-          toast.error('Phiên đăng nhập không hợp lệ, vui lòng đăng nhập lại', { position: 'top-right', autoClose: 3000 });
-          AuthService.logout();
-          navigate('/login');
           return;
         }
-        // Nếu có selectedItems từ state thì ưu tiên, không thì lấy toàn bộ cart
+        // Logged-in: Nếu có selectedItems từ state thì ưu tiên, không thì lấy toàn bộ cart
         if (selectedItems && selectedItems.length > 0) {
           setCartItems(selectedItems);
         } else {
@@ -101,97 +98,57 @@ const Checkout = () => {
   // Tính phí vận chuyển khi có địa chỉ được chọn
   useEffect(() => {
     const calculateShippingFee = async () => {
-      if (!selectedAddressId || cartItems.length === 0) return;
+      if (cartItems.length === 0) return;
 
       try {
         setIsLoading(true);
-        
-        // Kiểm tra authentication
         const user = AuthService.getCurrentUser();
         const token = localStorage.getItem('token');
-        
-        if (!user || !token) {
-          console.log('No auth data for shipping calculation');
-          setShippingFee(22000);
-          setIsLoading(false);
-          return;
-        }
-        
-        // Kiểm tra token còn hợp lệ không
-        try {
-          const tokenPayload = JSON.parse(atob(token.split('.')[1]));
-          const currentTime = Date.now() / 1000;
-          
-          if (tokenPayload.exp < currentTime) {
-            console.log('Token expired for shipping calculation');
+        const isAuthed = !!user && !!token;
+
+        if (!isAuthed) {
+          // Guest: cần shippingInfo có districtId và wardCode
+          if (!shippingInfo?.districtId || !shippingInfo?.wardCode) {
             setShippingFee(22000);
-            setIsLoading(false);
             return;
           }
-        } catch (error) {
-          console.log('Invalid token for shipping calculation');
-          setShippingFee(22000);
-          setIsLoading(false);
-          return;
-        }
-        
-        // Lấy userId từ JWT
-        const userId = await getCurrentUserId();
-        if (!userId) {
-          console.error('Cannot convert email to userId for shipping calculation');
-          setShippingFee(22000);
-          setIsLoading(false);
-          return;
-        }
-        
-        console.log('Đang lấy địa chỉ để tính phí vận chuyển...');
-        
-        // Khai báo selectedAddress ở đây để có thể sử dụng trong toàn bộ function
-        let selectedAddress = null;
-        
-        // Thêm timeout để đảm bảo request không bị treo
-        const addressController = new AbortController();
-        const addressTimeoutId = setTimeout(() => addressController.abort(), 5000);
-        
-        try {
-          const addressesResponse = await axiosInstance.get(`/cart-checkout/address/${userId}`, {
-            signal: addressController.signal,
-            timeout: 5000
+          const totalWeight = cartItems.reduce((sum, item) => sum + (item.weight || 500) * item.quantity, 0);
+          const resp = await axiosInstance.post('/cart-checkout/calculate-shipping', {
+            toDistrictId: shippingInfo.districtId,
+            toWardCode: shippingInfo.wardCode,
+            weight: totalWeight,
+            length: 30,
+            width: 20,
+            height: 10
           });
-          
-          clearTimeout(addressTimeoutId);
-          
-          // Đảm bảo response.data là một mảng
-          const addresses = Array.isArray(addressesResponse.data) ? addressesResponse.data : [];
-          console.log('Đã lấy được', addresses.length, 'địa chỉ');
-          
-          selectedAddress = addresses.find(addr => addr.id === selectedAddressId);
-          
-          if (!selectedAddress || !selectedAddress.districtId || !selectedAddress.wardCode) {
-            console.warn('Địa chỉ không hợp lệ hoặc thiếu thông tin quận/huyện, phường/xã');
-            setShippingFee(22000); // Dùng phí cố định khi địa chỉ không hợp lệ
-            setIsLoading(false);
-            return;
-          }
-        } catch (fetchError) {
-          // Xử lý lỗi timeout hoặc network
-          console.error('Lỗi khi lấy địa chỉ để tính phí vận chuyển:', fetchError);
-          if (fetchError.name === 'AbortError') {
-            console.log('Yêu cầu bị hủy do quá thời gian');
-          }
-          setShippingFee(22000);
-          setIsLoading(false);
+          const fee = typeof resp.data === 'number' ? resp.data : 22000;
+          if (shippingFee !== fee) setShippingFee(fee);
+          // Avoid causing a state loop: only update when changed
+          setShippingInfo(prev => (prev && prev.shippingFee === fee ? prev : { ...prev, shippingFee: fee }));
           return;
         }
 
-        // Tính tổng khối lượng (giả sử mỗi sản phẩm 500g)
+        // Logged-in flow expects a selectedAddressId
+        if (!selectedAddressId) return;
+
+        // Lấy userId từ JWT
+        const userId = await getCurrentUserId();
+        if (!userId) {
+          setShippingFee(22000);
+          return;
+        }
+
+        // Lấy địa chỉ theo selectedAddressId
+        let selectedAddress = null;
+        const addressesResponse = await axiosInstance.get(`/cart-checkout/address/${userId}`);
+        const addresses = Array.isArray(addressesResponse.data) ? addressesResponse.data : [];
+        selectedAddress = addresses.find(addr => addr.id === selectedAddressId);
+        if (!selectedAddress || !selectedAddress.districtId || !selectedAddress.wardCode) {
+          setShippingFee(22000);
+          return;
+        }
+
         const totalWeight = cartItems.reduce((sum, item) => sum + (item.weight || 500) * item.quantity, 0);
-        
-        // Timeout cho API call
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
-        
-        // Gọi API tính phí vận chuyển
         const response = await axiosInstance.post('/cart-checkout/calculate-shipping', {
           toDistrictId: selectedAddress.districtId,
           toWardCode: selectedAddress.wardCode,
@@ -199,54 +156,26 @@ const Checkout = () => {
           length: 30,
           width: 20,
           height: 10
-        }, {
-          signal: controller.signal,
-          timeout: 5000
         });
-        
-        clearTimeout(timeoutId);
-        
-        console.log('Phí vận chuyển:', response.data);
-        
-        // Xử lý nhiều loại response có thể có
-        let fee = 22000; // Mặc định
-        
-        if (response.data !== null && response.data !== undefined) {
-          if (typeof response.data === 'number') {
-            fee = response.data;
-          } else if (typeof response.data === 'string' && !isNaN(Number(response.data))) {
-            fee = Number(response.data);
-          } else if (typeof response.data === 'object') {
-            // Trường hợp API trả về một object thay vì số trực tiếp
-            if (response.data.data && response.data.data.total) {
-              fee = Number(response.data.data.total);
-            } else if (response.data.fee) {
-              fee = Number(response.data.fee);
-            }
-          }
-        }
-        
-        console.log('Phí vận chuyển cuối cùng:', fee);
-        
-        // Cập nhật phí vận chuyển
-        setShippingFee(fee);
-        
-        // Cập nhật thông tin địa chỉ giao hàng
-        setShippingInfo({
-          ...selectedAddress,
-          shippingFee: fee
+        let fee = 22000;
+        if (typeof response.data === 'number') fee = response.data;
+        if (shippingFee !== fee) setShippingFee(fee);
+        setShippingInfo(prev => {
+          const next = { ...selectedAddress, shippingFee: fee };
+          // shallow compare common fields to reduce rerenders
+          const same = prev && prev.id === next.id && prev.shippingFee === next.shippingFee;
+          return same ? prev : next;
         });
       } catch (error) {
         console.error('Lỗi khi tính phí vận chuyển:', error);
-        // Sử dụng giá trị mặc định nếu gặp lỗi
-        setShippingFee(22000);
+        if (shippingFee !== 22000) setShippingFee(22000);
       } finally {
         setIsLoading(false);
       }
     };
 
     calculateShippingFee();
-  }, [selectedAddressId, cartItems]);
+  }, [selectedAddressId, cartItems, shippingInfo?.districtId, shippingInfo?.wardCode]);
 
   // Cleanup effect để xử lý khi user thoát khỏi checkout
   useEffect(() => {
@@ -264,6 +193,12 @@ const Checkout = () => {
   }, []);
 
   const handleCreateBill = async () => {
+    // Nếu guest, không tạo bill ở đây
+    const user = AuthService.getCurrentUser();
+    const token = localStorage.getItem('token');
+    if (!user || !token) {
+      return null;
+    }
     if (!selectedAddressId) {
       toast.error('Vui lòng chọn hoặc thêm địa chỉ giao hàng', { position: 'top-right', autoClose: 3000 });
       return;
@@ -429,11 +364,73 @@ const Checkout = () => {
       // Kiểm tra authentication
       const user = AuthService.getCurrentUser();
       const token = localStorage.getItem('token');
+      const isAuthed = !!user && !!token;
       
-      if (!user || !token) {
-        toast.error('Vui lòng đăng nhập để tiếp tục', { position: 'top-right', autoClose: 3000 });
-        navigate('/login');
-        return;
+  if (!isAuthed) {
+        // Guest order flow
+        // Validate shipping info
+  const required = ['name','phoneNumber','address','provinceId','districtId','wardCode'];
+        const missing = required.filter(k => !shippingInfo?.[k]);
+        if (missing.length) {
+          toast.error('Vui lòng điền đầy đủ thông tin giao hàng, bao gồm email');
+          return;
+        }
+  // Cho phép VNPAY cho khách nếu backend hỗ trợ
+        const itemsToOrder = (selectedItems && selectedItems.length > 0 ? selectedItems : cartItems).map(it => {
+          let pdid = it.productDetailId;
+          if (!pdid) {
+            if (typeof it.id === 'string' && it.id.startsWith('guest-')) {
+              const num = parseInt(it.id.split('-')[1]);
+              pdid = isNaN(num) ? null : num;
+            } else if (typeof it.id === 'number') {
+              pdid = it.id;
+            }
+          }
+          return {
+            productDetailId: pdid,
+            quantity: it.quantity
+          };
+        });
+        const payload = {
+          name: shippingInfo.name,
+          phoneNumber: shippingInfo.phoneNumber,
+          email: shippingInfo.email || null,
+          address: shippingInfo.address,
+          provinceId: Number(shippingInfo.provinceId),
+          districtId: Number(shippingInfo.districtId),
+          wardCode: String(shippingInfo.wardCode),
+          provinceName: shippingInfo.provinceName || '',
+          districtName: shippingInfo.districtName || '',
+          wardName: shippingInfo.wardName || '',
+          paymentType: paymentMethod === 'VNPAY' ? 'VNPAY' : 'COD',
+          items: itemsToOrder
+        };
+        try {
+          setIsLoading(true);
+          const res = await axiosInstance.post('/guest-checkout/order', payload);
+          const data = res?.data;
+          // Trường hợp COD: server trả object bill có id
+          if (data?.id && paymentMethod !== 'VNPAY') {
+            toast.success('Đặt hàng thành công!');
+            localStorage.removeItem('guest_cart');
+            // Điều hướng đến trang Tra cứu đơn (public) để tránh yêu cầu đăng nhập
+            navigate('/order-lookup', { state: { code: data.code, phone: payload.phoneNumber, justOrdered: true } });
+            return;
+          }
+          // Trường hợp VNPAY: server có thể trả về URL thanh toán (string) hoặc object chứa url
+          const payUrl = typeof data === 'string' ? data : (data?.paymentUrl || data?.url);
+          if (paymentMethod === 'VNPAY' && payUrl) {
+            sessionStorage.setItem('vnpayProcessing', 'true');
+            window.location.href = payUrl;
+            return;
+          }
+          throw new Error('Phản hồi không hợp lệ');
+        } catch (err) {
+          toast.error(err.response?.data?.message || 'Không thể đặt hàng. Vui lòng thử lại.');
+          return;
+        } finally {
+          setIsLoading(false);
+        }
       }
       
       // Kiểm tra token còn hợp lệ không
@@ -585,26 +582,73 @@ const Checkout = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
             {step === 1 && (
-              <AddressSelector
-                selectedAddressId={selectedAddressId}
-                setSelectedAddressId={setSelectedAddressId}
-                setShippingInfo={setShippingInfo}
-                onNext={handleContinueFromAddress}
-              />
+              (() => {
+                const user = AuthService.getCurrentUser();
+                const token = localStorage.getItem('token');
+                const isAuthed = !!user && !!token;
+                if (isAuthed) {
+                  return (
+                    <AddressSelector
+                      selectedAddressId={selectedAddressId}
+                      setSelectedAddressId={setSelectedAddressId}
+                      setShippingInfo={setShippingInfo}
+                      onNext={handleContinueFromAddress}
+                    />
+                  );
+                }
+                return (
+                  <div>
+                    <ShippingForm
+                      shippingInfo={shippingInfo}
+                      setShippingInfo={(info) => {
+                        setShippingInfo(info);
+                      }}
+                      onCancel={() => {}}
+                      isEdit={false}
+                      showActions={false}
+                    />
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        onClick={() => {
+                          const required = ['name','phoneNumber','email','address','provinceId','districtId','wardCode'];
+                          const missing = required.filter(k => !shippingInfo?.[k]);
+                          if (missing.length) {
+                            toast.error('Vui lòng điền đầy đủ thông tin giao hàng');
+                            return;
+                          }
+                          handleContinueFromAddress();
+                        }}
+                        className="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700"
+                      >
+                        Tiếp tục
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()
             )}
             {step === 2 && (
-              <div className="space-y-6">
-                <VoucherSelector
-                  cartItems={cartItems}
-                  setReductionAmount={setReductionAmount}
-                  selectedVoucher={selectedVoucher}
-                  setSelectedVoucher={setSelectedVoucher}
-                />
-                <PaymentMethod
-                  paymentMethod={paymentMethod}
-                  setPaymentMethod={setPaymentMethod}
-                />
-              </div>
+              (() => {
+                const user = AuthService.getCurrentUser();
+                const token = localStorage.getItem('token');
+                const isAuthed = !!user && !!token;
+                return (
+                  <div className="space-y-6">
+                    {isAuthed && (
+                      <VoucherSelector
+                        cartItems={cartItems}
+                        setReductionAmount={setReductionAmount}
+                        selectedVoucher={selectedVoucher}
+                        setSelectedVoucher={setSelectedVoucher}
+                      />
+                    )}
+                    <PaymentMethod
+                      paymentMethod={paymentMethod}
+                      setPaymentMethod={setPaymentMethod}
+                    />
+                  </div>
+                );
+              })()
             )}
           </div>
           <OrderSummary
@@ -615,6 +659,17 @@ const Checkout = () => {
             step={step}
             selectedAddressId={selectedAddressId}
             paymentMethod={paymentMethod}
+            allowPlaceOrder={(
+              (() => {
+                const user = AuthService.getCurrentUser();
+                const token = localStorage.getItem('token');
+                const isAuthed = !!user && !!token;
+                if (isAuthed) return step === 2 && !!selectedAddressId && !!paymentMethod;
+                const required = ['name','phoneNumber','email','address','provinceId','districtId','wardCode'];
+                const ok = required.every(k => !!shippingInfo?.[k]);
+                return step === 2 && !!paymentMethod && ok;
+              })()
+            )}
           />
         </div>
       </div>

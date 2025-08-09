@@ -10,14 +10,22 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<UserEntity, Integer> {
     Optional<UserEntity> findByEmail(String email);
     Optional<UserEntity> findByPhoneNumber(String phoneNumber);
+        // Safeguard for duplicate emails: pick the most recent by id
+        Optional<UserEntity> findFirstByEmailOrderByIdDesc(String email);
+        // List all by email to detect duplicates explicitly
+        List<UserEntity> findAllByEmailOrderByIdDesc(String email);
 
-    boolean existsByEmail(String email);
-    boolean existsByPhoneNumber(String phoneNumber);
+        boolean existsByEmail(String email);
+        boolean existsByPhoneNumber(String phoneNumber);
+
+        // For password reset flow
+        Optional<UserEntity> findByResetToken(String resetToken);
 
     @Query("SELECT u FROM UserEntity u WHERE " +
             "(:code IS NULL OR u.code LIKE %:code%) " +
@@ -71,7 +79,7 @@ public interface UserRepository extends JpaRepository<UserEntity, Integer> {
 
     Optional<UserEntity> findByEmailAndDeletedFalse(String email);
 
-    Optional<UserEntity> findByCodeAndDeletedFalse(String code);
+        Optional<UserEntity> findByCodeAndDeletedFalse(String code);
 
     @Query("SELECT u FROM UserEntity u WHERE u.role = :role AND u.deleted = false " +
             "AND (:phoneNumber IS NULL OR u.phoneNumber LIKE %:phoneNumber%) " +

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { motion } from "framer-motion";
 import { FaGoogle, FaFacebookF, FaTwitter } from "react-icons/fa";
@@ -33,7 +33,7 @@ function LoginPage() {
 
   const getRedirectPathByRole = (role) => {
     switch (role) {
-      case "Staff":
+      case "STAFF":
       case "ADMIN":
         return "/dashboard";
       case "CLIENT":
@@ -101,13 +101,13 @@ function LoginPage() {
         >
           <img
             src={images[currentImageIndex]}
-            alt="Login Background"
+            alt="Ảnh nền đăng nhập"
             className="absolute inset-0 w-full h-full object-cover opacity-40 transition-opacity duration-500"
           />
           <div className="z-10 relative">
             <h1 className="text-4xl font-bold">Polo Viet</h1>
-            <h2 className="text-3xl font-semibold mt-2">Made In From</h2>
-            <h3 className="text-xl mt-4">VIETNAM</h3>
+            <h2 className="text-3xl font-semibold mt-2">Sản xuất tại</h2>
+            <h3 className="text-xl mt-4">VIỆT NAM</h3>
           </div>
           
          
@@ -126,10 +126,10 @@ function LoginPage() {
                 Polo Viet
               </span>
             </div>
-            <p className="text-center text-gray-500 mb-6">Welcome to Sneat! 🌟 Please sign in to your account and start the adventure</p>
+            <p className="text-center text-gray-500 mb-6">Chào mừng đến với Polo Viet! 🌟 Vui lòng đăng nhập để bắt đầu trải nghiệm</p>
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Email or Username</label>
+                <label className="block text-sm font-medium text-gray-700">Email hoặc Số điện thoại</label>
                 <input
                   type="text"
                   value={identifier}
@@ -139,7 +139,7 @@ function LoginPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Password</label>
+                <label className="block text-sm font-medium text-gray-700">Mật khẩu</label>
                 <input
                   type="password"
                   value={password}
@@ -147,29 +147,31 @@ function LoginPage() {
                   required
                   className="w-full px-4 py-2 mt-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-600"
                 />
-                <a href="#" className="text-sm text-purple-600 hover:underline mt-1 block text-right">Forgot Password?</a>
+                <div className="flex justify-end mt-1">
+                  <Link to="/forgot-password" className="text-sm text-purple-600 hover:underline">Quên mật khẩu?</Link>
+                </div>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
                   <input type="checkbox" id="remember" className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded" />
-                  <label htmlFor="remember" className="ml-2 text-sm text-gray-700">Remember Me</label>
+                  <label htmlFor="remember" className="ml-2 text-sm text-gray-700">Ghi nhớ đăng nhập</label>
                 </div>
               </div>
               <button
                 type="submit"
                 className="w-full bg-purple-600 text-white py-2 rounded-md hover:bg-purple-700 transition duration-300"
               >
-                Sign In
+                Đăng nhập
               </button>
             </form>
             <p className="text-center text-sm text-gray-600 mt-4">
-              New on our platform?{" "}
+              Chưa có tài khoản?{" "}
               <a href="/register" className="text-purple-600 font-medium hover:underline">
-                Create an account
+                Tạo tài khoản
               </a>
             </p>
             <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600 mb-2">Or sign in with</p>
+              <p className="text-sm text-gray-600 mb-2">Hoặc đăng nhập với</p>
               <div className="flex justify-center space-x-4">
                 <a href="http://localhost:8080/oauth2/authorize/google?redirect_uri=http://localhost:3000/oauth2/redirect" className="flex items-center justify-center w-10 h-10 bg-red-500 text-white rounded-full hover:bg-red-600 transition duration-300">
                   <FaGoogle />

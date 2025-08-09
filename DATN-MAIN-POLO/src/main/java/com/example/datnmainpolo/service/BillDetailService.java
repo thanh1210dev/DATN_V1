@@ -3,9 +3,7 @@ package com.example.datnmainpolo.service;
 import com.example.datnmainpolo.dto.BillDetailDTO.BillDetailCreateDTO;
 import com.example.datnmainpolo.dto.BillDetailDTO.BillDetailResponseDTO;
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
-import com.example.datnmainpolo.enums.OrderStatus;
-
-
+// OrderStatus import removed; per-line typeOrder deprecated
 import java.util.List;
 
 public interface BillDetailService {
@@ -16,5 +14,5 @@ public interface BillDetailService {
     void deleteBillDetail(Integer billDetailId);
     List<BillDetailResponseDTO> getAllBillDetailsByBillId(Integer billId); // New method
 
-    void updateBillDetailTypeOrder(Integer billId, OrderStatus orderStatus);
+    // Removed: updateBillDetailTypeOrder, typeOrder deprecated
 }

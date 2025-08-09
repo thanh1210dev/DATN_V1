@@ -68,4 +68,11 @@ public class UserEntity {
 
     @Column(name = "deleted")
     private Boolean deleted;
+
+    // Password reset token and expiry
+    @Column(name = "reset_token", columnDefinition = "NVARCHAR(255)")
+    private String resetToken;
+
+    @Column(name = "reset_token_expiry")
+    private Instant resetTokenExpiry;
 }

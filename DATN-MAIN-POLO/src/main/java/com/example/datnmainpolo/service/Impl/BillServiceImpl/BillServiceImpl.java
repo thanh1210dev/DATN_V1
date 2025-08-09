@@ -14,6 +14,7 @@ import com.example.datnmainpolo.service.BillService;
 import com.example.datnmainpolo.service.OrderHistoryService;
 import com.example.datnmainpolo.service.UserService;
 import com.example.datnmainpolo.service.Impl.BillDetailServiceImpl.InvoicePDFService;
+import com.example.datnmainpolo.service.Impl.Email.EmailService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,6 +23,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,9 +33,11 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.EnumSet;
 
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings({"unused"})
 public class BillServiceImpl implements BillService {
         private static final Logger LOGGER = LoggerFactory.getLogger(BillServiceImpl.class);
         private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
@@ -50,7 +54,23 @@ public class BillServiceImpl implements BillService {
         private final InvoicePDFService invoicePDFService;
         private final BillDetailService billDetailService;
         private final UserService userService;
-        // Note: VNPayService sẽ được inject khi cần thiết qua method parameters
+        private final EmailService emailService;
+        private final BillReturnRepository billReturnRepository;
+
+        private String getActor() {
+        try {
+            String username = SecurityContextHolder.getContext() != null &&
+                    SecurityContextHolder.getContext().getAuthentication() != null
+                    ? SecurityContextHolder.getContext().getAuthentication().getName()
+                    : null;
+                        if (username == null || "anonymousUser".equalsIgnoreCase(username)) return "guest";
+            return userRepository.findByEmail(username)
+                    .map(u -> u.getName() != null ? u.getName() : username)
+                    .orElse(username);
+        } catch (Exception e) {
+                        return "guest";
+        }
+    }
 
         @Override
         @Transactional
@@ -79,6 +99,9 @@ public class BillServiceImpl implements BillService {
                 bill.setReductionAmount(ZERO);
                 bill.setFinalAmount(ZERO);
                 bill.setCustomerPayment(ZERO);
+                // initialize new statuses
+                bill.setPaymentStatus(PaymentStatus.UNPAID);
+                bill.setFulfillmentStatus(FulfillmentStatus.PENDING);
 
                 Bill savedBill = billRepository.save(bill);
 
@@ -205,8 +228,8 @@ public class BillServiceImpl implements BillService {
                                 voucherCode != null ? "Áp dụng voucher " + voucherCode : "Áp dụng voucher tự động");
                         orderHistory.setCreatedAt(Instant.now());
                         orderHistory.setUpdatedAt(Instant.now());
-                        orderHistory.setCreatedBy("system");
-                        orderHistory.setUpdatedBy("system");
+                        orderHistory.setCreatedBy(getActor());
+                        orderHistory.setUpdatedBy(getActor());
                         orderHistory.setDeleted(false);
                         orderHistoryRepository.save(orderHistory);
 
@@ -248,8 +271,8 @@ public class BillServiceImpl implements BillService {
                 orderHistory.setActionDescription("Hủy voucher");
                 orderHistory.setCreatedAt(Instant.now());
                 orderHistory.setUpdatedAt(Instant.now());
-                orderHistory.setCreatedBy("system");
-                orderHistory.setUpdatedBy("system");
+                orderHistory.setCreatedBy(getActor());
+                orderHistory.setUpdatedBy(getActor());
                 orderHistory.setDeleted(false);
                 orderHistoryRepository.save(orderHistory);
 
@@ -266,8 +289,18 @@ public class BillServiceImpl implements BillService {
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
                 LOGGER.info("✅ Bill found: ID={}, currentStatus={}, billType={}", bill.getId(), bill.getStatus(), bill.getBillType());
 
+                // Guard: block status updates while a return request is pending approval
+                boolean hasPendingReturn = billReturnRepository.existsByBill_IdAndStatus(billId, ReturnStatus.REQUESTED);
+                if (hasPendingReturn) {
+                        throw new RuntimeException("Không thể cập nhật trạng thái hóa đơn khi đang có yêu cầu trả hàng chờ duyệt");
+                }
+
                 OrderStatus currentStatus = bill.getStatus();
                 LOGGER.info("📊 Current status: {}, Target status: {}, Bill type: {}", currentStatus, newStatus, bill.getBillType());
+                // Fetch transaction early for decision logic below
+                Transaction earlyTxn = transactionRepository.findByBillId(billId)
+                        .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch"));
+
 // cộng số lượng sản phẩm khi hủy đơn   
                 if (newStatus == OrderStatus.CANCELLED) {
                         List<BillDetail> billDetails = billDetailRepository.findByBillId(billId);
@@ -279,6 +312,12 @@ public class BillServiceImpl implements BillService {
                             (currentStatus == OrderStatus.PENDING || currentStatus == OrderStatus.CONFIRMING)) {
                                 shouldRestoreInventory = false;
                                 LOGGER.info("🔄 COD order cancelled before confirmation - no inventory to restore");
+                        } else if ((bill.getType() == PaymentType.VNPAY || bill.getType() == PaymentType.BANKING)
+                                && earlyTxn.getStatus() != TransactionStatus.SUCCESS) {
+                                // Online payments (VNPay/Banking) that failed/cancelled before success didn't deduct inventory yet
+                                shouldRestoreInventory = false;
+                                LOGGER.info("🔄 Online order ({}:{}) cancelled before payment success - no inventory to restore",
+                                        bill.getType(), earlyTxn.getStatus());
                         }
                         
                         if (shouldRestoreInventory) {
@@ -304,23 +343,47 @@ public class BillServiceImpl implements BillService {
                 }
 
                 bill.setStatus(newStatus);
+                // reflect to new axes
+                FulfillmentStatus mapped = mapOrderStatusToFulfillment(newStatus);
+                if (mapped != null) {
+                    bill.setFulfillmentStatus(mapped);
+                }
+                if (newStatus == OrderStatus.PAID) {
+                    bill.setPaymentStatus(PaymentStatus.PAID);
+                } else if (newStatus == OrderStatus.REFUNDED) {
+                    bill.setPaymentStatus(PaymentStatus.REFUNDED);
+                } else if (newStatus == OrderStatus.CANCELLED) {
+                    if (bill.getPaymentStatus() == null || bill.getPaymentStatus() == PaymentStatus.UNPAID || bill.getPaymentStatus() == PaymentStatus.PENDING) {
+                        bill.setPaymentStatus(PaymentStatus.FAILED);
+                    }
+                }
                 bill.setUpdatedAt(Instant.now());
-                bill.setUpdatedBy("system");
+                bill.setUpdatedBy(getActor());
 
-                // Update BillDetail status for all bill types - removed the BillType restriction
-                List<BillDetail> billDetails = billDetailRepository.findAllByBill_Id(billId);
-                for (BillDetail detail : billDetails) {
-                        detail.setTypeOrder(newStatus);
-                        
-                        // Also update BillDetailStatus based on OrderStatus
-                        BillDetailStatus billDetailStatus = mapOrderStatusToBillDetailStatus(newStatus);
-                        if (billDetailStatus != null) {
-                                detail.setStatus(billDetailStatus);
-                                LOGGER.info("🔄 Updated BillDetail {} status from {} to {}", 
-                                        detail.getId(), detail.getStatus(), billDetailStatus);
+                // Update BillDetail status in bulk ONLY when not in a return-related order status
+                boolean isReturnFlow = EnumSet.of(
+                        OrderStatus.RETURN_REQUESTED,
+                        OrderStatus.RETURNED,
+                        OrderStatus.REFUNDED,
+                        OrderStatus.RETURN_COMPLETED
+                ).contains(newStatus);
+
+                if (!isReturnFlow) {
+                        List<BillDetail> billDetails = billDetailRepository.findAllByBill_Id(billId);
+                        BillDetailStatus mappedDetailStatus = mapOrderStatusToBillDetailStatus(newStatus);
+                        if (mappedDetailStatus != null) {
+                                for (BillDetail detail : billDetails) {
+                                        // Don't override lines that were explicitly marked RETURNED by the return workflow
+                                        if (detail.getStatus() == BillDetailStatus.RETURNED) {
+                                                continue;
+                                        }
+                                        BillDetailStatus old = detail.getStatus();
+                                        detail.setStatus(mappedDetailStatus);
+                                        LOGGER.info("🔄 Updated BillDetail {} status from {} to {}", detail.getId(), old, mappedDetailStatus);
+                                }
+                                billDetailRepository.saveAll(billDetails);
                         }
                 }
-                billDetailRepository.saveAll(billDetails);
 
                 OrderHistory orderHistory = new OrderHistory();
                 orderHistory.setBill(bill);
@@ -328,8 +391,8 @@ public class BillServiceImpl implements BillService {
                 orderHistory.setActionDescription("Cập nhật trạng thái từ " + currentStatus + " sang " + newStatus);
                 orderHistory.setCreatedAt(Instant.now());
                 orderHistory.setUpdatedAt(Instant.now());
-                orderHistory.setCreatedBy("system");
-                orderHistory.setUpdatedBy("system");
+                orderHistory.setCreatedBy(getActor());
+                orderHistory.setUpdatedBy(getActor());
                 orderHistory.setDeleted(false);
                 orderHistoryRepository.save(orderHistory);
 
@@ -418,6 +481,7 @@ public class BillServiceImpl implements BillService {
                                 break;
                         case REFUNDED:
                                 transaction.setStatus(TransactionStatus.REFUNDED);
+                                transaction.setType(TransactionType.REFUND); // mark as refund transaction for reporting
                                 transaction.setNote("Hoàn tiền cho khách hàng");
                                 transaction.setUpdatedAt(Instant.now());
                                 transactionRepository.save(transaction);
@@ -467,23 +531,7 @@ public class BillServiceImpl implements BillService {
                                             detail.getQuantity(), productDetail.getCode(), productDetail.getQuantity());
                                 }
                                 
-                                // Khôi phục voucher nếu có
-                                if (bill.getVoucherCode() != null) {
-                                        try {
-                                                Optional<Voucher> voucherOpt = voucherRepository.findByCodeAndDeletedFalse(bill.getVoucherCode());
-                                                if (voucherOpt.isPresent()) {
-                                                        Voucher voucher = voucherOpt.get();
-                                                        voucher.setQuantity(voucher.getQuantity() + 1);
-                                                        if (voucher.getStatus() == PromotionStatus.USED_UP) {
-                                                                voucher.setStatus(PromotionStatus.ACTIVE);
-                                                        }
-                                                        voucherRepository.save(voucher);
-                                                        LOGGER.info("✅ Restored voucher {} quantity to {}", voucher.getCode(), voucher.getQuantity());
-                                                }
-                                        } catch (Exception e) {
-                                                LOGGER.error("❌ Error restoring voucher {}: {}", bill.getVoucherCode(), e.getMessage());
-                                        }
-                                }
+                                // Không khôi phục voucher ở bước RETURNED để tránh cộng trùng. Sẽ khôi phục ở RETURN_COMPLETED.
                                 
                                 transaction.setNote("Đã xử lý trả hàng - Khôi phục sản phẩm về kho");
                                 transaction.setUpdatedAt(Instant.now());
@@ -494,6 +542,7 @@ public class BillServiceImpl implements BillService {
                                 LOGGER.info("🔄 Processing RETURN_COMPLETED for bill {}", billId);
                                 LOGGER.info("🔍 Current transaction status: {}, Bill payment type: {}", 
                                     transaction.getStatus(), bill.getType());
+                                boolean firstTimeReturnCompleted = (currentStatus != OrderStatus.RETURN_COMPLETED);
                                 
                                 // Hoàn tất trả hàng - chấp nhận cho: đã thanh toán, COD chưa thanh toán, hoặc đã hoàn tiền
                                 if (transaction.getStatus() != TransactionStatus.SUCCESS && 
@@ -506,22 +555,10 @@ public class BillServiceImpl implements BillService {
                                 
                                 LOGGER.info("✅ Validation passed for RETURN_COMPLETED");
                                 
-                                // Khôi phục số lượng sản phẩm
-                                List<BillDetail> returnBillDetails = billDetailRepository.findByBillId(billId);
-                                LOGGER.info("🔄 Restoring {} products to inventory", returnBillDetails.size());
-                                for (BillDetail detail : returnBillDetails) {
-                                        ProductDetail productDetail = detail.getDetailProduct();
-                                        int oldQuantity = productDetail.getQuantity();
-                                        productDetail.setQuantity(productDetail.getQuantity() + detail.getQuantity());
-                                        if (productDetail.getQuantity() > 0) {
-                                                productDetail.setStatus(ProductStatus.AVAILABLE);
-                                        }
-                                        productDetailRepository.save(productDetail);
-                                        LOGGER.info("Restored {} units for product {} (was: {}, now: {})", 
-                                            detail.getQuantity(), productDetail.getId(), oldQuantity, productDetail.getQuantity());
-                                }
+                                // Lưu ý: Không khôi phục tồn kho ở bước RETURN_COMPLETED để tránh cộng trùng.
+                                // Tồn kho đã được khôi phục tại bước RETURNED khi hàng về kho.
                                 
-                                // Cập nhật transaction status - nếu COD chưa thanh toán thì chuyển thành CANCELLED, ngược lại giữ REFUNDED
+                                // Cập nhật transaction status - nếu COD chưa thanh toán thì chuyển thành CANCELLED, ngược lại giữ/ref thành REFUNDED
                                 if (bill.getType() == PaymentType.COD && transaction.getStatus() == TransactionStatus.PENDING) {
                                         transaction.setStatus(TransactionStatus.CANCELLED);
                                         transaction.setNote("Hoàn tất trả hàng COD - khách hàng không nhận");
@@ -530,6 +567,7 @@ public class BillServiceImpl implements BillService {
                                         // Nếu đã REFUNDED thì giữ nguyên, ngược lại chuyển thành REFUNDED
                                         if (transaction.getStatus() != TransactionStatus.REFUNDED) {
                                                 transaction.setStatus(TransactionStatus.REFUNDED);
+                                                transaction.setType(TransactionType.REFUND); // mark as refund transaction for reporting
                                                 LOGGER.info("🔄 Updated transaction status to REFUNDED");
                                         } else {
                                                 LOGGER.info("🔄 Keeping transaction status as REFUNDED");
@@ -539,8 +577,8 @@ public class BillServiceImpl implements BillService {
                                 transaction.setUpdatedAt(Instant.now());
                                 transactionRepository.save(transaction);
                                 
-                                // Khôi phục voucher nếu có
-                                if (bill.getVoucherCode() != null) {
+                                // Khôi phục voucher nếu có - chỉ thực hiện lần đầu chuyển sang RETURN_COMPLETED để tránh cộng trùng
+                                if (firstTimeReturnCompleted && bill.getVoucherCode() != null) {
                                         try {
                                                 Optional<Voucher> voucherOpt = voucherRepository.findByCodeAndDeletedFalse(bill.getVoucherCode());
                                                 if (voucherOpt.isPresent()) {
@@ -562,6 +600,18 @@ public class BillServiceImpl implements BillService {
                                 transaction.setUpdatedAt(Instant.now());
                                 transactionRepository.save(transaction);
                                 break;
+                }
+
+                // Đồng bộ PaymentStatus sau khi hoàn tất luồng trả hàng
+                if (newStatus == OrderStatus.RETURN_COMPLETED) {
+                        if (transaction.getStatus() == TransactionStatus.REFUNDED) {
+                                bill.setPaymentStatus(PaymentStatus.REFUNDED);
+                        } else if (bill.getType() == PaymentType.COD && transaction.getStatus() == TransactionStatus.CANCELLED) {
+                                // COD chưa thanh toán và đã hủy giao dịch => đánh dấu thất bại thanh toán
+                                if (bill.getPaymentStatus() == PaymentStatus.PENDING || bill.getPaymentStatus() == PaymentStatus.UNPAID) {
+                                        bill.setPaymentStatus(PaymentStatus.FAILED);
+                                }
+                        }
                 }
 
                 Bill savedBill = billRepository.save(bill);
@@ -628,9 +678,9 @@ public class BillServiceImpl implements BillService {
                         bill.setStatus(OrderStatus.CONFIRMING);
                         bill.setBillType(BillType.ONLINE);
                         bill.setUpdatedAt(Instant.now());
-                        bill.setUpdatedBy("system");
+                        bill.setUpdatedBy(getActor());
 
-                        billDetailService.updateBillDetailTypeOrder(billId, OrderStatus.CONFIRMING);
+                        // typeOrder removed; no per-line workflow update needed
 
                         OrderHistory orderHistory = new OrderHistory();
                         orderHistory.setBill(bill);
@@ -638,8 +688,8 @@ public class BillServiceImpl implements BillService {
                         orderHistory.setActionDescription("Cập nhật trạng thái hóa đơn COD thành CONFIRMING do có thông tin khách hàng");
                         orderHistory.setCreatedAt(Instant.now());
                         orderHistory.setUpdatedAt(Instant.now());
-                        orderHistory.setCreatedBy("system");
-                        orderHistory.setUpdatedBy("system");
+                        orderHistory.setCreatedBy(getActor());
+                        orderHistory.setUpdatedBy(getActor());
                         orderHistory.setDeleted(false);
                         orderHistoryRepository.save(orderHistory);
                 }
@@ -675,8 +725,13 @@ public class BillServiceImpl implements BillService {
                 bill.setCustomerPayment(amount.setScale(2, RoundingMode.HALF_UP));
 
                 bill.setStatus(hasCustomerInfo ? OrderStatus.CONFIRMING : OrderStatus.PAID);
+                // new statuses
+                bill.setPaymentStatus(PaymentStatus.PAID);
+                // Tại quầy không có thông tin giao hàng: để giao vận ở trạng thái 'PENDING' (chưa giao)
+                // Tại quầy (không có địa chỉ giao hàng) giữ giao vận ở 'PENDING'
+                bill.setFulfillmentStatus(hasCustomerInfo ? FulfillmentStatus.CONFIRMING : FulfillmentStatus.PENDING);
                 bill.setUpdatedAt(Instant.now());
-                bill.setUpdatedBy("system");
+                bill.setUpdatedBy(getActor());
                 Bill savedBill = billRepository.save(bill);
 
                 // ⭐ Tạo OrderHistory entry cho việc thanh toán
@@ -686,8 +741,8 @@ public class BillServiceImpl implements BillService {
                 orderHistory.setActionDescription(hasCustomerInfo ? "Thanh toán thành công, chuyển sang xác nhận" : "Thanh toán tại quầy thành công");
                 orderHistory.setCreatedAt(Instant.now());
                 orderHistory.setUpdatedAt(Instant.now());
-                orderHistory.setCreatedBy("system");
-                orderHistory.setUpdatedBy("system");
+                orderHistory.setCreatedBy(getActor());
+                orderHistory.setUpdatedBy(getActor());
                 orderHistory.setDeleted(false);
                 orderHistoryRepository.save(orderHistory);
 
@@ -700,10 +755,10 @@ public class BillServiceImpl implements BillService {
                 for (BillDetail billDetail : billDetails) {
                         billDetail.setStatus(BillDetailStatus.PAID);
                         if (bill.getStatus() == OrderStatus.PENDING) {
-                                billDetail.setTypeOrder(hasCustomerInfo ? OrderStatus.CONFIRMING : OrderStatus.PAID);
+                                // typeOrder removed from BillDetail
                         }
                         billDetail.setUpdatedAt(Instant.now());
-                        billDetail.setUpdatedBy("system");
+                        billDetail.setUpdatedBy(getActor());
                         billDetailRepository.save(billDetail);
 
                         // ⭐ Cập nhật ProductDetail status sau khi thanh toán thành công
@@ -759,18 +814,21 @@ public class BillServiceImpl implements BillService {
                 bill.setStatus(OrderStatus.PENDING);
                 // Set BillType dựa trên có thông tin khách hàng hay không
                 bill.setBillType(hasCustomerInfo ? BillType.ONLINE : BillType.OFFLINE);
+                // new statuses
+                bill.setPaymentStatus(PaymentStatus.PENDING);
+                bill.setFulfillmentStatus(hasCustomerInfo ? FulfillmentStatus.CONFIRMING : FulfillmentStatus.PENDING);
                 bill.setUpdatedAt(Instant.now());
-                bill.setUpdatedBy("system");
+                bill.setUpdatedBy(getActor());
                 Bill savedBill = billRepository.save(bill);
 
                 List<BillDetail> billDetails = billDetailRepository.findByBillId(savedBill.getId());
                 for (BillDetail billDetail : billDetails) {
                         billDetail.setStatus(BillDetailStatus.PAID);
                         if (bill.getStatus() == OrderStatus.PENDING) {
-                                billDetail.setTypeOrder(hasCustomerInfo ? OrderStatus.CONFIRMING : OrderStatus.PAID);
+                                // typeOrder removed from BillDetail
                         }
                         billDetail.setUpdatedAt(Instant.now());
-                        billDetail.setUpdatedBy("system");
+                        billDetail.setUpdatedBy(getActor());
                         billDetailRepository.save(billDetail);
                 }
 
@@ -798,7 +856,6 @@ public class BillServiceImpl implements BillService {
                            bill.getVoucherCode(), bill.getReductionAmount(), bill.getFinalAmount());
 
                 bill.setType(PaymentType.COD);
-//                bill.setCustomerPayment(finalAmount.setScale(2, RoundingMode.HALF_UP));
                 // Không ghi đè finalAmount nếu đã có voucher được áp dụng
                 // finalAmount parameter là giá trị đã tính toán từ calculateFinalAmount(bill) 
                 // nên có thể an toàn sử dụng
@@ -808,20 +865,15 @@ public class BillServiceImpl implements BillService {
                         LOGGER.info("COD Payment - Keeping existing finalAmount with voucher: {}", bill.getFinalAmount());
                 }
                 bill.setStatus(hasCustomerInfo ? OrderStatus.CONFIRMING : OrderStatus.PENDING);
+                // new statuses
+                bill.setPaymentStatus(PaymentStatus.UNPAID);
+                bill.setFulfillmentStatus(hasCustomerInfo ? FulfillmentStatus.CONFIRMING : FulfillmentStatus.PENDING);
                 bill.setUpdatedAt(Instant.now());
-                bill.setUpdatedBy("system");
+                bill.setUpdatedBy(getActor());
                 Bill savedBill = billRepository.save(bill);
 
-                List<BillDetail> billDetails = billDetailRepository.findByBillId(savedBill.getId());
-                for (BillDetail billDetail : billDetails) {
-                        billDetail.setStatus(BillDetailStatus.PAID);
-                        if (bill.getStatus() == OrderStatus.PENDING) {
-                                billDetail.setTypeOrder(hasCustomerInfo ? OrderStatus.CONFIRMING : OrderStatus.PAID);
-                        }
-                        billDetail.setUpdatedAt(Instant.now());
-                        billDetail.setUpdatedBy("system");
-                        billDetailRepository.save(billDetail);
-                }
+                // COD: không đánh dấu chi tiết là ĐÃ THANH TOÁN tại thời điểm tạo đơn; thanh toán khi giao hàng
+                // Giữ nguyên trạng thái chi tiết theo mapping chung (thường là PENDING tới khi giao/thu tiền)
 
                 Transaction transaction = transactionRepository.findByBillId(bill.getId())
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch"));
@@ -860,18 +912,21 @@ public class BillServiceImpl implements BillService {
                         LOGGER.info("Banking Payment - Keeping existing finalAmount with voucher: {}", bill.getFinalAmount());
                 }
                 bill.setStatus(hasCustomerInfo ? OrderStatus.CONFIRMING : OrderStatus.PENDING);
+                // new statuses
+                bill.setPaymentStatus(PaymentStatus.PENDING);
+                bill.setFulfillmentStatus(hasCustomerInfo ? FulfillmentStatus.CONFIRMING : FulfillmentStatus.PENDING);
                 bill.setUpdatedAt(Instant.now());
-                bill.setUpdatedBy("system");
+                bill.setUpdatedBy(getActor());
                 Bill savedBill = billRepository.save(bill);
 
                 List<BillDetail> billDetails = billDetailRepository.findByBillId(savedBill.getId());
                 for (BillDetail billDetail : billDetails) {
                         billDetail.setStatus(BillDetailStatus.PAID);
                         if (bill.getStatus() == OrderStatus.PENDING) {
-                                billDetail.setTypeOrder(hasCustomerInfo ? OrderStatus.CONFIRMING : OrderStatus.PAID);
+                                // typeOrder removed from BillDetail
                         }
                         billDetail.setUpdatedAt(Instant.now());
-                        billDetail.setUpdatedBy("system");
+                        billDetail.setUpdatedBy(getActor());
                         billDetailRepository.save(billDetail);
                 }
 
@@ -900,9 +955,7 @@ public class BillServiceImpl implements BillService {
                 Bill bill = billRepository.findById(billId)
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
 
-                if (bill.getBillType() != BillType.OFFLINE || bill.getStatus() != OrderStatus.PAID) {
-                        throw new RuntimeException("Chỉ có thể in hóa đơn cho đơn hàng OFFLINE và đã THANH TOÁN");
-                }
+                // Allow printing invoice for any bill type and status
 
                 BillResponseDTO billResponse = convertToBillResponseDTO(bill);
                 List<BillDetailResponseDTO> billDetails = billDetailService.getAllBillDetailsByBillId(billId);
@@ -1072,34 +1125,38 @@ public class BillServiceImpl implements BillService {
                 }
         }
 
-        private BigDecimal calculateReduction(BigDecimal totalMoney, Voucher voucher) {
-                if (totalMoney == null) {
-                        LOGGER.warn("Total money is null for voucher {}", voucher.getCode());
-                        return ZERO;
+        /**
+         * Map OrderStatus to corresponding BillDetailStatus
+         */
+        private BillDetailStatus mapOrderStatusToBillDetailStatus(OrderStatus orderStatus) {
+                switch (orderStatus) {
+                        case PENDING:
+                        case CONFIRMING:
+                        case CONFIRMED:
+                                return BillDetailStatus.PENDING;
+                        case PAID:
+                                return BillDetailStatus.PAID;
+                        case PACKED:
+                                // Không thay đổi trạng thái chi tiết khi ĐÓNG GÓI
+                                return null;
+                        case DELIVERING:
+                                // Không sử dụng trạng thái giao vận ở cấp chi tiết
+                                return null;
+                        case DELIVERED:
+                        case COMPLETED:
+                                // Không sử dụng "ĐÃ GIAO" ở cấp chi tiết; giữ nguyên (PAID cho đã thanh toán, PENDING cho COD)
+                                return null;
+                        case CANCELLED:
+                                return BillDetailStatus.CANCELLED;
+                        case RETURN_REQUESTED:
+                        case RETURNED:
+                        case REFUNDED:
+                        case RETURN_COMPLETED:
+                                return BillDetailStatus.RETURNED;
+                        default:
+                                LOGGER.warn("No mapping found for OrderStatus: {}", orderStatus);
+                                return null;
                 }
-                if (voucher.getType() == VoucherType.PERCENTAGE) {
-                        BigDecimal percentage = voucher.getPercentageDiscountValue() != null
-                                ? voucher.getPercentageDiscountValue()
-                                : ZERO;
-                        BigDecimal reduction = totalMoney.multiply(percentage)
-                                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-                        if (voucher.getMaxDiscountValue() != null
-                                && reduction.compareTo(voucher.getMaxDiscountValue()) > 0) {
-                                return voucher.getMaxDiscountValue();
-                        }
-                        return reduction;
-                } else {
-                        BigDecimal fixed = voucher.getFixedDiscountValue() != null ? voucher.getFixedDiscountValue()
-                                : ZERO;
-                        return fixed.min(totalMoney);
-                }
-        }
-
-        private BigDecimal calculateFinalAmount(Bill bill) {
-                BigDecimal totalMoney = bill.getTotalMoney() != null ? bill.getTotalMoney() : ZERO;
-                BigDecimal reductionAmount = bill.getReductionAmount() != null ? bill.getReductionAmount() : ZERO;
-                BigDecimal moneyShip = bill.getMoneyShip() != null ? bill.getMoneyShip() : ZERO;
-                return totalMoney.subtract(reductionAmount).add(moneyShip);
         }
 
         @Override
@@ -1118,8 +1175,10 @@ public class BillServiceImpl implements BillService {
                         .id(bill.getId())
                         .code(bill.getCode())
                         .status(bill.getStatus())
+                        .paymentStatus(bill.getPaymentStatus()) // new
+                        .fulfillmentStatus(bill.getFulfillmentStatus()) // new
                         .customerName(bill.getCustomerName())
-                        .customerId(bill.getCustomer() != null ? bill.getCustomer().getId() : null) // Handle null customer
+                        .customerId(bill.getCustomer() != null ? bill.getCustomer().getId() : null)
                         .phoneNumber(bill.getPhoneNumber())
                         .address(bill.getAddress())
                         .billType(bill.getBillType())
@@ -1152,12 +1211,17 @@ public class BillServiceImpl implements BillService {
                         }
                 }
 
+                // Get bill details for this bill
+                List<BillDetailResponseDTO> items = billDetailService.getAllBillDetailsByBillId(bill.getId());
+
                 return BillResponseDTO.builder()
                         .id(bill.getId())
                         .code(bill.getCode())
                         .status(bill.getStatus())
+                        .paymentStatus(bill.getPaymentStatus()) // new
+                        .fulfillmentStatus(bill.getFulfillmentStatus()) // new
                         .customerName(bill.getCustomerName())
-                        .customerId(bill.getCustomer() != null ? bill.getCustomer().getId() : null) // Handle null customer
+                        .customerId(bill.getCustomer() != null ? bill.getCustomer().getId() : null)
                         .phoneNumber(bill.getPhoneNumber())
                         .address(bill.getAddress())
                         .billType(bill.getBillType())
@@ -1174,6 +1238,7 @@ public class BillServiceImpl implements BillService {
                         .voucherName(bill.getVoucherName())
                         .voucherDiscountAmount(voucherDiscountAmount)
                         .voucherType(voucherType)
+                        .items(items) // Add bill details items
                         .build();
         }
 
@@ -1190,7 +1255,7 @@ public class BillServiceImpl implements BillService {
                 bill.setPhoneNumber(customer.getPhoneNumber());
                 bill.setAddress(customer.getAddress());
                 bill.setUpdatedAt(Instant.now());
-                bill.setUpdatedBy("system");
+                bill.setUpdatedBy(getActor());
 
                 Bill savedBill = billRepository.save(bill);
 
@@ -1200,8 +1265,8 @@ public class BillServiceImpl implements BillService {
                 orderHistory.setActionDescription("Thêm khách hàng trung thành " + customer.getName() + " vào hóa đơn");
                 orderHistory.setCreatedAt(Instant.now());
                 orderHistory.setUpdatedAt(Instant.now());
-                orderHistory.setCreatedBy("system");
-                orderHistory.setUpdatedBy("system");
+                orderHistory.setCreatedBy(getActor());
+                orderHistory.setUpdatedBy(getActor());
                 orderHistory.setDeleted(false);
                 orderHistoryRepository.save(orderHistory);
 
@@ -1219,15 +1284,8 @@ public class BillServiceImpl implements BillService {
 
                 bill.setUpdatedAt(Instant.now());
                 bill.setUpdatedBy("server");
-
-                UserEntity newUser = new UserEntity();
-                newUser.setName(requestDTO.getName());
-                newUser.setPhoneNumber(requestDTO.getPhoneNumber());
-                newUser.setRole(Role.CLIENT);
-                newUser.setDeleted(false);
-                userRepository.save(newUser);
-
-                bill.setCustomer(newUser); // Link the new user to the bill
+                // Không tạo tài khoản khách vãng lai; chỉ lưu thông tin trực tiếp trên bill
+                bill.setCustomer(null);
 
                 Bill savedBill = billRepository.save(bill);
 
@@ -1237,8 +1295,8 @@ public class BillServiceImpl implements BillService {
                 orderHistory.setActionDescription("Thêm khách vãng lai vào hóa đơn");
                 orderHistory.setCreatedAt(Instant.now());
                 orderHistory.setUpdatedAt(Instant.now());
-                orderHistory.setCreatedBy("system");
-                orderHistory.setUpdatedBy("system");
+                orderHistory.setCreatedBy(getActor());
+                orderHistory.setUpdatedBy(getActor());
                 orderHistory.setDeleted(false);
                 orderHistoryRepository.save(orderHistory);
 
@@ -1263,7 +1321,7 @@ public class BillServiceImpl implements BillService {
                 bill.setPhoneNumber(user.getPhoneNumber());
                 bill.setAddress(user.getAddress());
                 bill.setUpdatedAt(Instant.now());
-                bill.setUpdatedBy("system");
+                bill.setUpdatedBy(getActor());
 
                 Bill savedBill = billRepository.save(bill);
 
@@ -1273,8 +1331,8 @@ public class BillServiceImpl implements BillService {
                 orderHistory.setActionDescription("Thêm người dùng " + user.getName() + " vào hóa đơn");
                 orderHistory.setCreatedAt(Instant.now());
                 orderHistory.setUpdatedAt(Instant.now());
-                orderHistory.setCreatedBy("system");
-                orderHistory.setUpdatedBy("system");
+                orderHistory.setCreatedBy(getActor());
+                orderHistory.setUpdatedBy(getActor());
                 orderHistory.setDeleted(false);
                 orderHistoryRepository.save(orderHistory);
 
@@ -1286,8 +1344,16 @@ public class BillServiceImpl implements BillService {
                 LOGGER.info("Validating bill {} for delivery eligibility", billId);
                 Bill bill = billRepository.findById(billId)
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
+                // Allow delivery for either:
+                // - Loyal customer (registered user linked to bill), or
+                // - Visiting guest, when basic contact info is present on the bill
                 if (bill.getCustomer() == null) {
-                        throw new RuntimeException("Hóa đơn phải có người dùng đăng ký để sử dụng chức năng giao hàng");
+                        boolean hasGuestInfo = bill.getCustomerName() != null && !bill.getCustomerName().trim().isEmpty()
+                                        && bill.getPhoneNumber() != null && !bill.getPhoneNumber().trim().isEmpty();
+                        if (!hasGuestInfo) {
+                                throw new RuntimeException(
+                                                "Hóa đơn phải có thông tin khách hàng (khách hàng trung thành hoặc vãng lai) để sử dụng chức năng giao hàng");
+                        }
                 }
         }
 
@@ -1308,8 +1374,12 @@ public class BillServiceImpl implements BillService {
 
                 // Cập nhật trạng thái hóa đơn thành PAID
                 bill.setStatus(OrderStatus.PAID);
+                bill.setPaymentStatus(PaymentStatus.PAID);
+                if (bill.getFulfillmentStatus() == null || bill.getFulfillmentStatus() == FulfillmentStatus.PENDING) {
+                        bill.setFulfillmentStatus(FulfillmentStatus.CONFIRMING);
+                }
                 bill.setUpdatedAt(Instant.now());
-                bill.setUpdatedBy("system");
+                bill.setUpdatedBy(getActor());
 
                 // Cập nhật trạng thái giao dịch
                 Transaction transaction = transactionRepository.findByBillId(billId)
@@ -1323,10 +1393,31 @@ public class BillServiceImpl implements BillService {
                 List<BillDetail> billDetails = billDetailRepository.findByBillId(billId);
                 for (BillDetail billDetail : billDetails) {
                         billDetail.setStatus(BillDetailStatus.PAID);
-                        billDetail.setTypeOrder(OrderStatus.PAID);
+                        // typeOrder removed from BillDetail
                         billDetail.setUpdatedAt(Instant.now());
-                        billDetail.setUpdatedBy("system");
+                        billDetail.setUpdatedBy(getActor());
                         billDetailRepository.save(billDetail);
+                }
+
+                // ⭐ Deduct inventory upon successful BANKING payment (for ONLINE bills only)
+                if (bill.getBillType() == BillType.ONLINE) {
+                        for (BillDetail detail : billDetails) {
+                                ProductDetail productDetail = detail.getDetailProduct();
+                                if (productDetail != null) {
+                                        int available = productDetail.getQuantity();
+                                        int need = detail.getQuantity();
+                                        if (available < need) {
+                                                throw new RuntimeException("Sản phẩm " + productDetail.getCode() +
+                                                        " không đủ số lượng trong kho (còn " + available + ", cần " + need + ")");
+                                        }
+                                        productDetail.setQuantity(available - need);
+                                        if (productDetail.getQuantity() <= 0) {
+                                                productDetail.setStatus(ProductStatus.OUT_OF_STOCK);
+                                        }
+                                        productDetailRepository.save(productDetail);
+                                }
+                        }
+                        LOGGER.info("✅ Deducted inventory after BANKING payment confirm for ONLINE bill {}", billId);
                 }
 
                 // Giảm số lượng voucher nếu có
@@ -1347,42 +1438,83 @@ public class BillServiceImpl implements BillService {
                 orderHistory.setActionDescription("Xác nhận thanh toán Banking thành công");
                 orderHistory.setCreatedAt(Instant.now());
                 orderHistory.setUpdatedAt(Instant.now());
-                orderHistory.setCreatedBy("system");
-                orderHistory.setUpdatedBy("system");
+                orderHistory.setCreatedBy(getActor());
+                orderHistory.setUpdatedBy(getActor());
                 orderHistory.setDeleted(false);
                 orderHistoryRepository.save(orderHistory);
 
                 Bill savedBill = billRepository.save(bill);
+
+                // Send order confirmation email
+                try {
+                        if (savedBill.getCustomer() != null && savedBill.getCustomer().getEmail() != null) {
+                                String to = savedBill.getCustomer().getEmail();
+                                String userName = savedBill.getCustomer().getName();
+                                String billCode = savedBill.getCode();
+                                BigDecimal finalAmount = savedBill.getFinalAmount();
+                                String address = savedBill.getAddress();
+                                String phone = savedBill.getPhoneNumber();
+                                String paymentMethod = savedBill.getType() != null ? savedBill.getType().name() : "BANKING";
+                                emailService.sendOrderConfirmationEmail(to, userName, billCode, finalAmount, address, phone, paymentMethod);
+                                LOGGER.info("📧 Sent order confirmation email to {} for bill {} (Banking)", to, billId);
+                        } else {
+                                LOGGER.warn("Skipping order confirmation email (Banking): missing customer or email for bill {}", billId);
+                        }
+                } catch (Exception emailEx) {
+                        LOGGER.error("Failed to send order confirmation email (Banking) for bill {}: {}", billId, emailEx.getMessage());
+                }
+
                 return convertToBillResponseDTO(savedBill);
         }
-        
-        /**
-         * Map OrderStatus to corresponding BillDetailStatus
-         */
-        private BillDetailStatus mapOrderStatusToBillDetailStatus(OrderStatus orderStatus) {
-                switch (orderStatus) {
-                        case PENDING:
-                        case CONFIRMING:
-                        case CONFIRMED:
-                                return BillDetailStatus.PENDING;
-                        case PAID:
-                        case PACKED:
-                                return BillDetailStatus.PAID;
-                        case DELIVERING:
-                                return BillDetailStatus.SHIPPED;
-                        case DELIVERED:
-                        case COMPLETED:
-                                return BillDetailStatus.DELIVERED;
-                        case CANCELLED:
-                                return BillDetailStatus.CANCELLED;
-                        case RETURN_REQUESTED:
-                        case RETURNED:
-                        case REFUNDED:
-                        case RETURN_COMPLETED:
-                                return BillDetailStatus.RETURNED;
-                        default:
-                                LOGGER.warn("No mapping found for OrderStatus: {}", orderStatus);
-                                return null;
-                }
+
+        // helper mapping
+        private FulfillmentStatus mapOrderStatusToFulfillment(OrderStatus status) {
+        if (status == null) return null;
+        switch (status) {
+            case PENDING: return FulfillmentStatus.PENDING;
+            case CONFIRMING: return FulfillmentStatus.CONFIRMING;
+            case CONFIRMED: return FulfillmentStatus.CONFIRMED;
+            case PACKED: return FulfillmentStatus.PACKED;
+            case DELIVERING: return FulfillmentStatus.DELIVERING;
+            case DELIVERED: return FulfillmentStatus.DELIVERED;
+            case DELIVERY_FAILED: return FulfillmentStatus.DELIVERY_FAILED;
+            case RETURN_REQUESTED: return FulfillmentStatus.RETURN_REQUESTED;
+            case RETURNED: return FulfillmentStatus.RETURNED;
+            case RETURN_COMPLETED: return FulfillmentStatus.RETURN_COMPLETED;
+            case CANCELLED: return FulfillmentStatus.CANCELLED;
+            case COMPLETED: return FulfillmentStatus.COMPLETED;
+            default: return null; // For PAID/REFUNDED leave fulfillment as-is
         }
+    }
+
+    // Restore helpers lost during previous edits
+    private BigDecimal calculateFinalAmount(Bill bill) {
+        BigDecimal totalMoney = bill.getTotalMoney() != null ? bill.getTotalMoney() : ZERO;
+        BigDecimal reductionAmount = bill.getReductionAmount() != null ? bill.getReductionAmount() : ZERO;
+        BigDecimal moneyShip = bill.getMoneyShip() != null ? bill.getMoneyShip() : ZERO;
+        return totalMoney.subtract(reductionAmount).add(moneyShip);
+    }
+
+    private BigDecimal calculateReduction(BigDecimal totalMoney, Voucher voucher) {
+        if (totalMoney == null) {
+            LOGGER.warn("Total money is null for voucher {}", voucher.getCode());
+            return ZERO;
+        }
+        if (voucher.getType() == VoucherType.PERCENTAGE) {
+            BigDecimal percentage = voucher.getPercentageDiscountValue() != null
+                    ? voucher.getPercentageDiscountValue()
+                    : ZERO;
+            BigDecimal reduction = totalMoney.multiply(percentage)
+                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+            if (voucher.getMaxDiscountValue() != null
+                    && reduction.compareTo(voucher.getMaxDiscountValue()) > 0) {
+                return voucher.getMaxDiscountValue();
+            }
+            return reduction;
+        } else {
+            BigDecimal fixed = voucher.getFixedDiscountValue() != null ? voucher.getFixedDiscountValue()
+                    : ZERO;
+            return fixed.min(totalMoney);
+        }
+    }
 }

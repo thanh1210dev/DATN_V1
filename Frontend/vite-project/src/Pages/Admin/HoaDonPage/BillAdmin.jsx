@@ -28,10 +28,14 @@ const BillAdmin = () => {
     { value: '', label: 'Tất cả', color: 'bg-gray-200 text-gray-800' },
     { value: 'PENDING', label: 'Chờ thanh toán', color: 'bg-yellow-100 text-yellow-800' },
     { value: 'CONFIRMING', label: 'Đang xác nhận', color: 'bg-blue-100 text-blue-800' },
+    { value: 'CONFIRMED', label: 'Đã xác nhận', color: 'bg-cyan-100 text-cyan-800' },
+    { value: 'PACKED', label: 'Đã đóng gói', color: 'bg-purple-100 text-purple-800' },
     { value: 'PAID', label: 'Đã thanh toán', color: 'bg-green-100 text-green-800' },
     { value: 'DELIVERING', label: 'Đang giao hàng', color: 'bg-indigo-100 text-indigo-800' },
+    { value: 'DELIVERED', label: 'Đã giao hàng', color: 'bg-emerald-100 text-emerald-800' },
     { value: 'COMPLETED', label: 'Hoàn thành', color: 'bg-teal-100 text-teal-800' },
     { value: 'CANCELLED', label: 'Đã hủy', color: 'bg-red-100 text-red-800' },
+    { value: 'RETURN_REQUESTED', label: 'Yêu cầu trả hàng', color: 'bg-amber-100 text-amber-800' },
     { value: 'RETURNED', label: 'Đã trả hàng', color: 'bg-orange-100 text-orange-800' },
     { value: 'REFUNDED', label: 'Đã hoàn tiền', color: 'bg-purple-100 text-purple-800' },
     { value: 'RETURN_COMPLETED', label: 'Đã trả xong', color: 'bg-pink-100 text-pink-800' },
@@ -39,11 +43,12 @@ const BillAdmin = () => {
 
   const billTypeOptions = [
     { value: 'OFFLINE', label: 'Tại quầy', color: 'bg-cyan-100 text-cyan-800' },
-    { value: 'ONLINE', label: 'Online', color: 'bg-lime-100 text-lime-800' },
+    { value: 'ONLINE', label: 'Trực tuyến', color: 'bg-lime-100 text-lime-800' },
   ];
 
   const paymentTypeOptions = [
     { value: 'CASH', label: 'Tiền mặt', color: 'bg-amber-100 text-amber-800' },
+    { value: 'COD', label: 'Thanh toán khi nhận hàng', color: 'bg-rose-100 text-rose-800' },
     { value: 'BANKING', label: 'Chuyển khoản', color: 'bg-violet-100 text-violet-800' },
     { value: 'VNPAY', label: 'VNPAY', color: 'bg-emerald-100 text-emerald-800' },
   ];
@@ -80,11 +85,7 @@ const BillAdmin = () => {
   };
 
   // Handle print invoice
-  const handlePrintInvoice = async (billId, billStatus, billType) => {
-    if (billStatus !== 'PAID' || billType !== 'OFFLINE') {
-      toast.error('Chỉ có thể in hóa đơn cho hóa đơn đã thanh toán tại quầy');
-      return;
-    }
+  const handlePrintInvoice = async (billId) => {
     try {
       const base64PDF = await HoaDonApi.printInvoice(billId);
       const byteCharacters = atob(base64PDF);
@@ -319,15 +320,15 @@ const BillAdmin = () => {
                 <tr key={bill.id} className="border-b hover:bg-indigo-50 transition-colors">
                   <td className="px-6 py-3 text-center">{page * size + index + 1}</td>
                   <td className="px-6 py-3">{bill.code}</td>
-                  <td className="px-6 py-3">{bill.customerName || 'N/A'}</td>
-                  <td className="px-6 py-3">{bill.phoneNumber || 'N/A'}</td>
+                  <td className="px-6 py-3">{bill.customerName || 'Khách lẻ'}</td>
+                  <td className="px-6 py-3">{bill.phoneNumber || 'Không có'}</td>
                   <td className="px-6 py-3">
                     <span
                       className={`px-2 py-1 rounded-full text-xs font-medium ${
                         billTypeOptions.find((opt) => opt.value === bill.billType)?.color || 'bg-gray-100 text-gray-800'
                       }`}
                     >
-                      {billTypeOptions.find((opt) => opt.value === bill.billType)?.label || bill.billType || 'N/A'}
+          {billTypeOptions.find((opt) => opt.value === bill.billType)?.label || bill.billType || 'Không có'}
                     </span>
                   </td>
                   <td className="px-6 py-3">
@@ -336,20 +337,20 @@ const BillAdmin = () => {
                         paymentTypeOptions.find((opt) => opt.value === bill.type)?.color || 'bg-gray-100 text-gray-800'
                       }`}
                     >
-                      {paymentTypeOptions.find((opt) => opt.value === bill.type)?.label || bill.type || 'N/A'}
+          {paymentTypeOptions.find((opt) => opt.value === bill.type)?.label || bill.type || 'Không có'}
                     </span>
                   </td>
                   <td className="px-6 py-3 text-red-800 font-semibold">
                     {bill.finalAmount ? bill.finalAmount.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' }) : '0 ₫'}
                   </td>
-                  <td className="px-6 py-3">{bill.createdAt ? new Date(bill.createdAt).toLocaleString('vi-VN') : 'N/A'}</td>
+        <td className="px-6 py-3">{bill.createdAt ? new Date(bill.createdAt).toLocaleString('vi-VN') : 'Không có'}</td>
                   <td className="px-6 py-3">
                     <span
                       className={`px-2 py-1 rounded-full text-xs font-medium ${
                         orderStatusOptions.find((opt) => opt.value === bill.status)?.color || 'bg-gray-100 text-gray-800'
                       }`}
                     >
-                      {orderStatusOptions.find((opt) => opt.value === bill.status)?.label || bill.status || 'N/A'}
+          {orderStatusOptions.find((opt) => opt.value === bill.status)?.label || bill.status || 'Không có'}
                     </span>
                   </td>
                   <td className="px-6 py-3 text-center flex gap-2">
@@ -361,14 +362,9 @@ const BillAdmin = () => {
                       <HiOutlineEye size={16} />
                     </button>
                     <button
-                      onClick={() => handlePrintInvoice(bill.id, bill.status, bill.billType)}
-                      className={`p-1.5 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                        bill.status === 'PAID' && bill.billType === 'OFFLINE'
-                          ? 'bg-blue-600 text-white hover:bg-blue-700'
-                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      }`}
+                      onClick={() => handlePrintInvoice(bill.id)}
+                      className="p-1.5 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors bg-blue-600 text-white hover:bg-blue-700"
                       title="In hóa đơn"
-                      disabled={bill.status !== 'PAID' || bill.billType !== 'OFFLINE'}
                     >
                       <HiOutlinePrinter size={16} />
                     </button>

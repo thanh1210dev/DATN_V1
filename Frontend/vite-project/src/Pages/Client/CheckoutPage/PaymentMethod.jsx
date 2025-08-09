@@ -33,7 +33,7 @@ const PaymentMethod = ({ paymentMethod, setPaymentMethod }) => {
           />
           <div className="ml-4">
             <span className="text-sm font-medium text-gray-900">Thanh toán qua VNPay</span>
-            <p className="text-xs text-gray-500">Thanh toán online qua VNPay - an toàn, nhanh chóng</p>
+            <p className="text-xs text-gray-500">Thanh toán online qua VNPay</p>
           </div>
         </label>
       </div>

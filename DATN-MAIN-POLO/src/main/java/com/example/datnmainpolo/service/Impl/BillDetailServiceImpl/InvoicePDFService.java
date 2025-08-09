@@ -2,6 +2,7 @@ package com.example.datnmainpolo.service.Impl.BillDetailServiceImpl;
 
 import com.example.datnmainpolo.dto.BillDTO.BillResponseDTO;
 import com.example.datnmainpolo.dto.BillDetailDTO.BillDetailResponseDTO;
+import com.example.datnmainpolo.enums.BillDetailStatus;
 import com.example.datnmainpolo.repository.BillDetailRepository;
 import com.itextpdf.text.*;
 import com.itextpdf.text.pdf.*;
@@ -116,8 +117,16 @@ public class InvoicePDFService {
                 productTable.addCell(headerCell);
             }
 
-            int index = 1;
-            for (BillDetailResponseDTO detail : billDetails) {
+        // Filter out returned items and zero/non-positive quantities for invoice display
+        List<BillDetailResponseDTO> activeDetails = billDetails == null ? java.util.Collections.emptyList() :
+            billDetails.stream()
+                .filter(d -> d != null)
+                .filter(d -> d.getStatus() == null || d.getStatus() != BillDetailStatus.RETURNED)
+                .filter(d -> d.getQuantity() != null && d.getQuantity() > 0)
+                .collect(java.util.stream.Collectors.toList());
+
+        int index = 1;
+        for (BillDetailResponseDTO detail : activeDetails) {
                 String productName = detail.getProductName() != null ? detail.getProductName() : "N/A";
                 if (productName.length() > 40) {
                     productName = productName.substring(0, 37) + "...";
@@ -132,10 +141,12 @@ public class InvoicePDFService {
                 productName += sizeColor;
 
                 String productCode = detail.getProductDetailCode() != null ? detail.getProductDetailCode() : "N/A";
-                String quantity = detail.getQuantity() != null ? detail.getQuantity().toString() : "0";
-                BigDecimal price = detail.getPromotionalPrice() != null ? detail.getPromotionalPrice() :
-                        (detail.getPrice() != null ? detail.getPrice() : BigDecimal.ZERO);
-                BigDecimal totalPrice = detail.getTotalPrice() != null ? detail.getTotalPrice() : BigDecimal.ZERO;
+        int qtyVal = detail.getQuantity() != null ? detail.getQuantity() : 0;
+        String quantity = Integer.toString(qtyVal);
+        BigDecimal price = detail.getPromotionalPrice() != null && detail.getPromotionalPrice().compareTo(BigDecimal.ZERO) > 0
+            ? detail.getPromotionalPrice()
+            : (detail.getPrice() != null ? detail.getPrice() : BigDecimal.ZERO);
+        BigDecimal totalPrice = price.multiply(BigDecimal.valueOf(qtyVal));
 
                 addProductCell(productTable, String.valueOf(index++), normalFont, Element.ALIGN_CENTER);
                 addProductCell(productTable, productName, normalFont, Element.ALIGN_LEFT);
@@ -146,6 +157,16 @@ public class InvoicePDFService {
             }
 
             document.add(productTable);
+
+        // Optional note: if some items were hidden due to returns, show a hint
+        if (billDetails != null && activeDetails.size() < billDetails.size()) {
+        Paragraph hiddenNote = new Paragraph(
+            "Lưu ý: Một số sản phẩm đã được trả hàng và không hiển thị trên hóa đơn.",
+            new Font(BaseFont.createFont(BaseFont.HELVETICA, BaseFont.CP1252, BaseFont.EMBEDDED), 9, Font.ITALIC, GRAY_COLOR)
+        );
+        hiddenNote.setSpacingBefore(5);
+        document.add(hiddenNote);
+        }
 
             // Summary Table
             PdfPTable totalTable = new PdfPTable(2);

@@ -31,8 +31,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         String fullName = (String) attributes.get("name");
         String avatar = (String) attributes.get("picture");
 
-        UserEntity user = userRepository.findByEmail(email)
-                .orElseGet(() -> {
+    userRepository.findFirstByEmailOrderByIdDesc(email)
+        .orElseGet(() -> {
                     UserEntity newUser = new UserEntity();
                     newUser.setEmail(email);
                     newUser.setName(fullName);

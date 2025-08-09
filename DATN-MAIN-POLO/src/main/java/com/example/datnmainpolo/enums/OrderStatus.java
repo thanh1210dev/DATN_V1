@@ -13,7 +13,7 @@ public enum OrderStatus {
     COMPLETED,         // Hoàn thành – Giao hàng và thanh toán hoàn tất
     CANCELLED,         // Đã hủy – Hủy bởi khách hoặc hệ thống
     RETURN_REQUESTED,  // Yêu cầu trả hàng – Khách yêu cầu trả hàng
-    RETURNED,          // Đã trả hàng – Khách đã trả hàng
+        RETURNED,          // Đã trả hàng – Khách đã trả hàng
     REFUNDED,          // Đã hoàn tiền – Đã hoàn lại tiền cho khách
     RETURN_COMPLETED,  // Đã trả xong – Trả hàng thành công, cập nhật tồn kho
     DELIVERY_FAILED    // Giao hàng thất bại – Giao hàng không thành công (ví dụ: khách không nhận)

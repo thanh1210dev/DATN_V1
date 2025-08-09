@@ -2,9 +2,7 @@ package com.example.datnmainpolo.service.Impl;
 
 import com.example.datnmainpolo.entity.UserEntity;
 import com.example.datnmainpolo.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -22,7 +20,7 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String identifier) throws UsernameNotFoundException {
-        UserEntity user = userRepo.findByEmail(identifier)
+        UserEntity user = userRepo.findFirstByEmailOrderByIdDesc(identifier)
                 .or(() -> userRepo.findByPhoneNumber(identifier))
                 .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy tài khoản"));
 

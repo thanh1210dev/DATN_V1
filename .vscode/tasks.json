@@ -8,6 +8,127 @@
 			"group": "build",
 			"isBackground": true,
 			"problemMatcher": []
+		},
+		{
+			"label": "Run Frontend Dev",
+			"type": "shell",
+			"command": "cd \"c:\\Users\\Admin\\Desktop\\DATNV1\\DATN-main\\Frontend\\vite-project\"; npm install --silent; npm run build",
+			"isBackground": false,
+			"problemMatcher": [
+				"$eslint-stylish"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Run Frontend Dev (serve)",
+			"type": "shell",
+			"command": "cd \"c:\\Users\\Admin\\Desktop\\DATNV1\\DATN-main\\Frontend\\vite-project\"; npm run dev",
+			"isBackground": true,
+			"group": "build"
+		},
+		{
+			"label": "Compile Spring Boot (mvn -q -DskipTests package)",
+			"type": "shell",
+			"command": "cd \"c:\\Users\\Admin\\Desktop\\DATNV1\\DATN-main\\DATN-MAIN-POLO\"; .\\mvnw -q -DskipTests package",
+			"problemMatcher": [
+				"$javac"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Compile Spring Boot (mvn -q -DskipTests package)",
+			"type": "shell",
+			"command": "cd \"c:\\Users\\Admin\\Desktop\\DATNV1\\DATN-main\\DATN-MAIN-POLO\"; .\\mvnw -q -DskipTests package",
+			"group": "build"
+		},
+		{
+			"label": "Compile Spring Boot (mvn -q -DskipTests package)",
+			"type": "shell",
+			"command": "cd \"c:\\Users\\Admin\\Desktop\\DATNV1\\DATN-main\\DATN-MAIN-POLO\"; .\\mvnw -q -DskipTests package",
+			"group": "build"
+		},
+		{
+			"label": "Compile Spring Boot (mvn -q -DskipTests package)",
+			"type": "shell",
+			"command": "cd \"c:\\Users\\Admin\\Desktop\\DATNV1\\DATN-main\\DATN-MAIN-POLO\"; .\\mvnw -q -DskipTests package",
+			"group": "build"
+		},
+		{
+			"label": "Build Backend",
+			"type": "shell",
+			"command": "cd \"c:\\Users\\Admin\\Desktop\\DATNV1\\DATN-main\\DATN-MAIN-POLO\"; .\\mvnw -q -DskipTests package",
+			"isBackground": false,
+			"problemMatcher": [
+				"$maven-project"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Run Spring Boot App",
+			"type": "shell",
+			"command": "cd \"c:\\Users\\Admin\\Desktop\\DATNV1\\DATN-main\\DATN-MAIN-POLO\" && .\\mvnw spring-boot:run",
+			"isBackground": true,
+			"group": "build"
+		},
+		{
+			"label": "Compile Spring Boot (mvn -q -DskipTests package)",
+			"type": "shell",
+			"command": "cd \"c:\\Users\\Admin\\Desktop\\DATNV1\\DATN-main\\DATN-MAIN-POLO\"; .\\mvnw -q -DskipTests package",
+			"problemMatcher": [
+				"$javac"
+			]
+		},
+		{
+			"label": "Run Spring Boot App",
+			"type": "shell",
+			"command": "cd \"c:\\Users\\Admin\\Desktop\\DATNV1\\DATN-main\\DATN-MAIN-POLO\"; .\\mvnw spring-boot:run",
+			"isBackground": true,
+			"group": "build"
+		},
+		{
+			"label": "Compile Spring Boot (clean package)",
+			"type": "shell",
+			"command": "cd \"c:\\Users\\Admin\\Desktop\\DATNV1\\DATN-main\\DATN-MAIN-POLO\"; .\\mvnw -q -DskipTests clean package",
+			"problemMatcher": [
+				"$maven-project"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Compile Spring Boot (clean package)",
+			"type": "shell",
+			"command": "cd \"c:\\Users\\Admin\\Desktop\\DATNV1\\DATN-main\\DATN-MAIN-POLO\"; .\\mvnw -q -DskipTests clean package",
+			"problemMatcher": [
+				"$maven-project"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Run Frontend Dev (serve)",
+			"type": "shell",
+			"command": "cd \"c:\\Users\\Admin\\Desktop\\DATNV1\\DATN-main\\Frontend\\vite-project\"; npm run dev",
+			"isBackground": true,
+			"group": "build"
+		},
+		{
+			"label": "Compile Spring Boot (clean package)",
+			"type": "shell",
+			"command": "cd \"c:\\Users\\Admin\\Desktop\\DATNV1\\DATN-main\\DATN-MAIN-POLO\"; .\\mvnw -q -DskipTests clean package",
+			"isBackground": false,
+			"problemMatcher": [
+				"$maven-project"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Compile Spring Boot (mvn -q -DskipTests package)",
+			"type": "shell",
+			"command": "cd \"c:\\Users\\Admin\\Desktop\\DATNV1\\DATN-main\\DATN-MAIN-POLO\"; .\\mvnw -q -DskipTests package",
+			"isBackground": false,
+			"problemMatcher": [
+				"$javac"
+			],
+			"group": "build"
 		}
 	]
 }

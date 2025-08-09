@@ -4,6 +4,8 @@ import com.example.datnmainpolo.config.JwtUtil;
 import com.example.datnmainpolo.dto.LoginDTO.LoginRequest;
 import com.example.datnmainpolo.dto.LoginDTO.LoginResponse;
 import com.example.datnmainpolo.dto.LoginDTO.RegisterRequest;
+import com.example.datnmainpolo.dto.LoginDTO.ForgotPasswordRequest;
+import com.example.datnmainpolo.dto.LoginDTO.ResetPasswordRequest;
 import com.example.datnmainpolo.dto.PageDTO.PaginationResponse;
 import com.example.datnmainpolo.dto.UserDTO.UserRequestDTO;
 import com.example.datnmainpolo.dto.UserDTO.UserResponseDTO;
@@ -23,6 +25,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/user")
+@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173"}, allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS}, allowCredentials = "true")
 @RequiredArgsConstructor
 public class UserController {
     private final AuthService authService;
@@ -106,6 +109,24 @@ public class UserController {
     public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
         try {
             return ResponseEntity.ok(authService.register(request));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestBody @Valid ForgotPasswordRequest request) {
+        try {
+            return ResponseEntity.ok(authService.forgotPassword(request));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody @Valid ResetPasswordRequest request) {
+        try {
+            return ResponseEntity.ok(authService.resetPassword(request));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }

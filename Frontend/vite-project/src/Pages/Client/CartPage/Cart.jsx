@@ -25,12 +25,19 @@ const Cart = () => {
         console.log('🔍 [CART AUTH] Token exists:', !!token);
         
         if (!user || !token) {
-          console.log('🔍 [CART AUTH] No auth data, redirecting to login');
-          toast.error('Vui lòng đăng nhập để xem giỏ hàng', {
-            position: 'top-right',
-            autoClose: 3000,
-          });
-          navigate('/login');
+          console.log('🔍 [CART AUTH] No auth -> load guest cart from localStorage');
+          const raw = localStorage.getItem('guest_cart');
+          let list = [];
+          try {
+            const parsed = JSON.parse(raw || '[]');
+            list = Array.isArray(parsed) ? parsed : [];
+          } catch (e) {
+            list = [];
+          }
+          // Ensure each item has an id (fallback to guest-<productDetailId>)
+          list = list.map(it => ({ ...it, id: it.id || `guest-${it.productDetailId}` }));
+          setCartItems(list);
+          setSelectedItems(new Set(list.map(it => it.id)));
           return;
         }
         
@@ -94,7 +101,9 @@ const Cart = () => {
         
         // Đảm bảo cartItems luôn là array
         const data = response.data;
+        console.log('🛒 [CART DEBUG] Raw cart data:', data);
         if (Array.isArray(data)) {
+          console.log('🛒 [CART DEBUG] First item structure:', data[0]);
           setCartItems(data);
         } else {
           console.warn('Cart data is not an array:', data);
@@ -115,51 +124,70 @@ const Cart = () => {
   }, [navigate]);
 
   const handleUpdateQuantity = async (cartDetailId, quantity) => {
+    const user = AuthService.getCurrentUser();
+    const token = localStorage.getItem('token');
+    // Guest: update localStorage
+    if (!user || !token) {
+      const extractPid = (id) => typeof id === 'string' && id.startsWith('guest-') ? parseInt(id.split('-')[1]) : id;
+      const pid = extractPid(cartDetailId);
+      setCartItems(prev => {
+        const updated = prev.map(it =>
+          (it.productDetailId === pid || it.id === cartDetailId)
+            ? { ...it, id: it.id || `guest-${it.productDetailId}`, quantity: Math.max(1, Math.min(quantity, it.availableQuantity || 99)) }
+            : it
+        );
+        localStorage.setItem('guest_cart', JSON.stringify(updated));
+        return updated;
+      });
+      // Keep selection in sync
+      setSelectedItems(prev => new Set([...prev]));
+      toast.success('Cập nhật số lượng thành công');
+      return;
+    }
+    // Logged-in path
     try {
       const response = await axiosInstance.put(`/cart-checkout/cart/update-quantity/${cartDetailId}?quantity=${quantity}`);
-      
-      // Đảm bảo cartItems là array trước khi map
       if (Array.isArray(cartItems)) {
         setCartItems(cartItems.map((item) => (item.id === cartDetailId ? response.data : item)));
       }
-      
-      toast.success('Cập nhật số lượng thành công', {
-        position: 'top-right',
-        autoClose: 3000,
-      });
+      toast.success('Cập nhật số lượng thành công', { position: 'top-right', autoClose: 3000 });
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Lỗi khi cập nhật số lượng', {
-        position: 'top-right',
-        autoClose: 3000,
-      });
+      toast.error(error.response?.data?.message || 'Lỗi khi cập nhật số lượng', { position: 'top-right', autoClose: 3000 });
     }
   };
 
   const handleRemoveItem = async (cartDetailId) => {
-    try {
-      await axiosInstance.delete(`/cart-checkout/cart/remove/${cartDetailId}`);
-      
-      // Đảm bảo cartItems là array trước khi filter
-      if (Array.isArray(cartItems)) {
-        setCartItems(cartItems.filter((item) => item.id !== cartDetailId));
-      }
-      
-      // Xóa khỏi danh sách selected nếu có
+    const user = AuthService.getCurrentUser();
+    const token = localStorage.getItem('token');
+    if (!user || !token) {
+      const extractPid = (id) => typeof id === 'string' && id.startsWith('guest-') ? parseInt(id.split('-')[1]) : id;
+      const pid = extractPid(cartDetailId);
+      setCartItems(prev => {
+        const updated = prev.filter(it => !(it.productDetailId === pid || it.id === cartDetailId));
+        localStorage.setItem('guest_cart', JSON.stringify(updated));
+        return updated;
+      });
       setSelectedItems(prev => {
         const newSet = new Set(prev);
         newSet.delete(cartDetailId);
         return newSet;
       });
-      
-      toast.success('Đã xóa sản phẩm khỏi giỏ hàng', {
-        position: 'top-right',
-        autoClose: 3000,
+      toast.success('Đã xóa sản phẩm khỏi giỏ hàng');
+      return;
+    }
+    try {
+      await axiosInstance.delete(`/cart-checkout/cart/remove/${cartDetailId}`);
+      if (Array.isArray(cartItems)) {
+        setCartItems(cartItems.filter((item) => item.id !== cartDetailId));
+      }
+      setSelectedItems(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(cartDetailId);
+        return newSet;
       });
+      toast.success('Đã xóa sản phẩm khỏi giỏ hàng', { position: 'top-right', autoClose: 3000 });
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Lỗi khi xóa sản phẩm', {
-        position: 'top-right',
-        autoClose: 3000,
-      });
+      toast.error(error.response?.data?.message || 'Lỗi khi xóa sản phẩm', { position: 'top-right', autoClose: 3000 });
     }
   };
 
@@ -177,7 +205,7 @@ const Cart = () => {
 
   const handleSelectAll = (isSelected) => {
     if (isSelected) {
-      setSelectedItems(new Set(cartItems.map(item => item.id)));
+      setSelectedItems(new Set((Array.isArray(cartItems) ? cartItems : []).map(item => item.id)));
     } else {
       setSelectedItems(new Set());
     }

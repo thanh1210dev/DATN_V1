@@ -26,6 +26,33 @@ public class EmailService {
         this.mailSender = mailSender;
     }
 
+        public void sendPasswordResetEmail(String to, String name, String resetLink) throws MessagingException {
+                MimeMessage message = mailSender.createMimeMessage();
+                MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+                helper.setFrom(fromEmail);
+                helper.setTo(to);
+                helper.setSubject("Đặt lại mật khẩu - POLO Viet Store");
+
+                String html = """
+                                <html>
+                                <body style='font-family: Arial, sans-serif;'>
+                                    <h2>Xin chào %s,</h2>
+                                    <p>Bạn vừa yêu cầu đặt lại mật khẩu cho tài khoản POLO Viet Store.</p>
+                                    <p>Vui lòng nhấn vào nút dưới đây để đặt lại mật khẩu. Liên kết sẽ hết hạn sau 30 phút.</p>
+                                    <p style='margin:24px 0;'>
+                                        <a href='%s' style='background:#4F46E5;color:#fff;padding:12px 20px;border-radius:6px;text-decoration:none;'>Đặt lại mật khẩu</a>
+                                    </p>
+                                    <p>Nếu bạn không yêu cầu, hãy bỏ qua email này.</p>
+                                    <p>Trân trọng,<br/>POLO Viet Store</p>
+                                </body>
+                                </html>
+                                """.formatted(name != null ? name : "bạn", resetLink);
+
+                helper.setText(html, true);
+                mailSender.send(message);
+        }
+
     public void sendVoucherAssignmentEmail(String to, String userName, Voucher voucher) throws MessagingException {
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
@@ -36,7 +63,6 @@ public class EmailService {
 
         // Format dates
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-        String startTime = voucher.getStartTime() != null ? voucher.getStartTime().atZone(java.time.ZoneId.systemDefault()).format(formatter) : "N/A";
         String endTime = voucher.getEndTime() != null ? voucher.getEndTime().atZone(java.time.ZoneId.systemDefault()).format(formatter) : "N/A";
 
         // Determine discount value
@@ -173,8 +199,8 @@ public class EmailService {
 
                 <!-- Call to Action -->
                 <div class="text-center mb-6">
-                    <a href="https://your-website.com/orders" class="inline-block bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 transition">
-                        Theo dõi đơn hàng
+                    <a href="http://localhost:3000/order-lookup?code=%s" class="inline-block bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 transition">
+                        Tra cứu đơn hàng
                     </a>
                 </div>
 
@@ -198,7 +224,8 @@ public class EmailService {
                 address,
                 "COD".equals(paymentMethod) ? 
                     "Đơn hàng của bạn đang được xác nhận. Chúng tôi sẽ liên hệ với bạn trong thời gian sớm nhất để xác nhận và giao hàng." :
-                    "Đơn hàng của bạn đã được thanh toán thành công và đang được chuẩn bị. Chúng tôi sẽ giao hàng trong thời gian sớm nhất."
+                    "Đơn hàng của bạn đã được thanh toán thành công và đang được chuẩn bị. Chúng tôi sẽ giao hàng trong thời gian sớm nhất.",
+                billCode
         );
 
         helper.setText(htmlContent, true);
