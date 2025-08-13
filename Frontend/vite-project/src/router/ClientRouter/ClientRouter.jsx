@@ -63,6 +63,8 @@ const ClientRouter = () => {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/register" element={<RegisterPage />} />
+  {/* Đường dẫn đăng nhập bị thiếu gây 404 khi nhấn Đăng Nhập */}
+  <Route path="/login" element={<LoginPage />} />
       <Route path="/oauth2/redirect" element={<OAuth2RedirectHandler />} />
       <Route path="*" element={<div className="p-6 text-center text-gray-500 font-sans text-lg">404 - Không tìm thấy trang</div>} />
     </Routes>
