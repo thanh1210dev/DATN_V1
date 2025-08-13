@@ -4,15 +4,11 @@ import com.example.datnmainpolo.dto.BillDTO.BillResponseDTO;
 import com.example.datnmainpolo.dto.BillDTO.DeliveryBillAddressRequestDTO;
 import com.example.datnmainpolo.entity.Bill;
 import com.example.datnmainpolo.entity.CustomerInformation;
-import com.example.datnmainpolo.entity.OrderHistory;
 import com.example.datnmainpolo.entity.Transaction;
 import com.example.datnmainpolo.enums.BillType;
-import com.example.datnmainpolo.enums.OrderStatus;
 import com.example.datnmainpolo.enums.TransactionStatus;
 import com.example.datnmainpolo.enums.TransactionType;
 import com.example.datnmainpolo.repository.BillRepository;
-import com.example.datnmainpolo.repository.CustomerInformationRepository;
-import com.example.datnmainpolo.repository.OrderHistoryRepository;
 import com.example.datnmainpolo.repository.TransactionRepository;
 import com.example.datnmainpolo.service.BillService;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +19,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
@@ -38,11 +35,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class DeliveryBillService {
     private static final Logger LOGGER = LoggerFactory.getLogger(DeliveryBillService.class);
-    private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-
     private final BillRepository billRepository;
-    private final CustomerInformationRepository customerInformationRepository;
-    private final OrderHistoryRepository orderHistoryRepository;
     private final TransactionRepository transactionRepository;
     private final RestTemplate restTemplate;
     private final BillService billService;
@@ -113,17 +106,8 @@ public class DeliveryBillService {
         // Save the bill without linking to CustomerInformation
         Bill savedBill = billRepository.save(bill);
 
-        // Update order history
-        OrderHistory orderHistory = new OrderHistory();
-        orderHistory.setBill(savedBill);
-        orderHistory.setStatusOrder(OrderStatus.PENDING);
-        orderHistory.setActionDescription("Cập nhật thông tin giao hàng và phí ship cho hóa đơn");
-        orderHistory.setCreatedAt(Instant.now());
-        orderHistory.setUpdatedAt(Instant.now());
-        orderHistory.setCreatedBy("system");
-        orderHistory.setUpdatedBy("system");
-        orderHistory.setDeleted(false);
-        orderHistoryRepository.save(orderHistory);
+    // Yêu cầu mới: KHÔNG tạo OrderHistory khi chỉ cập nhật thông tin giao hàng và phí ship
+    LOGGER.debug("Skip creating OrderHistory for shipping info update on bill {}", savedBill.getId());
 
         // Update transaction
         Transaction transaction = transactionRepository.findByBillId(bill.getId())
@@ -158,10 +142,16 @@ public class DeliveryBillService {
             if (customerInfo.getDistrictId() != null && customerInfo.getWardCode() != null && !customerInfo.getWardCode().isEmpty()) {
                 String wardUrl = ghnBaseUrl + "/master-data/ward?district_id=" + customerInfo.getDistrictId();
                 HttpEntity<String> wardRequest = new HttpEntity<>(headers);
-                ResponseEntity<Map> wardResponse = restTemplate.exchange(wardUrl, HttpMethod.GET, wardRequest, Map.class);
+        ResponseEntity<Map<String,Object>> wardResponse = restTemplate.exchange(
+            wardUrl,
+            HttpMethod.GET,
+            wardRequest,
+            new ParameterizedTypeReference<Map<String,Object>>() {}
+        );
                 Map<String, Object> wardResponseBody = wardResponse.getBody();
 
                 if (wardResponseBody != null && wardResponseBody.containsKey("data")) {
+                    @SuppressWarnings("unchecked")
                     List<Map<String, Object>> wardDataList = (List<Map<String, Object>>) wardResponseBody.get("data");
                     boolean wardFound = false;
                     for (Map<String, Object> wardData : wardDataList) {
@@ -186,10 +176,16 @@ public class DeliveryBillService {
             if (customerInfo.getDistrictId() != null) {
                 String districtUrl = ghnBaseUrl + "/master-data/district?district_id=" + customerInfo.getDistrictId();
                 HttpEntity<String> districtRequest = new HttpEntity<>(headers);
-                ResponseEntity<Map> districtResponse = restTemplate.exchange(districtUrl, HttpMethod.GET, districtRequest, Map.class);
+        ResponseEntity<Map<String,Object>> districtResponse = restTemplate.exchange(
+            districtUrl,
+            HttpMethod.GET,
+            districtRequest,
+            new ParameterizedTypeReference<Map<String,Object>>() {}
+        );
                 Map<String, Object> districtResponseBody = districtResponse.getBody();
 
                 if (districtResponseBody != null && districtResponseBody.containsKey("data")) {
+                    @SuppressWarnings("unchecked")
                     List<Map<String, Object>> districtDataList = (List<Map<String, Object>>) districtResponseBody.get("data");
                     if (!districtDataList.isEmpty()) {
                         Map<String, Object> districtData = districtDataList.get(0);
@@ -212,10 +208,16 @@ public class DeliveryBillService {
             if (customerInfo.getProvinceId() != null) {
                 String provinceUrl = ghnBaseUrl + "/master-data/province?province_id=" + customerInfo.getProvinceId();
                 HttpEntity<String> provinceRequest = new HttpEntity<>(headers);
-                ResponseEntity<Map> provinceResponse = restTemplate.exchange(provinceUrl, HttpMethod.GET, provinceRequest, Map.class);
+        ResponseEntity<Map<String,Object>> provinceResponse = restTemplate.exchange(
+            provinceUrl,
+            HttpMethod.GET,
+            provinceRequest,
+            new ParameterizedTypeReference<Map<String,Object>>() {}
+        );
                 Map<String, Object> provinceResponseBody = provinceResponse.getBody();
 
                 if (provinceResponseBody != null && provinceResponseBody.containsKey("data")) {
+                    @SuppressWarnings("unchecked")
                     List<Map<String, Object>> provinceDataList = (List<Map<String, Object>>) provinceResponseBody.get("data");
                     if (!provinceDataList.isEmpty()) {
                         Map<String, Object> provinceData = provinceDataList.get(0);
@@ -253,10 +255,16 @@ public class DeliveryBillService {
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
             String url = ghnBaseUrl + "/v2/shipping-order/fee";
 
-            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, request, Map.class);
+        ResponseEntity<Map<String,Object>> response = restTemplate.exchange(
+            url,
+            HttpMethod.POST,
+            request,
+            new ParameterizedTypeReference<Map<String,Object>>() {}
+        );
             Map<String, Object> responseBody = response.getBody();
 
             if (responseBody != null && responseBody.containsKey("data")) {
+                @SuppressWarnings("unchecked")
                 Map<String, Object> data = (Map<String, Object>) responseBody.get("data");
                 Integer fee = (Integer) data.get("total");
                 return new BigDecimal(fee).setScale(2, RoundingMode.HALF_UP);

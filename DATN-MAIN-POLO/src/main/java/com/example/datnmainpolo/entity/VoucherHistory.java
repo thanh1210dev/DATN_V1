@@ -30,7 +30,7 @@ public class VoucherHistory {
     private Voucher voucher;
 
     @Column(name = "order_id")
-    private Integer orderId;
+    private Integer orderId; // numeric, unchanged
 
     @Column(name = "created_at")
     private Instant createdAt;
@@ -38,13 +38,13 @@ public class VoucherHistory {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
-    @Column(name = "money_before_reduction", precision = 10, scale = 2)
+    @Column(name = "money_before_reduction", precision = 15, scale = 2)
     private BigDecimal moneyBeforeReduction;
 
-    @Column(name = "money_after_reduction", precision = 10, scale = 2)
+    @Column(name = "money_after_reduction", precision = 15, scale = 2)
     private BigDecimal moneyAfterReduction;
 
-    @Column(name = "money_reduction", precision = 10, scale = 2)
+    @Column(name = "money_reduction", precision = 15, scale = 2)
     private BigDecimal moneyReduction;
 
     @ManyToOne

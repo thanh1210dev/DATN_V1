@@ -38,15 +38,15 @@ public class Product {
     private Category category;
 
     @Size(max = 200)
-    @Column(name = "code", length = 200)
+    @Column(name = "code", columnDefinition = "NVARCHAR(200)")
     private String code;
 
     @Size(max = 100)
     @Column(name = "name",  columnDefinition = "NVARCHAR(255)")
     private String name;
 
-    @Size(max = 100)
-    @Column(name = "description", length = 100)
+    @Size(max = 500)
+    @Column(name = "description", columnDefinition = "NVARCHAR(500)")
     private String description;
 
     @Column(name = "created_at")

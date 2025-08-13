@@ -27,6 +27,6 @@ public class ProductRequestDTO {
     @Size(max = 100, message = "Tên sản phẩm không được vượt quá 100 ký tự")
     private String name;
 
-    @Size(max = 100, message = "Mô tả không được vượt quá 100 ký tự")
+    @Size(max = 500, message = "Mô tả không được vượt quá 500 ký tự")
     private String description;
 }

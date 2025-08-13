@@ -106,14 +106,24 @@ const ProductCard = ({ product, isNew }) => {
 
   const priceRange = getPriceRange();
 
+  // Determine overall status states
+  const statuses = allProductDetails.map(d => d.status);
+  const isDiscontinued = statuses.length > 0 && statuses.every(s => s === 'DISCONTINUED');
+  const isOutOfStock = !isDiscontinued && statuses.length > 0 && statuses.every(s => s !== 'AVAILABLE');
+
   return (
-    <div className="group relative bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition duration-300">
+  <div className={`group relative bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition duration-300 ${(isOutOfStock || isDiscontinued) ? 'opacity-90' : ''}`}> 
       {isNew && (
         <span className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded z-20">
           NEW
         </span>
       )}
-      {calculateSavings() > 0 && (
+      {(isOutOfStock || isDiscontinued) && (
+        <span className={`absolute top-2 right-2 ${isDiscontinued ? 'bg-gray-700' : 'bg-gray-800/90'} text-white text-xs font-semibold px-2 py-1 rounded z-20`}>
+          {isDiscontinued ? 'Ngừng bán' : 'Hết hàng'}
+        </span>
+      )}
+  {calculateSavings() > 0 && !isDiscontinued && (
         <div className="absolute top-2 right-2 bg-blue-900 text-white text-xs font-bold px-2 py-1 rounded z-10">
           Tiết kiệm {calculateSavings().toLocaleString('vi-VN')}₫
         </div>
@@ -128,11 +138,19 @@ const ProductCard = ({ product, isNew }) => {
           alt={product.name}
           className="w-full h-64 object-cover transition-transform duration-300 group-hover:scale-105"
         />
+        {(isOutOfStock || isDiscontinued) && (
+          <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-10">
+            <span className="text-white text-sm font-semibold tracking-wide">{isDiscontinued ? 'Ngừng bán' : 'Hết hàng'}</span>
+          </div>
+        )}
       </Link>
       <div className="p-3">
         <Link to={`/products/${product.id}`}>
           <h3 className="text-sm font-medium text-gray-900 line-clamp-2 leading-tight">{product.name}</h3>
         </Link>
+        {product.code && (
+          <p className="text-[11px] text-gray-500 mt-1">Mã: {product.code}</p>
+        )}
         <div className="flex gap-2 mt-2 items-center">
           {priceRange ? (
             // Hiển thị khoảng giá nếu có nhiều chi tiết

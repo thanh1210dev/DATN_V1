@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { HiOutlinePlus, HiOutlinePencilAlt, HiOutlineTrash, HiOutlineArrowLeft, HiChevronLeft, HiChevronRight, HiOutlineQrcode, HiOutlineDocumentAdd } from 'react-icons/hi';
+import { HiOutlinePlus, HiOutlinePencilAlt, HiOutlineTrash, HiOutlineArrowLeft, HiChevronLeft, HiChevronRight, HiOutlineQrcode } from 'react-icons/hi';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Select from 'react-select';
@@ -25,14 +25,14 @@ const ProductDetail = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [isImageViewModalOpen, setIsImageViewModalOpen] = useState(false);
-  const [isHistoryDetailModalOpen, setIsHistoryDetailModalOpen] = useState(false);
+  // Removed history detail modal state
   const [pendingPayload, setPendingPayload] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [selectedImagesForView, setSelectedImagesForView] = useState([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [selectedHistory, setSelectedHistory] = useState(null);
+  // removed selectedHistory state
   const [formData, setFormData] = useState({
     productId: parseInt(id),
     imageIds: [],
@@ -41,7 +41,7 @@ const ProductDetail = () => {
     code: '',
     quantity: 0,
     price: '',
-    importPrice: '',
+  // importPrice removed per new requirements
     status: 'AVAILABLE',
   });
   const [images, setImages] = useState([]);
@@ -50,109 +50,28 @@ const ProductDetail = () => {
   const [newImages, setNewImages] = useState([]);
   const [sizes, setSizes] = useState([]);
   const [colors, setColors] = useState([]);
-  const [expandedRows, setExpandedRows] = useState({});
-  const [importForms, setImportForms] = useState({});
-  const [importHistories, setImportHistories] = useState({});
-  const [historyPages, setHistoryPages] = useState({});
-  const [historyTotalPages, setHistoryTotalPages] = useState({});
-  const [isHistoryLoading, setIsHistoryLoading] = useState({});
-  const [allImportHistory, setAllImportHistory] = useState([]);
-  const [allHistoryPage, setAllHistoryPage] = useState(0);
-  const [allHistoryTotalPages, setAllHistoryTotalPages] = useState(0);
-  const [isAllHistoryLoading, setIsAllHistoryLoading] = useState(false);
-  const [filterForm, setFilterForm] = useState({
-    startDate: '',
-    endDate: '',
-    minPrice: '',
-    maxPrice: '',
-    code: '',
-  });
+  // Removed import history related states
 
   // Initialize import form for a product detail
-  const initializeImportForm = (detailId) => ({
-    importQuantity: '',
-    importPrice: '',
-    publicImportPrice: '', // Added publicImportPrice
-    isSubmitting: false,
-  });
+  // Removed initializeImportForm (import feature deleted)
 
   // Toggle expanded row for import actions
-  const toggleRowExpansion = (detailId) => {
-    setExpandedRows(prev => ({
-      ...prev,
-      [detailId]: !prev[detailId],
-    }));
-    if (!expandedRows[detailId]) {
-      setImportForms(prev => ({
-        ...prev,
-        [detailId]: initializeImportForm(detailId),
-      }));
-      fetchImportHistory(detailId, 0);
-    }
-  };
+  // Removed toggleRowExpansion (import feature deleted)
 
   // Fetch import history for a product detail
-  const fetchImportHistory = async (detailId, page) => {
-    setIsHistoryLoading(prev => ({ ...prev, [detailId]: true }));
-    try {
-      const response = await ProductDetailService.getImportHistory(detailId, page, 5);
-      setImportHistories(prev => ({ ...prev, [detailId]: response.content }));
-      setHistoryTotalPages(prev => ({ ...prev, [detailId]: response.totalPages }));
-      setHistoryPages(prev => ({ ...prev, [detailId]: page }));
-    } catch (error) {
-      toast.error(error || 'Lỗi khi tải lịch sử nhập hàng', { position: 'top-right', autoClose: 3000 });
-    } finally {
-      setIsHistoryLoading(prev => ({ ...prev, [detailId]: false }));
-    }
-  };
+  // Removed fetchImportHistory
 
   // Fetch all import histories with filters
-  const fetchAllImportHistory = async () => {
-    setIsAllHistoryLoading(true);
-    try {
-      const response = await ProductDetailService.getAllImportHistory(
-        allHistoryPage,
-        5,
-        filterForm.startDate || undefined,
-        filterForm.endDate || undefined,
-        filterForm.minPrice ? parseFloat(filterForm.minPrice) : undefined,
-        filterForm.maxPrice ? parseFloat(filterForm.maxPrice) : undefined,
-        filterForm.code || undefined
-      );
-      setAllImportHistory(response.content);
-      setAllHistoryTotalPages(response.totalPages);
-    } catch (error) {
-      toast.error(error || 'Lỗi khi tải toàn bộ lịch sử nhập hàng', { position: 'top-right', autoClose: 3000 });
-    } finally {
-      setIsAllHistoryLoading(false);
-    }
-  };
+  // Removed fetchAllImportHistory
 
   // Handle filter form input changes  Giá công khai
-  const handleFilterInputChange = (e) => {
-    const { name, value } = e.target;
-    setFilterForm(prev => ({ ...prev, [name]: value }));
-  };
+  // Removed handleFilterInputChange
 
   // Handle filter form submission
-  const handleFilterSubmit = (e) => {
-    e.preventDefault();
-    setAllHistoryPage(0); // Reset to first page when applying filters
-    fetchAllImportHistory();
-  };
+  // Removed handleFilterSubmit
 
   // Reset filter form
-  const resetFilterForm = () => {
-    setFilterForm({
-      startDate: '',
-      endDate: '',
-      minPrice: '',
-      maxPrice: '',
-      code: '',
-    });
-    setAllHistoryPage(0);
-    fetchAllImportHistory();
-  };
+  // Removed resetFilterForm
 
   // Generate and download QR code
   const generateAndDownloadQRCode = async (code) => {
@@ -255,76 +174,22 @@ const ProductDetail = () => {
     fetchFormData();
   }, [id, page, size]);
 
-  useEffect(() => {
-    fetchAllImportHistory();
-  }, [allHistoryPage]);
+  // Removed effect for all import history
 
   // Handle import form input changes
-  const handleImportInputChange = (detailId, field, value) => {
-    setImportForms(prev => ({
-      ...prev,
-      [detailId]: { ...prev[detailId], [field]: value },
-    }));
-  };
+  // Removed handleImportInputChange
 
   // Handle import form submission
-  const handleImportSubmit = async (detailId, e) => {
-    e.preventDefault();
-    const form = importForms[detailId];
-    if (!form.importQuantity || form.importQuantity <= 0 || !form.importPrice || form.importPrice <= 0 || !form.publicImportPrice || form.publicImportPrice <= 0) {
-      toast.error('Vui lòng nhập số lượng, giá nhập và giá công khai hợp lệ', { position: 'top-right', autoClose: 3000 });
-      return;
-    }
-
-    setImportForms(prev => ({
-      ...prev,
-      [detailId]: { ...prev[detailId], isSubmitting: true },
-    }));
-
-    try {
-      const importData = {
-        importQuantity: parseInt(form.importQuantity),
-        importPrice: parseFloat(form.importPrice),
-        publicImportPrice: parseFloat(form.publicImportPrice), // Added publicImportPrice
-      };
-      await ProductDetailService.importProduct(detailId, importData);
-      toast.success('Nhập hàng thành công!', { position: 'top-right', autoClose: 3000 });
-      setImportForms(prev => ({
-        ...prev,
-        [detailId]: initializeImportForm(detailId),
-      }));
-      fetchProductDetails();
-      fetchImportHistory(detailId, 0);
-    } catch (error) {
-      toast.error(error || 'Lỗi khi nhập hàng', { position: 'top-right', autoClose: 3000 });
-    } finally {
-      setImportForms(prev => ({
-        ...prev,
-        [detailId]: { ...prev[detailId], isSubmitting: false },
-      }));
-    }
-  };
+  // Removed handleImportSubmit
 
   // Handle history page change
-  const handleHistoryPageChange = (detailId, newPage) => {
-    if (newPage >= 0 && newPage < historyTotalPages[detailId]) {
-      setHistoryPages(prev => ({ ...prev, [detailId]: newPage }));
-      fetchImportHistory(detailId, newPage);
-    }
-  };
+  // Removed handleHistoryPageChange
 
   // Handle all history page change
-  const handleAllHistoryPageChange = (newPage) => {
-    if (newPage >= 0 && newPage < allHistoryTotalPages) {
-      setAllHistoryPage(newPage);
-    }
-  };
+  // Removed handleAllHistoryPageChange
 
   // Handle view history detail
-  const handleViewHistoryDetail = (history) => {
-    setSelectedHistory(history);
-    setIsHistoryDetailModalOpen(true);
-  };
+  // Removed handleViewHistoryDetail
 
   // Handle image selection
   const handleSelectImage = (imageId) => {
@@ -399,7 +264,7 @@ const ProductDetail = () => {
       code: '',
       quantity: 0,
       price: '',
-      importPrice: '',
+  // importPrice removed
       status: 'AVAILABLE',
     });
     setSelectedImages([]);
@@ -425,7 +290,7 @@ const ProductDetail = () => {
         code: data.code || '',
         quantity: data.quantity || 0,
         price: data.price ? data.price.toString() : '',
-        importPrice: data.importPrice ? data.importPrice.toString() : '',
+  // importPrice removed
         status: data.status || 'AVAILABLE',
       });
       setSelectedImages(Array.isArray(data.images) ? data.images.map(img => img.id) : []);
@@ -441,10 +306,7 @@ const ProductDetail = () => {
       toast.error('Giá phải là một số hợp lệ');
       return false;
     }
-    if (!formData.importPrice || isNaN(parseFloat(formData.importPrice))) {
-      toast.error('Giá nhập phải là một số hợp lệ');
-      return false;
-    }
+  // importPrice validation removed
     if (formData.imageIds.length === 0 && newImages.length === 0) {
       toast.error('Vui lòng chọn ít nhất một hình ảnh');
       return false;
@@ -478,7 +340,7 @@ const ProductDetail = () => {
       code: isEditing ? formData.code : generateRandomCode(),
       quantity: parseInt(formData.quantity),
       price: parseFloat(formData.price),
-      importPrice: parseFloat(formData.importPrice),
+  // importPrice removed
       status: isEditing ? formData.status : 'AVAILABLE',
     };
 
@@ -547,12 +409,12 @@ const ProductDetail = () => {
     setIsDeleteModalOpen(false);
     setIsConfirmModalOpen(false);
     setIsImageViewModalOpen(false);
-    setIsHistoryDetailModalOpen(false);
+  // history modal removed
     setDeleteId(null);
     setPendingPayload(null);
     setSelectedImagesForView([]);
     setCurrentImageIndex(0);
-    setSelectedHistory(null);
+  // selectedHistory cleared (removed)
   };
 
   const handleBack = () => {
@@ -614,14 +476,14 @@ const ProductDetail = () => {
           <thead className="text-xs font-semibold uppercase bg-indigo-50 text-indigo-700">
             <tr>
               <th className="px-6 py-3 w-16 rounded-tl-lg">#</th>
-              <th className="px-6 py-3 w-32">Mã sản phẩm</th>
+              <th className="px-6 py-3 w-32">Mã sản phẩm chi tiết</th>
               <th className="px-6 py-3">Tên sản phẩm</th>
               <th className="px-6 py-3 w-32">Kích thước</th>
               <th className="px-6 py-3 w-32">Màu sắc</th>
               <th className="px-6 py-3 w-32">Hình ảnh</th>
               <th className="px-6 py-3 w-24">Số lượng</th>
               <th className="px-6 py-3 w-32">Giá</th>
-              <th className="px-6 py-3 w-32">Giá nhập</th>
+                    {/* Giá nhập removed */}
               <th className="px-6 py-3 w-32">Giá khuyến mãi</th>
               <th className="px-6 py-3 w-32">Trạng thái</th>
               <th className="px-6 py-3 w-40">Ngày tạo</th>
@@ -689,7 +551,7 @@ const ProductDetail = () => {
                     </td>
                     <td className="px-6 py-3">{item.quantity || 0}</td>
                     <td className="px-6 py-3">{item.price ? item.price.toLocaleString('vi-VN') + ' VND' : '-'}</td>
-                    <td className="px-6 py-3">{item.importPrice ? item.importPrice.toLocaleString('vi-VN') + ' VND' : '-'}</td>
+                    {/* importPrice column removed */}
                     <td className="px-6 py-3">{item.promotionalPrice ? item.promotionalPrice.toLocaleString('vi-VN') + ' VND' : '0'}</td>
                     <td className="px-6 py-3">{statusToVietnamese(item.status)}</td>
                     <td className="px-6 py-3">{formatDate(item.createdAt)}</td>
@@ -708,13 +570,7 @@ const ProductDetail = () => {
                       >
                         <HiOutlineQrcode size={16} />
                       </button>
-                      <button
-                        onClick={() => toggleRowExpansion(item.id)}
-                        className="p-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-                        title="Nhập hàng & Lịch sử"
-                      >
-                        <HiOutlineDocumentAdd size={16} />
-                      </button>
+                      {/* Import & history button removed */}
                       <button
                         onClick={() => handleDeleteClick(item.id)}
                         className="p-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
@@ -724,120 +580,7 @@ const ProductDetail = () => {
                       </button>
                     </td>
                   </tr>
-                  {expandedRows[item.id] && (
-                    <tr>
-                      <td colSpan="12" className="px-6 py-4 bg-gray-50">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <h4 className="text-sm font-medium text-gray-700 mb-2">Nhập hàng</h4>
-                            <form onSubmit={(e) => handleImportSubmit(item.id, e)} className="space-y-3">
-                              <div>
-                                <label className="block text-xs font-medium text-gray-600">Số lượng nhập thêm</label>
-                                <input
-                                  type="number"
-                                  value={importForms[item.id]?.importQuantity || ''}
-                                  onChange={(e) => handleImportInputChange(item.id, 'importQuantity', e.target.value)}
-                                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
-                                  placeholder="Nhập số lượng"
-                                  min="1"
-                                  required
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-xs font-medium text-gray-600">Giá nhập (VND)</label>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  value={importForms[item.id]?.importPrice || ''}
-                                  onChange={(e) => handleImportInputChange(item.id, 'importPrice', e.target.value)}
-                                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
-                                  placeholder="Nhập giá nhập"
-                                  min="0.01"
-                                  required
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-xs font-medium text-gray-600">Giá công khai (VND)</label>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  value={importForms[item.id]?.publicImportPrice || ''}
-                                  onChange={(e) => handleImportInputChange(item.id, 'publicImportPrice', e.target.value)}
-                                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
-                                  placeholder="Nhập giá công khai"
-                                  min="0.01"
-                                  required
-                                />
-                              </div>
-                              <button
-                                type="submit"
-                                disabled={importForms[item.id]?.isSubmitting}
-                                className={`w-full inline-flex justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${importForms[item.id]?.isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              >
-                                {importForms[item.id]?.isSubmitting ? 'Đang nhập...' : 'Nhập hàng'}
-                              </button>
-                            </form>
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-medium text-gray-700 mb-2">Lịch sử nhập hàng</h4>
-                            {isHistoryLoading[item.id] ? (
-                              <div className="text-center text-gray-500 text-sm">Đang tải...</div>
-                            ) : !importHistories[item.id] || importHistories[item.id].length === 0 ? (
-                              <div className="text-center text-gray-500 text-sm">Không có lịch sử nhập hàng</div>
-                            ) : (
-                              <>
-                                <div className="overflow-x-auto">
-                                  <table className="w-full text-sm text-left text-gray-700">
-                                    <thead className="text-xs font-semibold uppercase bg-indigo-50 text-indigo-700">
-                                      <tr>
-                                        <th className="px-4 py-2">Số lượng nhập</th>
-                                        <th className="px-4 py-2">Số lượng đã bán</th>
-                                        <th className="px-4 py-2">Giá nhập</th>
-                                        <th className="px-4 py-2">Giá công khai</th>
-                                        <th className="px-4 py-2">Ngày nhập</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {importHistories[item.id].map((history) => (
-                                        <tr
-                                          key={history.id}
-                                          onClick={() => handleViewHistoryDetail(history)}
-                                          className="border-b hover:bg-indigo-50 transition-colors cursor-pointer"
-                                        >
-                                          <td className="px-4 py-2">{history.importQuantity}</td>
-                                          <td className="px-4 py-2">{history.soldQuantity || 0}</td>
-                                          <td className="px-4 py-2">{history.importPrice.toLocaleString('vi-VN') + ' VND'}</td>
-                                          <td className="px-4 py-2">{history.publicImportPrice ? history.publicImportPrice.toLocaleString('vi-VN') + ' VND' : '-'}</td>
-                                          <td className="px-4 py-2">{formatDate(history.importDate)}</td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                                <div className="mt-3 flex justify-between">
-                                  <button
-                                    onClick={() => handleHistoryPageChange(item.id, historyPages[item.id] - 1)}
-                                    disabled={historyPages[item.id] === 0}
-                                    className={`px-3 py-1 text-sm font-medium rounded-md ${historyPages[item.id] === 0 ? 'bg-gray-300 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
-                                  >
-                                    Trang trước
-                                  </button>
-                                  <span className="text-sm text-gray-700">Trang {historyPages[item.id] + 1} / {historyTotalPages[item.id]}</span>
-                                  <button
-                                    onClick={() => handleHistoryPageChange(item.id, historyPages[item.id] + 1)}
-                                    disabled={historyPages[item.id] >= historyTotalPages[item.id] - 1}
-                                    className={`px-3 py-1 text-sm font-medium rounded-md ${historyPages[item.id] >= historyTotalPages[item.id] - 1 ? 'bg-gray-300 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
-                                  >
-                                    Trang sau
-                                  </button>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
+                  {/* Expanded import/history rows removed */}
                 </React.Fragment>
               ))
             )}
@@ -880,138 +623,7 @@ const ProductDetail = () => {
         </select>
       </div>
 
-      <div className="mt-8 bg-white shadow-lg rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Toàn bộ lịch sử nhập hàng</h3>
-        <form onSubmit={handleFilterSubmit} className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Từ ngày</label>
-            <input
-              type="date"
-              name="startDate"
-              value={filterForm.startDate}
-              onChange={handleFilterInputChange}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Đến ngày</label>
-            <input
-              type="date"
-              name="endDate"
-              value={filterForm.endDate}
-              onChange={handleFilterInputChange}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Mã sản phẩm</label>
-            <input
-              type="text"
-              name="code"
-              value={filterForm.code}
-              onChange={handleFilterInputChange}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
-              placeholder="Nhập mã sản phẩm"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Giá nhập tối thiểu (VND)</label>
-            <input
-              type="number"
-              name="minPrice"
-              value={filterForm.minPrice}
-              onChange={handleFilterInputChange}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
-              placeholder="Nhập giá tối thiểu"
-              min="0"
-              step="0.01"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Giá nhập tối đa (VND)</label>
-            <input
-              type="number"
-              name="maxPrice"
-              value={filterForm.maxPrice}
-              onChange={handleFilterInputChange}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
-              placeholder="Nhập giá tối đa"
-              min="0"
-              step="0.01"
-            />
-          </div>
-          <div className="flex items-end gap-2">
-            <button
-              type="submit"
-              className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
-            >
-              Lọc
-            </button>
-            <button
-              type="button"
-              onClick={resetFilterForm}
-              className="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-400 focus:outline-none transition-colors"
-            >
-              Xóa bộ lọc
-            </button>
-          </div>
-        </form>
-        {isAllHistoryLoading ? (
-          <div className="text-center text-gray-500 text-sm">Đang tải...</div>
-        ) : allImportHistory.length === 0 ? (
-          <div className="text-center text-gray-500 text-sm">Không có lịch sử nhập hàng</div>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left text-gray-700">
-                <thead className="text-xs font-semibold uppercase bg-indigo-50 text-indigo-700">
-                  <tr>
-                    <th className="px-6 py-3">Mã sản phẩm</th>
-                    <th className="px-6 py-3">Số lượng nhập</th>
-                    <th className="px-6 py-3">Số lượng đã bán</th>
-                    <th className="px-6 py-3">Giá nhập</th>
-                    <th className="px-6 py-3">Giá công khai</th>
-                    <th className="px-6 py-3">Ngày nhập</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {allImportHistory.map((history) => (
-                    <tr
-                      key={history.id}
-                      onClick={() => handleViewHistoryDetail(history)}
-                      className="border-b hover:bg-indigo-50 transition-colors cursor-pointer"
-                    >
-                      <td className="px-6 py-3">{history.productDetailCode}</td>
-                      <td className="px-6 py-3">{history.importQuantity}</td>
-                      <td className="px-6 py-3">{history.soldQuantity || 0}</td>
-                      <td className="px-6 py-3">{history.importPrice.toLocaleString('vi-VN') + ' VND'}</td>
-                      <td className="px-6 py-3">{history.publicImportPrice ? history.publicImportPrice.toLocaleString('vi-VN') + ' VND' : '-'}</td>
-                      <td className="px-6 py-3">{formatDate(history.importDate)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="mt-4 flex justify-between">
-              <button
-                onClick={() => handleAllHistoryPageChange(allHistoryPage - 1)}
-                disabled={allHistoryPage === 0}
-                className={`px-4 py-2 text-sm font-medium rounded-md ${allHistoryPage === 0 ? 'bg-gray-300 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
-              >
-                Trang trước
-              </button>
-              <span className="text-sm text-gray-700">Trang {allHistoryPage + 1} / {allHistoryTotalPages}</span>
-              <button
-                onClick={() => handleAllHistoryPageChange(allHistoryPage + 1)}
-                disabled={allHistoryPage >= allHistoryTotalPages - 1}
-                className={`px-4 py-2 text-sm font-medium rounded-md ${allHistoryPage >= allHistoryTotalPages - 1 ? 'bg-gray-300 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
-              >
-                Trang sau
-              </button>
-            </div>
-          </>
-        )}
-      </div>
+  {/* Removed global import history section */}
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -1133,19 +745,7 @@ const ProductDetail = () => {
                   step="0.01"
                 />
               </div>
-              <div className="mb-5">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Giá nhập (VND)</label>
-                <input
-                  type="number"
-                  name="importPrice"
-                  value={formData.importPrice}
-                  onChange={handleInputChange}
-                  className="block w-full rounded-lg border border-gray-300 shadow-sm px-4 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition-colors"
-                  required
-                  min="0.01"
-                  step="0.01"
-                />
-              </div>
+              {/* importPrice field removed */}
               {isEditing && (
                 <div className="mb-5">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
@@ -1157,8 +757,7 @@ const ProductDetail = () => {
                     required
                   >
                     <option value="">Chọn trạng thái</option>
-                    <option value="AVAILABLE">Còn hàng</option>
-                    <option value="OUT_OF_STOCK">Hết hàng</option>
+                    <option value="AVAILABLE">Còn hàng (tự động khi số lượng lớn hơn 0)</option>
                     <option value="DISCONTINUED">Ngừng bán</option>
                   </select>
                 </div>
@@ -1329,49 +928,7 @@ const ProductDetail = () => {
         </div>
       )}
 
-      {isHistoryDetailModalOpen && selectedHistory && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Chi tiết lịch sử nhập hàng</h3>
-            <table className="w-full text-sm text-left text-gray-700">
-              <tbody>
-                <tr>
-                  <td className="px-4 py-2 font-medium">Mã sản phẩm</td>
-                  <td className="px-4 py-2">{selectedHistory.productDetailCode}</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-2 font-medium">Số lượng nhập</td>
-                  <td className="px-4 py-2">{selectedHistory.importQuantity}</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-2 font-medium">Số lượng đã bán</td>
-                  <td className="px-4 py-2">{selectedHistory.soldQuantity || 0}</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-2 font-medium">Giá nhập</td>
-                  <td className="px-4 py-2">{selectedHistory.importPrice.toLocaleString('vi-VN') + ' VND'}</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-2 font-medium">Giá công khai</td>
-                  <td className="px-4 py-2">{selectedHistory.publicImportPrice ? selectedHistory.publicImportPrice.toLocaleString('vi-VN') + ' VND' : '-'}</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-2 font-medium">Ngày nhập</td>
-                  <td className="px-4 py-2">{formatDate(selectedHistory.importDate)}</td>
-                </tr>
-              </tbody>
-            </table>
-            <div className="flex justify-end mt-4">
-              <button
-                onClick={closeModal}
-                className="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-400 focus:outline-none transition-colors"
-              >
-                Đóng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+  {/* History detail modal removed */}
     </div>
   );
 };

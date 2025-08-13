@@ -9,6 +9,7 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import DotGiamGiaApi from "../../../Service/AdminDotGiamGiaSevice/DotGiamGiaApi";
 import { PromotionStatus, DiscountType } from "./PromotionStatus";
+import { MONEY_MAX, MONEY_MAX_LABEL } from "../../../utils/validationConstants"; // (MONEY_MAX not directly used yet, reserved for future monetary fields)
 import { useNavigate } from "react-router-dom";
 import { BsSendDashFill } from "react-icons/bs";
 
@@ -53,7 +54,7 @@ const DotGiamGiaAdmin = () => {
 
   const navigate = useNavigate();
   const currentDate = new Date().toISOString().slice(0, 16);
-  const MAX_NUMERIC_VALUE = 99999999.99;
+  // Legacy MAX_NUMERIC_VALUE removed; percentage capped at 100 by business rule.
 
   const fetchData = useCallback(async () => {
     try {
@@ -184,9 +185,7 @@ const DotGiamGiaAdmin = () => {
       errors.percentageDiscountValue = "Phần trăm giảm giá phải ít nhất là 0";
     } else if (percentage > 100) {
       errors.percentageDiscountValue = "Phần trăm giảm giá không được vượt quá 100";
-    } else if (percentage > MAX_NUMERIC_VALUE) {
-      errors.percentageDiscountValue = "Phần trăm giảm giá quá lớn";
-    }
+  }
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;

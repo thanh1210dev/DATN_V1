@@ -31,7 +31,7 @@ public class BillReturn {
     @Column(name = "reason",columnDefinition = "NVARCHAR(500)")
     private String reason;
 
-    @Column(name = "total_refund_amount", precision = 10, scale = 2)
+    @Column(name = "total_refund_amount", precision = 15, scale = 2)
     private BigDecimal totalRefundAmount = BigDecimal.ZERO;
 
     @Column(name = "is_full_return")

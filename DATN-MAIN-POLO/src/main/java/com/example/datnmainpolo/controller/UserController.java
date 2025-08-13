@@ -14,6 +14,7 @@ import com.example.datnmainpolo.service.Impl.AuthService;
 import com.example.datnmainpolo.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -27,6 +28,7 @@ import java.util.Map;
 @RequestMapping("/api/user")
 @CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173"}, allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS}, allowCredentials = "true")
 @RequiredArgsConstructor
+@Slf4j
 public class UserController {
     private final AuthService authService;
     private final JwtUtil jwtUtil;
@@ -78,13 +80,22 @@ public class UserController {
 
     @PostMapping
     public ResponseEntity<UserResponseDTO> createUser(@Valid @RequestBody UserRequestDTO requestDTO) {
+    // Log incoming create (mask password length only)
+    log.info("[USER_CREATE] code={}, email={}, phone={}, role={}, passwordLength={}",
+        requestDTO.getCode(), requestDTO.getEmail(), requestDTO.getPhoneNumber(), requestDTO.getRole(),
+        requestDTO.getPassword() == null ? 0 : requestDTO.getPassword().length());
         UserResponseDTO created = userService.createUser(requestDTO);
+    log.info("[USER_CREATE_SUCCESS] id={} code={} email={} createdAt={}", created.getId(), created.getCode(), created.getEmail(), created.getCreatedAt());
         return ResponseEntity.ok(created);
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<UserResponseDTO> updateUser(@PathVariable Integer id, @Valid @RequestBody UserRequestDTO requestDTO) {
+    log.info("[USER_UPDATE] id={} code={} email={} phone={} role={}, passwordProvided={} ", id, requestDTO.getCode(),
+        requestDTO.getEmail(), requestDTO.getPhoneNumber(), requestDTO.getRole(),
+        (requestDTO.getPassword() != null && !requestDTO.getPassword().isBlank()));
         UserResponseDTO updated = userService.updateUser(id, requestDTO);
+    log.info("[USER_UPDATE_SUCCESS] id={} updatedAt={}", updated.getId(), updated.getUpdatedAt());
         return ResponseEntity.ok(updated);
     }
 
@@ -139,8 +150,18 @@ public class UserController {
             @RequestParam(required = false) String email,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        return userService.findByPhoneNumberOrNameOrEmailAndRole(
-                phoneNumber, name, email, Role.CLIENT, page, size);
+        // Normalize blank inputs to null to avoid useless LIKE '%%' and potential validation issues
+        String nPhone = (phoneNumber == null || phoneNumber.isBlank()) ? null : phoneNumber.trim();
+        String nName = (name == null || name.isBlank()) ? null : name.trim();
+        String nEmail = (email == null || email.isBlank()) ? null : email.trim();
+        log.info("[USER_CUSTOMER_SEARCH] phone={} name={} email={} page={} size={}", nPhone, nName, nEmail, page, size);
+        try {
+            return userService.findByPhoneNumberOrNameOrEmailAndRole(
+                    nPhone, nName, nEmail, Role.CLIENT, page, size);
+        } catch (Exception ex) {
+            log.error("[USER_CUSTOMER_SEARCH_ERROR] {}", ex.getMessage(), ex);
+            throw ex; // Global handler will map appropriately
+        }
     }
 
     @GetMapping("/me")

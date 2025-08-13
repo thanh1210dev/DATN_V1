@@ -34,10 +34,10 @@ public class PromotionProductDetail {
     @JoinColumn(name = "promotion_id")
     private Promotion promotion;
 
-    @Column(name = "price", precision = 10, scale = 2)
+    @Column(name = "price", precision = 15, scale = 2)
     private BigDecimal price;
 
-    @Column(name = "price_after_promotion", precision = 10, scale = 2)
+    @Column(name = "price_after_promotion", precision = 15, scale = 2)
     private BigDecimal priceAfterPromotion;
 
     @Column(name = "created_at")

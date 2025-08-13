@@ -27,9 +27,9 @@ public class BillReturnItem {
     @Column(name = "quantity")
     private Integer quantity; // số lượng trả
 
-    @Column(name = "unit_price", precision = 10, scale = 2)
+    @Column(name = "unit_price", precision = 15, scale = 2)
     private BigDecimal unitPrice; // giá tại thời điểm mua (promotionalPrice nếu có)
 
-    @Column(name = "refund_amount", precision = 10, scale = 2)
+    @Column(name = "refund_amount", precision = 15, scale = 2)
     private BigDecimal refundAmount; // quantity * unitPrice
 }

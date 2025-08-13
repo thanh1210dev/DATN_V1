@@ -30,7 +30,8 @@ public class BillDetail {
     @Column(name = "quantity")
     private Integer quantity;
 
-    @Column(name = "price", precision = 10, scale = 2)
+    // Increased precision to (15,2) to avoid arithmetic overflow for large orders
+    @Column(name = "price", precision = 15, scale = 2)
     private BigDecimal price;
 
     @Enumerated(EnumType.STRING)
@@ -39,7 +40,7 @@ public class BillDetail {
 
     // Removed deprecated per-line workflow status (typeOrder) to avoid duplication with bill status
 
-    @Column(name = "promotional_price", precision = 10, scale = 2)
+    @Column(name = "promotional_price", precision = 15, scale = 2)
     private BigDecimal promotionalPrice;
 
     @Column(name = "created_at")
@@ -49,11 +50,11 @@ public class BillDetail {
     private Instant updatedAt;
 
     @Size(max = 100)
-    @Column(name = "created_by", length = 100)
+    @Column(name = "created_by", columnDefinition = "NVARCHAR(100)")
     private String createdBy;
 
     @Size(max = 100)
-    @Column(name = "updated_by", length = 100)
+    @Column(name = "updated_by", columnDefinition = "NVARCHAR(100)")
     private String updatedBy;
 
     @Column(name = "deleted")

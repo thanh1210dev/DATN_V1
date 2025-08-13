@@ -81,10 +81,16 @@ public interface UserRepository extends JpaRepository<UserEntity, Integer> {
 
         Optional<UserEntity> findByCodeAndDeletedFalse(String code);
 
-    @Query("SELECT u FROM UserEntity u WHERE u.role = :role AND u.deleted = false " +
-            "AND (:phoneNumber IS NULL OR u.phoneNumber LIKE %:phoneNumber%) " +
-            "AND (:name IS NULL OR u.name LIKE %:name%) " +
-            "AND (:email IS NULL OR u.email LIKE %:email%)")
+        // Safe duplicate handling helpers
+        long countByEmailAndDeletedFalse(String email);
+        long countByPhoneNumberAndDeletedFalse(String phoneNumber);
+        List<UserEntity> findAllByPhoneNumber(String phoneNumber);
+                Optional<UserEntity> findByPhoneNumberAndDeletedFalse(String phoneNumber);
+
+        @Query("SELECT u FROM UserEntity u WHERE u.role = :role AND u.deleted = false " +
+                        "AND (:phoneNumber IS NULL OR LOWER(u.phoneNumber) LIKE LOWER(CONCAT('%', :phoneNumber, '%'))) " +
+                        "AND (:name IS NULL OR LOWER(u.name) LIKE LOWER(CONCAT('%', :name, '%'))) " +
+                        "AND (:email IS NULL OR LOWER(u.email) LIKE LOWER(CONCAT('%', :email, '%')))")
     Page<UserEntity> findByPhoneNumberOrNameOrEmailAndRole(
             @Param("phoneNumber") String phoneNumber,
             @Param("name") String name,

@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.sql.Timestamp;
 
 
 @Service
@@ -63,6 +64,14 @@ public class ThongKeSanPhamServiceImpl implements ThongKeSanPhamService {
             dto.setMaSanPham((String) row[0]);
             dto.setTenSanPham((String) row[1]);
             dto.setSoLuongTon(((Number) row[2]).longValue());
+            // Map last updated timestamp (row[3]) if present
+            if (row.length > 3 && row[3] != null) {
+                if (row[3] instanceof Timestamp ts) {
+                    dto.setNgayCapNhatCuoi(ts.toInstant());
+                } else if (row[3] instanceof Instant inst) {
+                    dto.setNgayCapNhatCuoi(inst);
+                }
+            }
             danhSachDTO.add(dto);
         }
         return danhSachDTO;

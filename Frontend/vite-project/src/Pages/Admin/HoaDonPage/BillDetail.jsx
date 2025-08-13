@@ -5,6 +5,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { HiArrowLeft, HiOutlinePlus, HiOutlineX, HiCheckCircle, HiClock, HiXCircle, HiCurrencyDollar, HiUser, HiOutlineTruck, HiArchive, HiOutlinePrinter } from 'react-icons/hi';
 import Select from 'react-select';
 import HoaDonApi from '../../../Service/AdminHoaDonService/HoaDonApi';
+import { MONEY_MAX_LABEL, isValidMoney, buildMoneyError } from '../../../utils/validationConstants';
 
 const BillDetail = () => {
   const { id } = useParams();
@@ -546,17 +547,19 @@ const BillDetail = () => {
     try {
       setLoading(true);
       console.log(`📤 Changing status: ${bill.status} → ${newStatus}`);
-      
       await HoaDonApi.updateBillStatus(id, newStatus);
-      
       const statusLabel = orderStatusOptions.find(opt => opt.value === newStatus)?.label || newStatus;
       toast.success(`Đã chuyển trạng thái sang: ${statusLabel}`);
-      
       fetchData();
       fetchOrderHistory();
     } catch (error) {
       console.error('❌ Status change failed:', error);
-      toast.error('Lỗi khi cập nhật trạng thái: ' + error.message);
+      const msg = error.message || 'Lỗi khi cập nhật trạng thái';
+      if (/không đủ số lượng/i.test(msg)) {
+        toast.error(msg);
+      } else {
+        toast.error('Lỗi khi cập nhật trạng thái: ' + msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -564,150 +567,38 @@ const BillDetail = () => {
 
   const handleNextStatusUpdate = async () => {
     console.log('🔄 handleNextStatusUpdate called!');
-    
+    if (!bill || !bill.status) {
+      toast.error('Không thể cập nhật trạng thái: Hóa đơn chưa tải');
+      return;
+    }
+    const availableStatuses = getAvailableNextStatuses(bill.status);
+    const nextStatus = availableStatuses.length > 0 ? availableStatuses[0].value : null;
+    if (!nextStatus) {
+      toast.error('Không thể chuyển sang trạng thái tiếp theo');
+      return;
+    }
     try {
-      console.log('🔄 Inside main try block');
-      console.log('🔄 isMountedRef.current:', isMountedRef.current);
-      
-      // Remove mount check that was preventing status updates
-      // if (!isMountedRef.current) {
-      //   console.log('🔄 Component unmounted, returning');
-      //   return;
-      // }
-      
-      if (!bill || !bill.status) {
-        console.log('🔄 No bill or status, showing error');
-        toast.error('Không thể cập nhật trạng thái: Hóa đơn chưa tải');
-        return;
-      }
-      
-      // Get the first available next status
-      const availableStatuses = getAvailableNextStatuses(bill.status);
-      const nextStatus = availableStatuses.length > 0 ? availableStatuses[0].value : null;
-      
-      console.log('🔄 Status Transition Debug:', {
-        billType: bill.billType,
-        currentStatus: bill.status,
-        availableStatuses: availableStatuses,
-        nextStatus: nextStatus,
-        billId: bill.id
-      });
-      
-      if (!nextStatus) {
-        console.log('🔄 No next status available');
-        toast.error('Không thể chuyển sang trạng thái tiếp theo');
-        return;
-      }
-
-      console.log('🔄 Starting status update process...');
-      // Skip mount check temporarily for debugging
       setLoading(true);
-      console.log('🔄 Set loading to true');
-      
       if (nextStatus === 'PAID' && bill.customerPayment < bill.finalAmount) {
-        console.log('🔄 Payment modal path - should not happen for PAID->COMPLETED');
         setShowPaymentModal(true);
-        setLoading(false);
         return;
-      } else {
-        console.log('🔄 Normal status update path');
-        console.log(`📤 Sending status update request: ${bill.id} -> ${nextStatus}`);
-        console.log('📤 Using API endpoint: /bills/' + id + '/status');
-        console.log('📤 Request parameters:', { status: nextStatus });
-        
-        console.log('🔄 About to call HoaDonApi.updateBillStatus...');
-        console.log('🔄 Parameters:', { id, nextStatus, idType: typeof id, nextStatusType: typeof nextStatus });
-        
-        // Add additional safeguards for the API call
-        let result;
-        try {
-          result = await HoaDonApi.updateBillStatus(id, nextStatus);
-          console.log('✅ HoaDonApi.updateBillStatus completed:', result);
-        } catch (apiError) {
-          console.error('❌ HoaDonApi.updateBillStatus failed:', apiError);
-          
-          // Try to parse the actual error
-          let apiErrorMessage = 'Lỗi API không xác định';
-          if (apiError?.message) {
-            apiErrorMessage = apiError.message;
-          } else if (apiError?.response?.data?.message) {
-            apiErrorMessage = apiError.response.data.message;
-          } else if (typeof apiError === 'string') {
-            apiErrorMessage = apiError;
-          }
-          
-          throw new Error(`API Error: ${apiErrorMessage}`);
-        }
-        
-        // Remove mount check to allow UI updates
-        // if (!isMountedRef.current) return;
-        
-        // Safe status label lookup
-        let statusLabel = nextStatus;
-        try {
-          const statusOption = orderStatusOptions.find(opt => opt.value === nextStatus);
-          statusLabel = statusOption?.label || nextStatus;
-        } catch (labelError) {
-          console.warn('❌ Error finding status label:', labelError);
-        }
-        
-        toast.success(`Cập nhật trạng thái thành ${statusLabel}`);
-        
-        console.log('🔄 About to refresh data...');
-        try {
-          // Remove mount check to allow data refresh
-          // if (!isMountedRef.current) return;
-          await fetchData();
-          console.log('✅ fetchData completed');
-        } catch (fetchError) {
-          console.error('❌ fetchData failed:', fetchError);
-        }
-        
-        try {
-          // Remove mount check to allow history refresh
-          // if (!isMountedRef.current) return;
-          await fetchOrderHistory();
-          console.log('✅ fetchOrderHistory completed');
-        } catch (historyError) {
-          console.error('❌ fetchOrderHistory failed:', historyError);
-        }
-        console.log('✅ Data refresh completed');
       }
+      let result = await HoaDonApi.updateBillStatus(id, nextStatus);
+      console.log('✅ Status update API result:', result);
+      let statusLabel = orderStatusOptions.find(o => o.value === nextStatus)?.label || nextStatus;
+      toast.success(`Cập nhật trạng thái thành ${statusLabel}`);
+      await fetchData();
+      await fetchOrderHistory();
     } catch (error) {
       console.error('❌ Status update failed:', error);
-      
-      // Safe error handling to prevent React crashes
-      let errorMessage = 'Lỗi không xác định';
-      let errorDetails = {};
-      
-      try {
-        errorDetails = {
-          message: error?.message || 'Unknown error',
-          response: error?.response || null,
-          stack: error?.stack || 'No stack trace',
-          errorType: typeof error,
-          errorConstructor: error?.constructor?.name || 'Unknown'
-        };
-        
-        if (error?.message) {
-          errorMessage = error.message;
-        } else if (error?.response?.data?.message) {
-          errorMessage = error.response.data.message;
-        } else if (typeof error === 'string') {
-          errorMessage = error;
-        }
-        
-        console.error('❌ Error details:', errorDetails);
-      } catch (detailError) {
-        console.error('❌ Error processing error details:', detailError);
-        errorMessage = 'Có lỗi xảy ra khi cập nhật trạng thái';
+      let msg = error?.message || error?.response?.data?.message || 'Lỗi khi cập nhật trạng thái';
+      if (msg.includes('không đủ số lượng')) {
+        toast.error(msg);
+      } else {
+        toast.error('Lỗi khi cập nhật trạng thái: ' + msg);
       }
-      
-      toast.error('Lỗi khi cập nhật trạng thái: ' + errorMessage);
     } finally {
-      if (isMountedRef.current) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   };
 
@@ -777,20 +668,21 @@ const BillDetail = () => {
   };
 
   const handlePaymentSubmit = async () => {
-    if (!customerPayment || isNaN(customerPayment) || Number(customerPayment) <= 0) {
-      toast.error('Vui lòng nhập số tiền hợp lệ');
+    const raw = customerPayment;
+    if (!isValidMoney(raw)) {
+      toast.error(buildMoneyError('Số tiền khách trả'));
       return;
     }
-
+    const amount = Number(raw);
+    const due = Number(bill?.finalAmount || 0);
+    if (amount < due) {
+      toast.error(`Số tiền khách trả phải ≥ số tiền cần thanh toán (${due.toLocaleString('vi-VN')})`);
+      return;
+    }
     try {
       setLoading(true);
-      
-      // Update customer payment first
-      await HoaDonApi.updateCustomerPayment(id, Number(customerPayment));
-      
-      // Then update status to PAID
+      await HoaDonApi.updateCustomerPayment(id, amount);
       await HoaDonApi.updateBillStatus(id, 'PAID');
-      
       toast.success('Đã cập nhật thanh toán thành công');
       setShowPaymentModal(false);
       setCustomerPayment('');
@@ -1149,24 +1041,28 @@ const BillDetail = () => {
               <HiClock className="mr-2" /> Xem lịch sử
             </button>
             <button
-              onClick={handlePrintInvoice}
-              className="flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-              title="In hóa đơn"
-            >
-              <HiOutlinePrinter className="mr-2" /> In hóa đơn
-            </button>
-            <button
               onClick={() => navigate('/admin/bills')}
               className="flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
             >
               <HiArrowLeft className="mr-2" /> Quay lại
             </button>
-            <button
-              onClick={openReturnModal}
-              className="flex items-center px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors"
-            >
-              Trả hàng
-            </button>
+            {['PAID','COMPLETED','RETURN_COMPLETED'].includes(bill?.status) && !hasPendingReturn && (
+              <button
+                onClick={openReturnModal}
+                className="flex items-center px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors"
+              >
+                Trả hàng
+              </button>
+            )}
+            {['PAID','COMPLETED','RETURN_COMPLETED'].includes(bill?.status) && hasPendingReturn && (
+              <button
+                disabled
+                title="Đang có yêu cầu trả hàng chờ xử lý"
+                className="flex items-center px-4 py-2 bg-gray-400 text-white text-sm font-medium rounded-lg cursor-not-allowed"
+              >
+                Trả hàng
+              </button>
+            )}
           </div>
         </div>
 
@@ -1341,14 +1237,6 @@ const BillDetail = () => {
                       className="flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
                     >
                       <HiUser className="mr-2" /> Cập nhật địa chỉ
-                    </button>
-                    <button
-                      onClick={openReturnModal}
-                      disabled={hasPendingReturn}
-                      title={hasPendingReturn ? 'Đang có yêu cầu trả hàng chờ duyệt' : ''}
-                      className={`flex items-center px-4 py-2 text-white text-sm font-medium rounded-lg focus:outline-none focus:ring-2 transition-colors ${hasPendingReturn ? 'bg-gray-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700 focus:ring-orange-500'}`}
-                    >
-                      Trả hàng
                     </button>
                   </div>
                 )}

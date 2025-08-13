@@ -3,6 +3,7 @@ import { Routes, Route } from "react-router-dom";
 import PrivateRoute from "../component/PrivateRoute";
 import SideBar from "../component/SideBar";
 import Header from "../component/Header";
+import GoogleOAuth2RedirectHandler from "../Pages/google/GoogleOAuth2RedirectHandler";
 
 import AdminQuanlyGiamGia from "./AdminRouter/AdminQuanlyGiamGia";
 import AdminQuanLySanPham from "./AdminRouter/AdminQuanLySanPham";
@@ -21,6 +22,8 @@ const AppRouter = () => {
 
   return (
     <Routes>
+      {/* OAuth2 Redirect (must be explicit to capture token before client wildcard) */}
+      <Route path="/oauth2/redirect" element={<GoogleOAuth2RedirectHandler />} />
       {/* Client Routes */}
       <Route path="/*" element={<ClientRouter />} />
 

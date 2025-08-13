@@ -3,7 +3,6 @@ package com.example.datnmainpolo.entity;
 
 import com.example.datnmainpolo.enums.ProductStatus;
 import jakarta.persistence.*;
-import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -39,24 +38,21 @@ public class ProductDetail {
     private Color color;
 
 
-    @Column(name = "import_price", precision = 10, scale = 2)
-    private BigDecimal importPrice;
-
-    @OneToMany(mappedBy = "productDetail", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ImportHistory> importHistories = new ArrayList<>();
+    // importPrice & importHistories removed per new requirements (no warehouse tracking)
 
 
 
-    @Column(name = "code")
+    @Column(name = "code", columnDefinition = "NVARCHAR(255)")
     private String code;
 
     @Column(name = "quantity")
     private Integer quantity;
 
-    @Column(name = "price", precision = 10, scale = 2)
+    // Expanded precision (15,2) to allow prices up to 999 tỷ
+    @Column(name = "price", precision = 15, scale = 2)
     private BigDecimal price;
 
-    @Column(name = "promotional_price", precision = 10, scale = 2)
+    @Column(name = "promotional_price", precision = 15, scale = 2)
     private BigDecimal promotionalPrice;
 
     @Enumerated(EnumType.STRING)

@@ -35,7 +35,7 @@ function LoginPage() {
     switch (role) {
       case "STAFF":
       case "ADMIN":
-        return "/dashboard";
+  return "/admin/dashboard";
       case "CLIENT":
       default:
         return "/";
@@ -173,7 +173,7 @@ function LoginPage() {
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600 mb-2">Hoặc đăng nhập với</p>
               <div className="flex justify-center space-x-4">
-                <a href="http://localhost:8080/oauth2/authorize/google?redirect_uri=http://localhost:3000/oauth2/redirect" className="flex items-center justify-center w-10 h-10 bg-red-500 text-white rounded-full hover:bg-red-600 transition duration-300">
+                <a href="http://localhost:8080/oauth2/authorization/google" className="flex items-center justify-center w-10 h-10 bg-red-500 text-white rounded-full hover:bg-red-600 transition duration-300">
                   <FaGoogle />
                 </a>
                 <a href="#" className="flex items-center justify-center w-10 h-10 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition duration-300">

@@ -71,22 +71,23 @@ public class Bill {
     private BillType billType; //ONLINE, OFLINE
 
 
-    @Column(name = "customer_payment", nullable = false)
+    // Add precision (15,2) for all monetary totals to avoid overflow with large orders (<= 999 tỷ)
+    @Column(name = "customer_payment", nullable = false, precision = 15, scale = 2)
     private BigDecimal customerPayment = BigDecimal.ZERO; // New field for customer payment amount
 
 
 
 
-    @Column(name = "total_money", nullable = false)
+    @Column(name = "total_money", nullable = false, precision = 15, scale = 2)
     private BigDecimal totalMoney = BigDecimal.ZERO;
 
-    @Column(name = "reduction_amount", nullable = false)
+    @Column(name = "reduction_amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal reductionAmount = BigDecimal.ZERO;
 
-    @Column(name = "money_ship", nullable = false)
+    @Column(name = "money_ship", nullable = false, precision = 15, scale = 2)
     private BigDecimal moneyShip = BigDecimal.ZERO;
 
-    @Column(name = "final_amount", nullable = false)
+    @Column(name = "final_amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal finalAmount = BigDecimal.ZERO;
     // ... getters and setters ...
 

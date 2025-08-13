@@ -35,7 +35,7 @@ public class ImportHistory {
     @Column(name = "public_import_price")
     private BigDecimal publicImportPrice;
 
-    @Column(name = "import_price", precision = 10, scale = 2)
+    @Column(name = "import_price", precision = 15, scale = 2)
     private BigDecimal importPrice;
 
     @Column(name = "import_date")

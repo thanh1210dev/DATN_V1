@@ -42,10 +42,14 @@ public class BillRequestDTO {
     private PaymentType type;
 
 
-    @DecimalMin(value = "0.0", inclusive = true, message = "Tiền ship không được âm")
+    @DecimalMin(value = "0.00", inclusive = true, message = "Tiền ship không được âm")
+    @DecimalMax(value = "999000000000.00", message = "Tiền ship tối đa 999 tỷ")
+    @Digits(integer = 12, fraction = 2, message = "Tiền ship tối đa 12 số phần nguyên và 2 số thập phân")
     private BigDecimal moneyShip;
 
-    @DecimalMin(value = "0.0", inclusive = true, message = "Tiền đặt cọc không được âm")
+    @DecimalMin(value = "0.00", inclusive = true, message = "Tiền đặt cọc không được âm")
+    @DecimalMax(value = "999000000000.00", message = "Tiền đặt cọc tối đa 999 tỷ")
+    @Digits(integer = 12, fraction = 2, message = "Tiền đặt cọc tối đa 12 số phần nguyên và 2 số thập phân")
     private BigDecimal deposit;
 
     private OrderStatus status;

@@ -17,10 +17,16 @@ public class PromotionProductDetailRequestDTO {
     private Integer promotionId;
 
     @NotNull(message = "Giá gốc không được để trống")
-    @Positive(message = "Giá gốc phải là số dương")
+    @DecimalMin(value = "0.01", message = "Giá gốc phải > 0")
+    @DecimalMax(value = "999000000000.00", message = "Giá gốc tối đa 999 tỷ")
+    @Digits(integer = 12, fraction = 2, message = "Giá gốc tối đa 12 số phần nguyên và 2 số thập phân")
     private BigDecimal price;
 
     @NotNull(message = "Giá sau giảm không được để trống")
-    @PositiveOrZero(message = "Giá sau giảm phải là số không âm")
+    @DecimalMin(value = "0.00", message = "Giá sau giảm phải >= 0")
+    @DecimalMax(value = "999000000000.00", message = "Giá sau giảm tối đa 999 tỷ")
+    @Digits(integer = 12, fraction = 2, message = "Giá sau giảm tối đa 12 số phần nguyên và 2 số thập phân")
     private BigDecimal priceAfterPromotion;
+
+    // Ghi chú: Logic dịch vụ nên đảm bảo priceAfterPromotion <= price (kiểm tra ở Service nếu chưa có)
 }

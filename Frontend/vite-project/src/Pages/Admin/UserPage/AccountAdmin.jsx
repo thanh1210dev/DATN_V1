@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { HiOutlinePlus, HiOutlinePencilAlt, HiOutlineTrash, HiOutlineArrowLeft } from 'react-icons/hi';
-import { toast } from 'react-toastify';
+import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Select from 'react-select';
 import { useNavigate } from 'react-router-dom';
@@ -47,10 +47,73 @@ const AccountAdmin = () => {
     phoneNumber: '',
     email: '',
     password: '',
-    avatar: '',
+    avatar: '', // persisted URL after upload
   });
+  // Avatar upload removed per request
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({}); // field -> message
+
+  // Enhanced backend error parser (closure uses setFieldErrors)
+  const parseAndShowBackendError = (error, fallbackMessage) => {
+    // Accept either axios error object or plain string (e.g., 'phoneNumber: Số điện thoại đã tồn tại')
+    if (typeof error === 'string') {
+      const parsedStr = parseFieldErrorString(error);
+      if (parsedStr) {
+        setFieldErrors(prev => ({ ...prev, [parsedStr.field]: parsedStr.message }));
+        toast.error(parsedStr.message);
+        return;
+      }
+      toast.error(error);
+      return;
+    }
+    const res = error?.response?.data;
+    const mapped = {};
+    if (res?.messages && Array.isArray(res.messages)) {
+      res.messages.forEach(msg => {
+        const parsed = parseFieldErrorString(msg);
+        if (parsed) {
+          mapped[parsed.field] = parsed.message;
+        } else {
+          if (/Số điện thoại/.test(msg)) mapped.phoneNumber = msg.replace(/^Số điện thoại:?\s*/, '');
+          else if (/Email/.test(msg)) mapped.email = msg.replace(/^Email:?\s*/, '');
+          else if (/Mã người dùng/.test(msg)) mapped.code = msg.replace(/^Mã người dùng:?\s*/, '');
+          toast.error(msg);
+        }
+      });
+      if (Object.keys(mapped).length) {
+        setFieldErrors(mapped);
+        Object.values(mapped).forEach(m => toast.error(m));
+      }
+      return;
+    }
+    if (res?.message) {
+      const parts = String(res.message).split(';').map(s => s.trim()).filter(Boolean);
+      const nonField = [];
+      parts.forEach(p => {
+        const parsed = parseFieldErrorString(p);
+        if (parsed) mapped[parsed.field] = parsed.message; else nonField.push(p);
+      });
+      nonField.forEach(m => {
+        if (/Số điện thoại/.test(m)) mapped.phoneNumber = m.replace(/^Số điện thoại:?\s*/, '');
+        else if (/Email/.test(m)) mapped.email = m.replace(/^Email:?\s*/, '');
+        else if (/Mã người dùng/.test(m)) mapped.code = m.replace(/^Mã người dùng:?\s*/, '');
+      });
+      if (Object.keys(mapped).length) {
+        setFieldErrors(mapped);
+        Object.values(mapped).forEach(m => toast.error(m));
+      }
+      const remaining = nonField.filter(m => !/Số điện thoại|Email|Mã người dùng/.test(m));
+      if (!Object.keys(mapped).length && !remaining.length) {
+        // fallback to raw message
+        toast.error(res.message);
+      } else {
+        remaining.forEach(m => toast.error(m));
+      }
+      return;
+    }
+    toast.error(fallbackMessage || 'Lỗi không xác định');
+  };
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
   const [searchCode, setSearchCode] = useState('');
@@ -66,7 +129,7 @@ const AccountAdmin = () => {
       setUsers(data.content || []);
       setTotalPages(data.totalPages || 1);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Không thể tải danh sách người dùng');
+  handleBackendError(error, 'Không thể tải danh sách người dùng');
     } finally {
       setIsLoading(false);
     }
@@ -88,41 +151,56 @@ const AccountAdmin = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    // Clear field error as user edits
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => { const c = { ...prev }; delete c[name]; return c; });
+    }
   };
+
+  // Auto-generate code helper (USR + last 8 digits of timestamp)
+  const generateUserCode = () => `USR${Date.now().toString().slice(-8)}`;
+
+  // Avatar file selection
+  // Avatar logic removed
 
   // Handle role select change
   const handleRoleChange = (selectedOption) => {
     setFormData((prev) => ({ ...prev, role: selectedOption.value }));
   };
 
-  // Validate form data
+  // Validate form data (strengthened)
   const validateForm = () => {
-    if (!formData.code || formData.code.length > 50) {
-      toast.error('Mã người dùng không hợp lệ (tối đa 50 ký tự)');
+    if (!formData.code || !/^USR\d{8,}$/.test(formData.code)) {
+      toast.error('Mã người dùng phải dạng USR + số');
       return false;
     }
     if (!formData.name || formData.name.length > 100) {
-      toast.error('Tên người dùng không hợp lệ (tối đa 100 ký tự)');
+      toast.error('Tên không hợp lệ (<=100 ký tự)');
       return false;
     }
     if (!formData.birthDate) {
-      toast.error('Vui lòng chọn ngày sinh');
+      toast.error('Chưa chọn ngày sinh');
       return false;
     }
-    if (!/^\d{10}$/.test(formData.phoneNumber)) {
-      toast.error('Số điện thoại phải có đúng 10 chữ số');
+    const dob = new Date(formData.birthDate);
+    if (dob > new Date()) {
+      toast.error('Ngày sinh không hợp lệ');
       return false;
     }
-    if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(formData.email)) {
+    if (new Date().getFullYear() - dob.getFullYear() < 13) {
+      toast.error('Tuổi phải >= 13');
+      return false;
+    }
+    if (!/^0\d{9}$/.test(formData.phoneNumber)) {
+      toast.error('SĐT phải 10 số và bắt đầu bằng 0');
+      return false;
+    }
+    if (!/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(formData.email)) {
       toast.error('Email không hợp lệ');
       return false;
     }
     if (!isEditing && (!formData.password || formData.password.length < 6)) {
-      toast.error('Mật khẩu phải có ít nhất 6 ký tự');
-      return false;
-    }
-    if (formData.avatar && !/^https?:\/\/.*\.(?:png|jpg|jpeg|gif)$/.test(formData.avatar)) {
-      toast.error('URL ảnh đại diện không hợp lệ');
+      toast.error('Mật khẩu tối thiểu 6 ký tự');
       return false;
     }
     return true;
@@ -132,15 +210,16 @@ const AccountAdmin = () => {
   const handleAdd = () => {
     setIsModalOpen(true);
     setIsEditing(false);
+  setFieldErrors({});
     setFormData({
       role: 'STAFF',
-      code: '',
+      code: generateUserCode(),
       name: '',
       birthDate: '',
       phoneNumber: '',
       email: '',
       password: '',
-      avatar: '',
+      avatar: '', // kept for compatibility but not editable
     });
   };
 
@@ -152,18 +231,19 @@ const AccountAdmin = () => {
       setIsModalOpen(true);
       setIsEditing(true);
       setEditingId(user.id);
+  setFieldErrors({});
       setFormData({
         role: data.role || 'STAFF',
-        code: data.code || '',
+        code: data.code || generateUserCode(),
         name: data.name || '',
         birthDate: data.birthDate ? data.birthDate.split('T')[0] : '',
         phoneNumber: data.phoneNumber || '',
         email: data.email || '',
         password: '', // Không gửi password khi update
-        avatar: data.avatar || '',
+        avatar: data.avatar || '', // preserved but not editable
       });
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Không thể tải thông tin người dùng');
+  parseAndShowBackendError(error, 'Không thể tải thông tin người dùng');
     } finally {
       setIsLoading(false);
     }
@@ -173,22 +253,41 @@ const AccountAdmin = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
+    // Client-side duplicate check (email/phone) against currently loaded list
+    const dupEmail = users.find(u => u.email && formData.email && u.email.toLowerCase() === formData.email.toLowerCase() && (!isEditing || u.id !== editingId));
+    if (dupEmail) {
+      toast.error('Email đã tồn tại trong danh sách hiện tại');
+      return;
+    }
+    const dupPhone = users.find(u => u.phoneNumber && formData.phoneNumber && u.phoneNumber === formData.phoneNumber && (!isEditing || u.id !== editingId));
+    if (dupPhone) {
+      toast.error('Số điện thoại đã tồn tại trong danh sách hiện tại');
+      return;
+    }
+    // Confirm before submit
+    const actionLabel = isEditing ? 'cập nhật' : 'thêm mới';
+    if (!window.confirm(`Bạn chắc chắn muốn ${actionLabel} người dùng này?`)) {
+      toast.info('Đã hủy thao tác');
+      return;
+    }
     setIsLoading(true);
     try {
+  // Avatar upload removed: send existing avatar value
+  const payload = { ...formData };
       if (isEditing) {
         await UserService.update(editingId, {
-          ...formData,
-          password: formData.password || undefined, // Không gửi password nếu rỗng
+          ...payload,
+          password: payload.password || undefined,
         });
         toast.success('Cập nhật người dùng thành công!');
       } else {
-        await UserService.create(formData);
+        await UserService.create(payload);
         toast.success('Thêm người dùng thành công!');
       }
       setIsModalOpen(false);
       fetchUsers();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Không thể lưu người dùng');
+  parseAndShowBackendError(error, 'Không thể lưu người dùng');
     } finally {
       setIsLoading(false);
     }
@@ -201,6 +300,11 @@ const AccountAdmin = () => {
   };
 
   const handleDeleteConfirm = async () => {
+    if (!window.confirm('Bạn có chắc chắn xóa người dùng này?')) {
+      toast.info('Đã hủy xóa');
+      setIsDeleteModalOpen(false);
+      return;
+    }
     setIsLoading(true);
     try {
       await UserService.delete(deleteId);
@@ -208,7 +312,7 @@ const AccountAdmin = () => {
       setIsDeleteModalOpen(false);
       fetchUsers();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Không thể xóa người dùng');
+  parseAndShowBackendError(error, 'Không thể xóa người dùng');
     } finally {
       setIsLoading(false);
     }
@@ -219,7 +323,7 @@ const AccountAdmin = () => {
     setIsModalOpen(false);
     setFormData({
       role: 'STAFF',
-      code: '',
+      code: generateUserCode(),
       name: '',
       birthDate: '',
       phoneNumber: '',
@@ -238,7 +342,9 @@ const AccountAdmin = () => {
 
   return (
     <ErrorBoundary>
-      <div className="p-6">
+  {/* Toast container (only one per page; remove if already in a higher layout) */}
+  <ToastContainer position="top-right" autoClose={3000} newestOnTop pauseOnFocusLoss draggable pauseOnHover limit={5} />
+  <div className="p-4 md:p-6">
         <div className="flex items-center gap-4 mb-6">
           <button
             onClick={handleBack}
@@ -251,7 +357,7 @@ const AccountAdmin = () => {
         </div>
 
         {/* Search Bar */}
-        <div className="mb-6 flex gap-4">
+  <div className="mb-6 flex flex-col md:flex-row gap-4">
           <input
             type="text"
             name="code"
@@ -291,7 +397,8 @@ const AccountAdmin = () => {
         </div>
 
         <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-          <table className="w-full text-sm text-left text-gray-700">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left text-gray-700 min-w-[900px]">
             <thead className="text-xs font-semibold uppercase bg-indigo-50 text-indigo-700">
               <tr>
                 <th className="px-6 py-3 w-16 rounded-tl-lg">#</th>
@@ -355,6 +462,7 @@ const AccountAdmin = () => {
               )}
             </tbody>
           </table>
+          </div>
         </div>
 
         <div className="flex items-center justify-between mt-4">
@@ -393,135 +501,123 @@ const AccountAdmin = () => {
         </div>
 
         {isModalOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-8 w-full max-w-md shadow-xl">
-              <h3 className="text-xl font-semibold mb-6 text-gray-800">
-                {isEditing ? 'Cập nhật tài khoản' : 'Thêm tài khoản mới'}
-              </h3>
-              <form onSubmit={handleSubmit}>
-                <div className="mb-5">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Vai trò</label>
-                  <Select
-                    name="role"
-                    value={{ value: formData.role, label: formData.role }}
-                    onChange={handleRoleChange}
-                    options={[
-                      { value: 'ADMIN', label: 'ADMIN' },
-                      { value: 'STAFF', label: 'STAFF' },
-                    ]}
-                    placeholder="Chọn vai trò"
-                    isSearchable
-                    className="text-sm"
-                    isDisabled={isLoading}
-                    required
-                  />
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className="bg-white w-full max-w-3xl rounded-xl shadow-xl">
+              <div className="flex items-center justify-between px-6 py-4 border-b">
+                <h3 className="text-lg font-semibold text-gray-800">{isEditing ? 'Cập nhật tài khoản' : 'Thêm tài khoản mới'}</h3>
+                <button onClick={closeModal} className="text-gray-500 hover:text-gray-700">✕</button>
+              </div>
+              <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="space-y-5">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Mã</label>
+                      <input
+                        type="text"
+                        name="code"
+                        value={formData.code}
+                        disabled
+                        className="w-full px-3 py-2 border rounded-lg bg-gray-100 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Vai trò</label>
+                      <Select
+                        name="role"
+                        value={{ value: formData.role, label: formData.role }}
+                        onChange={handleRoleChange}
+                        options={[
+                          { value: 'ADMIN', label: 'ADMIN' },
+                          { value: 'STAFF', label: 'STAFF' },
+                          { value: 'CLIENT', label: 'CLIENT' },
+                        ]}
+                        classNamePrefix="react-select"
+                        isDisabled={isLoading}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Tên</label>
+                      <input
+                        name="name"
+                        value={formData.name}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border rounded-lg text-sm"
+                        required
+                        maxLength={100}
+                      />
+                      {fieldErrors.name && <p className="mt-1 text-xs text-red-600">{fieldErrors.name}</p>}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Ngày sinh</label>
+                      <input
+                        type="date"
+                        name="birthDate"
+                        value={formData.birthDate}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border rounded-lg text-sm"
+                        required
+                      />
+                      {fieldErrors.birthDate && <p className="mt-1 text-xs text-red-600">{fieldErrors.birthDate}</p>}
+                    </div>
+                  </div>
+                  <div className="space-y-5">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Số điện thoại</label>
+                      <input
+                        name="phoneNumber"
+                        value={formData.phoneNumber}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border rounded-lg text-sm"
+                        placeholder="0xxxxxxxxx"
+                        required
+                        maxLength={10}
+                      />
+                      {fieldErrors.phoneNumber && <p className="mt-1 text-xs text-red-600">{fieldErrors.phoneNumber}</p>}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                      <input
+                        type="email"
+                        name="email"
+                        value={formData.email}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border rounded-lg text-sm"
+                        required
+                      />
+                      {fieldErrors.email && <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p>}
+                    </div>
+                    {!isEditing && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Mật khẩu</label>
+                        <input
+                          type="password"
+                          name="password"
+                          value={formData.password}
+                          onChange={handleInputChange}
+                          className="w-full px-3 py-2 border rounded-lg text-sm"
+                          minLength={6}
+                          required
+                        />
+                        {fieldErrors.password && <p className="mt-1 text-xs text-red-600">{fieldErrors.password}</p>}
+                      </div>
+                    )}
+                    {/* Avatar upload removed */}
+                  </div>
                 </div>
-                <div className="mb-5">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Mã người dùng</label>
-                  <input
-                    type="text"
-                    name="code"
-                    value={formData.code}
-                    onChange={handleInputChange}
-                    className="block w-full rounded-lg border border-gray-300 shadow-sm px-4 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition-colors"
-                    disabled={isEditing || isLoading}
-                    required
-                    maxLength={50}
-                  />
-                </div>
-                <div className="mb-5">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Tên người dùng</label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    className="block w-full rounded-lg border border-gray-300 shadow-sm px-4 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition-colors"
-                    disabled={isLoading}
-                    required
-                    maxLength={100}
-                  />
-                </div>
-                <div className="mb-5">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Ngày sinh</label>
-                  <input
-                    type="date"
-                    name="birthDate"
-                    value={formData.birthDate}
-                    onChange={handleInputChange}
-                    className="block w-full rounded-lg border border-gray-300 shadow-sm px-4 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition-colors"
-                    disabled={isLoading}
-                    required
-                  />
-                </div>
-                <div className="mb-5">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Số điện thoại</label>
-                  <input
-                    type="text"
-                    name="phoneNumber"
-                    value={formData.phoneNumber}
-                    onChange={handleInputChange}
-                    className="block w-full rounded-lg border border-gray-300 shadow-sm px-4 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition-colors"
-                    disabled={isLoading}
-                    required
-                    maxLength={10}
-                    pattern="\d{10}"
-                    placeholder="10 chữ số"
-                  />
-                </div>
-                <div className="mb-5">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    className="block w-full rounded-lg border border-gray-300 shadow-sm px-4 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition-colors"
-                    disabled={isLoading}
-                    required
-                  />
-                </div>
-                <div className="mb-5">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Mật khẩu</label>
-                  <input
-                    type="password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    className="block w-full rounded-lg border border-gray-300 shadow-sm px-4 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition-colors"
-                    disabled={isLoading}
-                    required={!isEditing}
-                    minLength={6}
-                  />
-                </div>
-                <div className="mb-5">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Ảnh đại diện</label>
-                  <input
-                    type="text"
-                    name="avatar"
-                    value={formData.avatar}
-                    onChange={handleInputChange}
-                    className="block w-full rounded-lg border border-gray-300 shadow-sm px-4 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition-colors"
-                    disabled={isLoading}
-                    maxLength={255}
-                    placeholder="Đường dẫn URL (png, jpg, jpeg, gif)"
-                  />
-                </div>
-                <div className="flex justify-end gap-3">
+                <div className="flex justify-end gap-3 pt-2">
                   <button
                     type="button"
                     onClick={closeModal}
-                    className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 focus:outline-none transition-colors disabled:opacity-50"
-                    disabled={isLoading}
+                    className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50"
                   >
                     Hủy
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors disabled:opacity-50"
                     disabled={isLoading}
+                    className="px-5 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
                   >
-                    {isLoading ? 'Đang xử lý...' : isEditing ? 'Cập nhật' : 'Thêm mới'}
+                    {isLoading ? 'Đang lưu...' : (isEditing ? 'Cập nhật' : 'Thêm mới')}
                   </button>
                 </div>
               </form>
@@ -561,3 +657,20 @@ const AccountAdmin = () => {
 };
 
 export default AccountAdmin;
+// Parse backend errors -> toast + field level mapping
+function parseFieldErrorString(str) {
+  // Expect patterns like "field: message"
+  const idx = str.indexOf(':');
+  if (idx === -1) return null;
+  const field = str.slice(0, idx).trim();
+  const message = str.slice(idx + 1).trim();
+  if (!field) return null;
+  return { field, message };
+}
+
+// Will be replaced inside component via closure; fallback silent
+function parseAndShowBackendError(error, fallbackMessage) {
+  // Placeholder (overwritten in component scope if needed)
+  const res = error?.response?.data;
+  if (res?.message) toast.error(res.message); else toast.error(fallbackMessage || 'Lỗi');
+}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -17,6 +17,9 @@ const Profile = () => {
   });
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [originalUserInfo, setOriginalUserInfo] = useState(null);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [pendingSave, setPendingSave] = useState(false);
 
   useEffect(() => {
     // Kiểm tra authentication
@@ -54,14 +57,28 @@ const Profile = () => {
     }
     
     setUser(currentUser);
-    setUserInfo({
+    const initial = {
       name: currentUser.name || '',
       email: currentUser.email || '',
       phoneNumber: currentUser.phoneNumber || '',
       address: currentUser.address || '',
       dateOfBirth: currentUser.dateOfBirth || ''
-    });
+    };
+    setUserInfo(initial);
+    setOriginalUserInfo(initial);
   }, [navigate]);
+
+  // Compute changed fields diff
+  const changes = useMemo(() => {
+    if (!originalUserInfo) return [];
+    const diff = [];
+    Object.keys(userInfo).forEach(k => {
+      if ((originalUserInfo[k] || '') !== (userInfo[k] || '')) {
+        diff.push({ field: k, from: originalUserInfo[k] || '—', to: userInfo[k] || '—' });
+      }
+    });
+    return diff;
+  }, [originalUserInfo, userInfo]);
 
   // Không hiển thị gì nếu chưa có user
   if (!user) {
@@ -83,33 +100,70 @@ const Profile = () => {
     }));
   };
 
-  const handleSave = async () => {
+  const validate = () => {
+    if (!userInfo.name.trim()) {
+      toast.error('Tên không được để trống');
+      return false;
+    }
+    if (userInfo.phoneNumber && !/^0\d{9}$/.test(userInfo.phoneNumber)) {
+      toast.error('Số điện thoại phải 10 số và bắt đầu bằng 0');
+      return false;
+    }
+    if (userInfo.email && !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(userInfo.email)) {
+      toast.error('Email không hợp lệ');
+      return false;
+    }
+    if (userInfo.dateOfBirth) {
+      const dob = new Date(userInfo.dateOfBirth);
+      if (dob > new Date()) {
+        toast.error('Ngày sinh không hợp lệ');
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const handleSave = () => {
+    if (!validate()) return;
+    if (changes.length === 0) {
+      toast.info('Không có thay đổi nào');
+      setIsEditing(false);
+      return;
+    }
+    setShowConfirm(true);
+  };
+
+  const performSave = async () => {
     try {
-      setLoading(true);
+      setPendingSave(true);
       await axiosInstance.put(`/users/${user.id}`, userInfo);
       toast.success('Cập nhật thông tin thành công!', { position: 'top-right', autoClose: 3000 });
       setIsEditing(false);
-      
-      // Cập nhật localStorage nếu cần
+      setShowConfirm(false);
+      setOriginalUserInfo(userInfo);
       const updatedUser = { ...user, ...userInfo };
       localStorage.setItem('user', JSON.stringify(updatedUser));
+      setUser(updatedUser);
     } catch (error) {
       console.error('Lỗi khi cập nhật thông tin:', error);
-      toast.error('Không thể cập nhật thông tin', { position: 'top-right', autoClose: 3000 });
+      toast.error(error.response?.data?.message || 'Không thể cập nhật thông tin', { position: 'top-right', autoClose: 3000 });
     } finally {
-      setLoading(false);
+      setPendingSave(false);
     }
   };
 
   const handleCancel = () => {
-    setUserInfo({
-      name: user.name || '',
-      email: user.email || '',
-      phoneNumber: user.phoneNumber || '',
-      address: user.address || '',
-      dateOfBirth: user.dateOfBirth || ''
-    });
+    if (changes.length > 0) {
+      if (!window.confirm('Bạn có chắc muốn hủy các thay đổi?')) return;
+      toast.info('Đã hủy thay đổi');
+    }
+    setUserInfo(originalUserInfo || userInfo);
     setIsEditing(false);
+  };
+
+  const startEditing = () => {
+    setOriginalUserInfo(userInfo); // snapshot for diff
+    setIsEditing(true);
   };
 
   return (
@@ -122,7 +176,7 @@ const Profile = () => {
               <h1 className="text-2xl font-bold text-gray-900">Thông tin cá nhân</h1>
               {!isEditing ? (
                 <button
-                  onClick={() => setIsEditing(true)}
+                  onClick={startEditing}
                   className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 transition"
                 >
                   Chỉnh sửa
@@ -250,6 +304,50 @@ const Profile = () => {
           </div>
         </div>
       </div>
+      {showConfirm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white w-full max-w-lg rounded-lg shadow-xl">
+            <div className="px-5 py-4 border-b flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-800">Xác nhận lưu thay đổi</h3>
+              <button onClick={() => setShowConfirm(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+            </div>
+            <div className="p-5 max-h-[55vh] overflow-y-auto text-sm">
+              {changes.length === 0 ? (
+                <p className="text-gray-600">Không có thay đổi.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {changes.map(c => (
+                    <li key={c.field} className="bg-gray-50 rounded p-3 border border-gray-200">
+                      <p className="font-medium text-gray-700 mb-1">{c.field}</p>
+                      <div className="text-xs text-gray-600">
+                        <span className="line-through mr-2 text-red-500">{c.from || '—'}</span>
+                        <span className="text-green-600">→ {c.to || '—'}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="mt-4 text-xs text-gray-500">Vui lòng kiểm tra kỹ trước khi xác nhận.</p>
+            </div>
+            <div className="px-5 py-4 border-t bg-gray-50 flex justify-end gap-3">
+              <button
+                onClick={() => { setShowConfirm(false); toast.info('Đã hủy lưu'); }}
+                className="px-4 py-2 text-sm rounded border border-gray-300 hover:bg-white"
+                disabled={pendingSave}
+              >
+                Hủy
+              </button>
+              <button
+                onClick={performSave}
+                disabled={pendingSave}
+                className="px-5 py-2 text-sm rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {pendingSave ? 'Đang lưu...' : 'Xác nhận'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

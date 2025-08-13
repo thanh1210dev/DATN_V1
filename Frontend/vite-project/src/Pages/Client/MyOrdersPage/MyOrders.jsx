@@ -1,9 +1,27 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import axiosInstance from '../../../Service/axiosInstance';
 import AuthService from '../../../Service/AuthService';
 import { getUserIdByEmail } from '../../../utils/userUtils';
+
+// Danh sách trạng thái cố định (đặt ngoài component để không tạo mới mỗi render)
+const ORDER_STATUS_OPTIONS = [
+  { value: '', label: 'Tất cả', color: 'bg-gray-200 text-gray-800' },
+  { value: 'PENDING', label: 'Chờ thanh toán', color: 'bg-yellow-100 text-yellow-800' },
+  { value: 'CONFIRMING', label: 'Đang xác nhận', color: 'bg-blue-100 text-blue-800' },
+  { value: 'CONFIRMED', label: 'Đã xác nhận', color: 'bg-cyan-100 text-cyan-800' },
+  { value: 'PACKED', label: 'Đã đóng gói', color: 'bg-purple-100 text-purple-800' },
+  { value: 'PAID', label: 'Đã thanh toán', color: 'bg-green-100 text-green-800' },
+  { value: 'DELIVERING', label: 'Đang giao hàng', color: 'bg-indigo-100 text-indigo-800' },
+  { value: 'DELIVERED', label: 'Đã giao hàng', color: 'bg-emerald-100 text-emerald-800' },
+  { value: 'COMPLETED', label: 'Hoàn thành', color: 'bg-teal-100 text-teal-800' },
+  { value: 'CANCELLED', label: 'Đã hủy', color: 'bg-red-100 text-red-800' },
+  { value: 'RETURN_REQUESTED', label: 'Yêu cầu trả hàng', color: 'bg-amber-100 text-amber-800' },
+  { value: 'RETURNED', label: 'Đã trả hàng', color: 'bg-orange-100 text-orange-800' },
+  { value: 'REFUNDED', label: 'Đã hoàn tiền', color: 'bg-purple-100 text-purple-800' },
+  { value: 'RETURN_COMPLETED', label: 'Đã trả xong', color: 'bg-pink-100 text-pink-800' },
+];
 
 const MyOrders = () => {
   const navigate = useNavigate();
@@ -13,38 +31,11 @@ const MyOrders = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
+  const [statusCounts, setStatusCounts] = useState({});
 
-  // Mapping trạng thái đơn hàng
-  const statusMapping = {
-    PENDING: 'Chờ xử lý',
-    CONFIRMING: 'Đang xác nhận',
-    CONFIRMED: 'Đã xác nhận',
-    PACKED: 'Đã đóng gói',
-    DELIVERING: 'Đang giao hàng',
-    DELIVERED: 'Đã giao hàng',
-    PAID: 'Đã thanh toán',
-    COMPLETED: 'Hoàn thành',
-    CANCELLED: 'Đã hủy',
-    RETURN_REQUESTED: 'Yêu cầu trả hàng',
-    RETURNED: 'Đã trả hàng',
-  REFUNDED: 'Đã hoàn tiền',
-  PARTIALLY_REFUNDED: 'Đã hoàn tiền một phần',
-    RETURN_COMPLETED: 'Đã trả xong',
-    DELIVERY_FAILED: 'Giao hàng thất bại',
-  };
-
-  // Màu sắc cho từng trạng thái
-  const statusColors = {
-    'PENDING': 'bg-yellow-100 text-yellow-800',
-    'CONFIRMING': 'bg-blue-100 text-blue-800',
-    'DELIVERING': 'bg-purple-100 text-purple-800',
-    'PAID': 'bg-green-100 text-green-800',
-    'COMPLETED': 'bg-green-100 text-green-800',
-    'CANCELLED': 'bg-red-100 text-red-800',
-    'RETURNED': 'bg-orange-100 text-orange-800',
-    'REFUNDED': 'bg-gray-100 text-gray-800',
-    'RETURN_COMPLETED': 'bg-gray-100 text-gray-800'
-  };
+  // orderStatusOptions cố định (memo hóa để đảm bảo ref ổn định nếu cần)
+  const orderStatusOptions = useMemo(() => ORDER_STATUS_OPTIONS, []);
+  const getStatusMeta = (value) => ORDER_STATUS_OPTIONS.find(o => o.value === value);
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -74,6 +65,7 @@ const MyOrders = () => {
         return;
       }
       
+
       let finalUserId = userId;
       
       // Nếu userId là email, convert sang số
@@ -137,6 +129,29 @@ const MyOrders = () => {
     }
   }, [currentPage, selectedStatus, navigate]);
 
+  // Lấy tổng số đơn theo trạng thái (đưa lên trước useEffect để tránh ReferenceError)
+  const fetchStatusCounts = useCallback(async () => {
+    try {
+      const user = AuthService.getCurrentUser();
+      const token = localStorage.getItem('token');
+      if (!user || !token) return;
+      let userId = user?.id || localStorage.getItem('userId');
+      if (!userId) return;
+      if (typeof userId === 'string' && userId.includes('@')) {
+        try { userId = await getUserIdByEmail(userId); } catch { /* ignore */ }
+      }
+      const counts = {};
+    for (const opt of ORDER_STATUS_OPTIONS) {
+        try {
+          const url = `/bills/customer/${userId}?page=0&size=1${opt.value ? `&status=${opt.value}` : ''}`;
+          const res = await axiosInstance.get(url);
+          counts[opt.value] = res.data.totalElements || 0;
+        } catch { counts[opt.value] = 0; }
+      }
+      setStatusCounts(counts);
+    } catch { /* silent */ }
+  }, []); // không phụ thuộc vào array tạo mới để tránh loop
+
   useEffect(() => {
     const user = AuthService.getCurrentUser();
     const token = localStorage.getItem('token');
@@ -173,7 +188,8 @@ const MyOrders = () => {
     }
     
     fetchOrders();
-  }, [fetchOrders, navigate]);
+    fetchStatusCounts();
+  }, [fetchOrders, fetchStatusCounts, navigate]);
 
   const handleStatusChange = (status) => {
     setSelectedStatus(status);
@@ -196,6 +212,114 @@ const MyOrders = () => {
 
   const formatPrice = (price) => {
     return price?.toLocaleString('vi-VN') + ' VND' || '0 VND';
+  };
+
+  // Mua lại đơn hàng: chỉ cho đơn COMPLETED. Lấy chi tiết và add từng sản phẩm vào giỏ.
+  const handleReorder = async (orderId) => {
+    try {
+      // 1. Auth + userId
+      const user = AuthService.getCurrentUser();
+      const token = localStorage.getItem('token');
+      if (!user || !token) {
+        toast.error('Vui lòng đăng nhập');
+        navigate('/login');
+        return;
+      }
+      let userId = user.id || localStorage.getItem('userId');
+      if (!userId) {
+        toast.error('Không tìm thấy người dùng');
+        return;
+      }
+      if (typeof userId === 'string' && userId.includes('@')) {
+        try { userId = await getUserIdByEmail(userId); } catch { /* ignore */ }
+      }
+
+      // 2. Lấy chi tiết đơn hàng qua BillController (/bills/{id}).
+      //    Endpoint cũ /cart-checkout/bill/{id} không tồn tại -> gây 404.
+      let items = [];
+      try {
+        const billRes = await axiosInstance.get(`/bills/${orderId}`); // baseURL đã có /api
+        items = Array.isArray(billRes.data?.items) ? billRes.data.items : [];
+      } catch (e) {
+        console.log('[REORDER] /bills/{id} failed, fallback details page API', e.message);
+      }
+
+      // Fallback: /bills/{id}/details (phân trang) nếu items trống
+      if (!items.length) {
+        try {
+          const detailPageRes = await axiosInstance.get(`/bills/${orderId}/details?page=0&size=1000`);
+          items = Array.isArray(detailPageRes.data?.content) ? detailPageRes.data.content : [];
+        } catch (e) {
+          console.log('[REORDER] Fallback /details failed', e.message);
+        }
+      }
+
+      if (!items.length) {
+        toast.warn('Đơn hàng không có sản phẩm hợp lệ để mua lại');
+        return;
+      }
+
+      // 3. Gom nhóm theo productDetailId để tránh gọi API lặp
+      const grouped = new Map();
+      for (const it of items) {
+        const pdId = it.productDetailId || it.productDetail?.id || it.id; // fallback
+        if (!pdId) continue;
+        const qty = it.quantity || 1;
+        const name = it.productName || 'Sản phẩm';
+        if (!grouped.has(pdId)) grouped.set(pdId, { totalWanted: 0, name });
+        grouped.get(pdId).totalWanted += qty;
+      }
+      if (grouped.size === 0) {
+        toast.warn('Không tìm thấy sản phẩm khả dụng trong đơn này');
+        return;
+      }
+
+      // 4. Lấy tồn kho từng productDetail (song song)
+      const results = await Promise.all(Array.from(grouped.entries()).map(async ([pdId, info]) => {
+        try {
+          const res = await axiosInstance.get(`/product-details/${pdId}`); // đúng endpoint plural
+          const available = res.data?.quantity ?? 0; // trường backend là quantity
+          return { pdId, name: info.name, wanted: info.totalWanted, available };
+        } catch (err) {
+          return { pdId, name: info.name, wanted: info.totalWanted, available: 0, error: err };
+        }
+      }));
+
+      // 5. Thêm vào giỏ (tuần tự để tránh race server nếu cần)
+      let added = 0;
+      const warnings = [];
+      for (const r of results) {
+        if (r.error) {
+          warnings.push(`${r.name} lỗi tải tồn kho`);
+          continue;
+        }
+        if (r.available <= 0) {
+          warnings.push(`${r.name} hết hàng`);
+          continue;
+        }
+        const addQty = Math.min(r.wanted, r.available);
+        if (addQty < r.wanted) warnings.push(`${r.name} chỉ thêm ${addQty}/${r.wanted}`);
+        try {
+          if (addQty > 0) {
+            await axiosInstance.post(`/cart-checkout/cart/add?userId=${userId}&productDetailId=${r.pdId}&quantity=${addQty}`);
+            added++;
+          }
+        } catch (err) {
+          warnings.push(`${r.name} lỗi thêm: ${(err.response?.data?.message)||'không thể thêm'}`);
+        }
+      }
+
+      if (added === 0) {
+        toast.error('Không thể thêm sản phẩm nào (hết hàng hoặc lỗi)');
+        if (warnings.length) toast.warn(warnings.slice(0,4).join('\n') + (warnings.length>4 ? ' ...' : ''), { autoClose: 5000 });
+        return;
+      }
+      toast.success(`Đã thêm ${added} sản phẩm vào giỏ`);
+      if (warnings.length) toast.warn(warnings.slice(0,4).join('\n') + (warnings.length>4 ? ' ...' : ''), { autoClose: 5000 });
+      navigate('/cart');
+    } catch (error) {
+      toast.error('Không thể mua lại: ' + (error.response?.data?.message || error.message));
+    }
   };
 
   if (loading) {
@@ -225,34 +349,39 @@ const MyOrders = () => {
           </p>
         </div>
 
-        {/* Filter tabs */}
-        <div className="bg-white rounded-lg shadow-sm mb-6">
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8 px-6" aria-label="Tabs">
-              <button
-                onClick={() => handleStatusChange('')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  selectedStatus === '' 
-                    ? 'border-indigo-500 text-indigo-600' 
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Tất cả ({totalElements})
-              </button>
-              {Object.entries(statusMapping).map(([status, label]) => (
-                <button
-                  key={status}
-                  onClick={() => handleStatusChange(status)}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-                    selectedStatus === status 
-                      ? 'border-indigo-500 text-indigo-600' 
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  {label}
-                </button>
+        {/* Tabs trạng thái giống Admin */}
+        <div className="bg-white rounded-lg shadow-sm mb-6 p-4">
+          {/* Mobile dropdown */}
+          <div className="sm:hidden mb-3">
+            <label htmlFor="order-status-filter" className="sr-only">Trạng thái đơn hàng</label>
+            <select
+              id="order-status-filter"
+              value={selectedStatus}
+              onChange={(e) => handleStatusChange(e.target.value)}
+              className="block w-full rounded-md border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+            >
+              {orderStatusOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label} ({opt.value === '' ? totalElements : (statusCounts[opt.value] ?? 0)})</option>
               ))}
-            </nav>
+            </select>
+          </div>
+          {/* Desktop pills */}
+          <div className="hidden sm:flex flex-wrap gap-2 overflow-x-auto no-scrollbar">
+            {orderStatusOptions.map(opt => {
+              const active = selectedStatus === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => handleStatusChange(opt.value)}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors whitespace-nowrap ${active ? `${opt.color} border-gray-300 ring-1 ring-indigo-300` : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'}`}
+                >
+                  <span className="flex items-center gap-1">
+                    <span>{opt.label}</span>
+                    <span className="text-xs font-semibold text-purple-700">({opt.value === '' ? totalElements : (statusCounts[opt.value] || 0)})</span>
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -265,7 +394,7 @@ const MyOrders = () => {
               </svg>
               <h3 className="mt-2 text-sm font-medium text-gray-900">Chưa có đơn hàng</h3>
               <p className="mt-1 text-sm text-gray-500">
-                {selectedStatus ? `Không có đơn hàng nào ở trạng thái "${statusMapping[selectedStatus]}"` : 'Bạn chưa có đơn hàng nào'}
+                {selectedStatus ? `Không có đơn hàng nào ở trạng thái "${getStatusMeta(selectedStatus)?.label || selectedStatus}"` : 'Bạn chưa có đơn hàng nào'}
               </p>
               <div className="mt-6">
                 <Link
@@ -291,8 +420,8 @@ const MyOrders = () => {
                         Đặt ngày: {formatDate(order.createdAt)}
                       </p>
                     </div>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[order.status]}`}>
-                      {statusMapping[order.status]}
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusMeta(order.status)?.color || 'bg-gray-100 text-gray-800'}`}>
+                      {getStatusMeta(order.status)?.label || order.status}
                     </span>
                   </div>
 
@@ -333,7 +462,10 @@ const MyOrders = () => {
                         </button>
                       )}
                       {order.status === 'COMPLETED' && (
-                        <button className="text-indigo-600 hover:text-indigo-900 text-sm font-medium">
+                        <button
+                          className="text-indigo-600 hover:text-indigo-900 text-sm font-medium"
+                          onClick={()=>handleReorder(order.id)}
+                        >
                           Mua lại
                         </button>
                       )}

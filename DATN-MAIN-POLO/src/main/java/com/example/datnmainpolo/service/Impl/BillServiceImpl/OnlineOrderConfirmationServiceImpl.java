@@ -3,7 +3,6 @@ package com.example.datnmainpolo.service.Impl.BillServiceImpl;
 import com.example.datnmainpolo.dto.BillDTO.BillResponseDTO;
 import com.example.datnmainpolo.dto.BillDTO.DeliveryBillAddressRequestDTO;
 import com.example.datnmainpolo.dto.BillDetailDTO.BillDetailCreateDTO;
-import com.example.datnmainpolo.dto.BillDetailDTO.BillDetailResponseDTO;
 import com.example.datnmainpolo.dto.OrderHistoryDTO.OrderHistoryResponseDTO;
 import com.example.datnmainpolo.entity.Bill;
 import com.example.datnmainpolo.entity.BillDetail;
@@ -114,7 +113,7 @@ public class OnlineOrderConfirmationServiceImpl implements OnlineOrderConfirmati
         if (bill.getStatus() != OrderStatus.CONFIRMING) {
             throw new RuntimeException("Chỉ có thể thêm sản phẩm khi hóa đơn ở trạng thái CONFIRMING");
         }
-        BillDetailResponseDTO billDetailResponse = billDetailService.createBillDetail(billId, request);
+    billDetailService.createBillDetail(billId, request);
 
 
         OrderHistory orderHistory = new OrderHistory();
@@ -201,6 +200,17 @@ public class OnlineOrderConfirmationServiceImpl implements OnlineOrderConfirmati
             bill.setConfirmationDate(Instant.now());
         }
 
+        // Validate inventory before confirming (for COD skipping earlier checks)
+        if (newStatus == OrderStatus.CONFIRMED && bill.getType() == PaymentType.COD) {
+            List<BillDetail> details = billDetailRepository.findByBillId(billId);
+            for (BillDetail d : details) {
+                int avail = d.getDetailProduct().getQuantity();
+                int need = d.getQuantity();
+                if (avail < need) {
+                    throw new RuntimeException("Sản phẩm " + d.getDetailProduct().getCode() + " không đủ số lượng. Còn: " + avail + ", cần: " + need);
+                }
+            }
+        }
         bill.setStatus(newStatus);
         bill.setUpdatedAt(Instant.now());
         bill.setUpdatedBy(getActor());

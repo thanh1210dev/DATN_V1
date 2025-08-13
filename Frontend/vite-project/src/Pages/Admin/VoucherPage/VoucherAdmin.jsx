@@ -2,11 +2,13 @@ import React, { useState, useEffect } from "react";
 import { HiOutlineSearch, HiOutlinePlus, HiOutlinePencilAlt, HiOutlineTrash } from "react-icons/hi";
 import { BsSendDashFill } from "react-icons/bs";
 import { toast, ToastContainer } from "react-toastify";
+import { notifySuccess, notifyError, notifyWarn, notifyInfo, runWithToast, confirmAction, buildCrudMessage } from "../../../utils/notifier";
 import "react-toastify/dist/ReactToastify.css";
 import { PromotionStatus } from "../DotGiamGiaPage/PromotionStatus";
 import { useNavigate } from "react-router-dom";
 import VoucherApi from "../../../Service/AdminDotGiamGiaSevice/VoucherApi";
 import { VoucherType, VoucherTypeUser } from "./VoucherEnums";
+import { MONEY_MAX, MONEY_MAX_LABEL, buildMoneyError, isValidMoney } from "../../../utils/validationConstants";
 
 const VoucherAdmin = () => {
   const [data, setData] = useState([]);
@@ -72,7 +74,7 @@ const VoucherAdmin = () => {
   };
 
   const currentDate = new Date().toISOString().slice(0, 16);
-  const MAX_NUMERIC_VALUE = 99999999.99;
+  // Monetary upper bound centralized (≤ MONEY_MAX)
 
   const navigate = useNavigate();
 
@@ -96,10 +98,7 @@ const VoucherAdmin = () => {
       setTotalPages(response.data.totalPages || 1);
     } catch (error) {
       console.error("Fetch Error:", error);
-      toast.error(error.response?.data?.message || "Đã xảy ra lỗi khi tải dữ liệu", {
-        position: "top-right",
-        autoClose: 5000,
-      });
+  notifyError(error.response?.data?.message || "Đã xảy ra lỗi khi tải dữ liệu");
     }
   };
 
@@ -191,14 +190,11 @@ const VoucherAdmin = () => {
 
   const handleDeleteConfirm = async () => {
     try {
-      await VoucherApi.deleteVoucher(deleteId);
-      toast.success("Xóa voucher thành công!", { position: "top-right", autoClose: 3000 });
+  await VoucherApi.deleteVoucher(deleteId);
+  notifySuccess(buildCrudMessage.delete('voucher'));
       fetchData();
     } catch (error) {
-      toast.error(error.response?.data?.message || "Đã xảy ra lỗi khi xóa", {
-        position: "top-right",
-        autoClose: 5000,
-      });
+  notifyError(error.response?.data?.message || "Đã xảy ra lỗi khi xóa");
     } finally {
       setIsDeleteModalOpen(false);
       setDeleteId(null);
@@ -221,14 +217,16 @@ const VoucherAdmin = () => {
     const minOrder = parseFloat(formData.minOrderValue);
     if (isNaN(minOrder) || minOrder <= 0) {
       errors.minOrderValue = "Giá trị đơn hàng tối thiểu phải lớn hơn 0";
+    } else if (minOrder > MONEY_MAX) {
+      errors.minOrderValue = `Giá trị đơn hàng tối thiểu vượt quá giới hạn (≤ ${MONEY_MAX_LABEL})`;
     }
 
     if (formData.type === VoucherType.FIXED) {
       const fixed = parseFloat(formData.fixedDiscountValue);
       if (isNaN(fixed) || fixed <= 0) {
         errors.fixedDiscountValue = "Giá trị giảm cố định phải lớn hơn 0";
-      } else if (fixed > MAX_NUMERIC_VALUE) {
-        errors.fixedDiscountValue = "Giá trị giảm cố định quá lớn";
+      } else if (fixed > MONEY_MAX) {
+        errors.fixedDiscountValue = `Giá trị giảm cố định vượt quá giới hạn (≤ ${MONEY_MAX_LABEL})`;
       } else if (fixed && minOrder && fixed > minOrder) {
         errors.minOrderValue = "Giá trị đơn hàng tối thiểu phải lớn hơn hoặc bằng giá trị giảm cố định";
       }
@@ -244,14 +242,12 @@ const VoucherAdmin = () => {
         errors.percentageDiscountValue = "Phần trăm giảm giá phải lớn hơn 0";
       } else if (percentage > 100) {
         errors.percentageDiscountValue = "Phần trăm giảm giá không được vượt quá 100";
-      } else if (percentage > MAX_NUMERIC_VALUE) {
-        errors.percentageDiscountValue = "Phần trăm giảm giá quá lớn";
       }
       const maxDiscount = parseFloat(formData.maxDiscountValue);
       if (isNaN(maxDiscount) || maxDiscount <= 0) {
         errors.maxDiscountValue = "Giá trị giảm tối đa phải lớn hơn 0";
-      } else if (maxDiscount > MAX_NUMERIC_VALUE) {
-        errors.maxDiscountValue = "Giá trị giảm tối đa quá lớn";
+      } else if (maxDiscount > MONEY_MAX) {
+        errors.maxDiscountValue = `Giá trị giảm tối đa vượt quá giới hạn (≤ ${MONEY_MAX_LABEL})`;
       }
       if (formData.fixedDiscountValue) {
         errors.fixedDiscountValue = "Không sử dụng giá trị giảm cố định cho loại PERCENTAGE";
@@ -288,7 +284,7 @@ const VoucherAdmin = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) {
-      toast.error("Vui lòng kiểm tra các trường dữ liệu", { position: "top-right", autoClose: 5000 });
+  notifyError("Vui lòng kiểm tra các trường dữ liệu");
       return;
     }
 
@@ -328,10 +324,10 @@ const VoucherAdmin = () => {
     try {
       if (selectedVoucher) {
         await VoucherApi.updateVoucher(selectedVoucher.id, pendingPayload);
-        toast.success("Cập nhật voucher thành công!", { position: "top-right", autoClose: 3000 });
+        notifySuccess(buildCrudMessage.update('voucher'));
       } else {
         await VoucherApi.createVoucher(pendingPayload);
-        toast.success("Thêm voucher thành công!", { position: "top-right", autoClose: 3000 });
+        notifySuccess(buildCrudMessage.create('voucher'));
       }
       setIsFormOpen(false);
       setIsConfirmModalOpen(false);
@@ -344,7 +340,7 @@ const VoucherAdmin = () => {
       } else if (error.response?.data?.errors) {
         errorMessage = Object.values(error.response.data.errors).join("; ");
       }
-      toast.error(errorMessage, { position: "top-right", autoClose: 5000 });
+      notifyError(errorMessage);
       setIsConfirmModalOpen(false);
       setPendingPayload(null);
     }

@@ -150,30 +150,9 @@ const HoaDonApi = {
       console.log('✅ API Response:', response.data);
       return response.data;
     } catch (error) {
-      console.error('❌ API Error:', {
-        endpoint: `/bills/${billId}/status`,
-        error: error.response?.data || error.message,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        config: error.config,
-        code: error.code
-      });
-      
-      // Better error message based on status code
-      let errorMessage = 'Lỗi khi cập nhật trạng thái hóa đơn';
-      if (error.response?.status === 404) {
-        errorMessage = 'Không tìm thấy hóa đơn';
-      } else if (error.response?.status === 400) {
-        errorMessage = error.response?.data?.message || 'Dữ liệu không hợp lệ';
-      } else if (error.response?.status === 500) {
-        errorMessage = 'Lỗi server nội bộ';
-      } else if (error.code === 'ECONNREFUSED') {
-        errorMessage = 'Không thể kết nối đến server';
-      } else if (error.code === 'TIMEOUT') {
-        errorMessage = 'Yêu cầu quá thời gian chờ';
-      }
-      
-      throw new Error(errorMessage);
+      const backendMsg = error?.response?.data?.message || error?.message;
+      console.error('❌ API Error updateBillStatus:', backendMsg, error?.response?.status);
+      throw new Error(backendMsg || 'Lỗi khi cập nhật trạng thái hóa đơn');
     }
   },
 

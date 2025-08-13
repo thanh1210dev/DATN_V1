@@ -62,6 +62,22 @@ const ProductInfo = ({
         {product.name}
       </h1>
 
+      {/* Mã & Trạng thái */}
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        {product.code && (
+          <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full font-medium">
+            Mã: {product.code}
+          </span>
+        )}
+        {productDetail && (
+          productDetail.status === 'OUT_OF_STOCK' ? (
+            <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full font-medium">Hết hàng</span>
+          ) : productDetail.status === 'DISCONTINUED' ? (
+            <span className="px-3 py-1 bg-gray-200 text-gray-700 rounded-full font-medium">Ngừng bán</span>
+          ) : null
+        )}
+      </div>
+
       {/* Giá sản phẩm */}
       <div className="flex items-center gap-4">
         {productDetail?.promotionalPrice ? (
@@ -158,59 +174,73 @@ const ProductInfo = ({
         </div>
       </div>
 
-      {/* Chọn số lượng */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <label className="text-sm font-medium text-gray-700">Số lượng:</label>
-          <span className="text-sm text-gray-500">
-            Còn lại: <span className="font-medium text-green-600">
-              {productDetail?.quantity || 0} sản phẩm
+      {/* Chọn số lượng (chỉ hiển thị khi còn hàng) */}
+      {productDetail?.status === 'AVAILABLE' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-700">Số lượng:</label>
+            <span className="text-sm text-gray-500">
+              Còn lại: <span className={`font-medium ${productDetail.quantity === 0 ? 'text-red-600' : 'text-green-600'}`}>
+                {productDetail.quantity} sản phẩm
+              </span>
             </span>
-          </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => handleQuantityChange(quantity - 1)}
+              className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center hover:bg-gray-50"
+              disabled={quantity <= 1}
+            >
+              -
+            </button>
+            <input
+              type="number"
+              value={quantity}
+              onChange={(e) => handleQuantityChange(parseInt(e.target.value) || 1)}
+              className="w-16 h-8 border border-gray-300 rounded text-center text-sm"
+              min="1"
+              max={productDetail.quantity || 1}
+            />
+            <button
+              onClick={() => handleQuantityChange(quantity + 1)}
+              className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center hover:bg-gray-50"
+              disabled={quantity >= (productDetail.quantity || 1)}
+            >
+              +
+            </button>
+          </div>
+          {productDetail.quantity > 0 && productDetail.quantity < 10 && (
+            <p className="text-sm text-orange-600">
+              ⚠️ Chỉ còn {productDetail.quantity} sản phẩm trong kho!
+            </p>
+          )}
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => handleQuantityChange(quantity - 1)}
-            className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center hover:bg-gray-50"
-            disabled={quantity <= 1}
-          >
-            -
-          </button>
-          <input
-            type="number"
-            value={quantity}
-            onChange={(e) => handleQuantityChange(parseInt(e.target.value) || 1)}
-            className="w-16 h-8 border border-gray-300 rounded text-center text-sm"
-            min="1"
-            max={productDetail?.quantity || 1}
-          />
-          <button
-            onClick={() => handleQuantityChange(quantity + 1)}
-            className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center hover:bg-gray-50"
-            disabled={quantity >= (productDetail?.quantity || 1)}
-          >
-            +
-          </button>
+      )}
+
+      {/* Trạng thái khi không còn hàng hoặc ngừng bán */}
+      {productDetail && productDetail.status !== 'AVAILABLE' && (
+        <div className="py-3">
+          {productDetail.status === 'OUT_OF_STOCK' && (
+            <p className="text-sm font-medium text-red-600">Sản phẩm đã hết hàng</p>
+          )}
+          {productDetail.status === 'DISCONTINUED' && (
+            <p className="text-sm font-medium text-gray-600">Sản phẩm đã ngừng bán</p>
+          )}
         </div>
-        {productDetail?.quantity && productDetail.quantity < 10 && (
-          <p className="text-sm text-orange-600">
-            ⚠️ Chỉ còn {productDetail.quantity} sản phẩm trong kho!
-          </p>
-        )}
-      </div>
+      )}
 
       {/* Các nút hành động */}
       <div className="space-y-3">
         <button
           onClick={handleAddToCartClick}
-          className="w-full px-6 py-3 border-2 border-red-600 bg-white text-red-600 font-semibold rounded hover:bg-red-50 transition duration-300"
+          className="w-full px-6 py-3 border-2 border-red-600 bg-white text-red-600 font-semibold rounded hover:bg-red-50 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           disabled={!productDetail || productDetail.status !== 'AVAILABLE' || !productDetail.quantity}
         >
           THÊM VÀO GIỎ
         </button>
         <button
           onClick={handleBuyNow}
-          className="w-full px-6 py-3 bg-red-600 text-white font-semibold rounded hover:bg-red-700 transition duration-300"
+          className="w-full px-6 py-3 bg-red-600 text-white font-semibold rounded hover:bg-red-700 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           disabled={!productDetail || productDetail.status !== 'AVAILABLE' || !productDetail.quantity}
         >
           MUA NGAY

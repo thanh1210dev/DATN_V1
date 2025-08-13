@@ -36,6 +36,8 @@ public class VoucherRequestDTO {
     private PromotionStatus status;
 
     @PositiveOrZero(message = "Giá trị giảm cố định phải không âm")
+    @DecimalMax(value = "999000000000.00", message = "Giá trị giảm cố định tối đa 999 tỷ")
+    @Digits(integer = 12, fraction = 2, message = "Tối đa 12 số phần nguyên và 2 số thập phân")
     private BigDecimal fixedDiscountValue;
 
     @DecimalMin(value = "0.00", message = "Phần trăm giảm giá phải ít nhất là 0%")
@@ -43,9 +45,13 @@ public class VoucherRequestDTO {
     private BigDecimal percentageDiscountValue;
 
     @PositiveOrZero(message = "Giá trị giảm tối đa phải không âm")
+    @DecimalMax(value = "999000000000.00", message = "Giá trị giảm tối đa 999 tỷ")
+    @Digits(integer = 12, fraction = 2, message = "Tối đa 12 số phần nguyên và 2 số thập phân")
     private BigDecimal maxDiscountValue;
 
     @PositiveOrZero(message = "Giá trị đơn hàng tối thiểu phải không âm")
+    @DecimalMax(value = "999000000000.00", message = "Giá trị đơn hàng tối thiểu tối đa 999 tỷ")
+    @Digits(integer = 12, fraction = 2, message = "Tối đa 12 số phần nguyên và 2 số thập phân")
     private BigDecimal minOrderValue;
 
     @NotNull(message = "ID người tạo là bắt buộc")

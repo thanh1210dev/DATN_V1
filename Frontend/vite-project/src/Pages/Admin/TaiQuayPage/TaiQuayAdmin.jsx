@@ -351,14 +351,19 @@ const TaiQuayAdmin = () => {
       toast.error('Số lượng phải lớn hơn 0');
       return;
     }
+    // Kiểm tra trạng thái sản phẩm (ngừng bán thì chặn)
+    const pd = productDetails.find(p => p.id === productDetailId);
+    if (pd && pd.status && !['AVAILABLE','ACTIVE'].includes(pd.status)) {
+      toast.error('Sản phẩm đang ngừng bán / không khả dụng, không thể thêm');
+      return;
+    }
     try {
       setIsLoading(true);
-      console.log('🛒 [TaiQuay] Adding product to bill:', { productDetailId, quantity, billId: selectedBill.id });
-      
-      await axiosInstance.post(`/bill-details/${selectedBill.id}`, {
-        productDetailId,
-        quantity,
-      });
+      const payload = { productDetailId, quantity };
+      console.log('🛒 [TaiQuay] Adding product to bill:', { ...payload, billId: selectedBill.id });
+
+      const res = await axiosInstance.post(`/bill-details/${selectedBill.id}`, payload);
+      console.log('✅ [TaiQuay] Add product response:', res.data);
       await fetchBillDetails(selectedBill.id);
       await fetchBills();
       setShowAddProductModal(false);
@@ -367,8 +372,16 @@ const TaiQuayAdmin = () => {
       setProductQuantities((prev) => ({ ...prev, [productDetailId]: 1 }));
       toast.success('Thêm sản phẩm thành công');
     } catch (error) {
-      console.error('❌ [TaiQuay] Add product failed:', error);
-      toast.error(error.response?.data?.message || 'Không thể thêm sản phẩm');
+      const backendMsg = error.response?.data?.message;
+      const status = error.response?.status;
+      console.error('❌ [TaiQuay] Add product failed:', { status, backendMsg, error });
+      if (status === 400 && backendMsg) {
+        toast.error(backendMsg);
+      } else if (status === 404) {
+        toast.error('Không tìm thấy hóa đơn hoặc sản phẩm');
+      } else {
+        toast.error(backendMsg || 'Không thể thêm sản phẩm');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -405,7 +418,16 @@ const TaiQuayAdmin = () => {
       await fetchBills(); // fetchBills đã có logic update selectedBill
       toast.success('Xóa sản phẩm thành công');
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Không thể xóa sản phẩm');
+      // Phân biệt lỗi backend không chạy (connection refused) và lỗi nghiệp vụ
+      if (error.message?.includes('Network') || error.code === 'ERR_NETWORK') {
+        toast.error('Không thể kết nối máy chủ (backend có thể chưa chạy)');
+      } else if (error.response?.status === 404) {
+        toast.warn('Sản phẩm đã bị xóa hoặc không tồn tại');
+      } else if (error.response?.status === 400) {
+        toast.error(error.response?.data?.message || 'Không thể xóa sản phẩm (400)');
+      } else {
+        toast.error(error.response?.data?.message || 'Không thể xóa sản phẩm');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -572,21 +594,24 @@ const TaiQuayAdmin = () => {
       const response = await axiosInstance.put(`/bills/${selectedBill.id}/status`, null, { params: { status: newStatus } });
       setSelectedBill(response.data);
       await fetchBills();
-      if (newStatus === 'DELIVERED') {
-        toast.success('Đã cập nhật: Đã giao hàng');
-      } else if (newStatus === 'DELIVERING') {
-        toast.success('Đã cập nhật: Đang giao hàng');
-      } else if (newStatus === 'PACKED') {
-        toast.success('Đã cập nhật: Đã đóng gói');
-      } else if (newStatus === 'CONFIRMED') {
-        toast.success('Đã cập nhật: Đã xác nhận');
-      } else if (newStatus === 'COMPLETED') {
-        toast.success('Đã hoàn thành đơn');
-      } else {
-        toast.success('Cập nhật trạng thái thành công');
+      let successMsg;
+      switch (newStatus) {
+        case 'DELIVERED': successMsg = 'Đã cập nhật: Đã giao hàng'; break;
+        case 'DELIVERING': successMsg = 'Đã cập nhật: Đang giao hàng'; break;
+        case 'PACKED': successMsg = 'Đã cập nhật: Đã đóng gói'; break;
+        case 'CONFIRMED': successMsg = 'Đã cập nhật: Đã xác nhận'; break;
+        case 'COMPLETED': successMsg = 'Đã hoàn thành đơn'; break;
+        default: successMsg = 'Cập nhật trạng thái thành công';
       }
+      toast.success(successMsg);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Không thể cập nhật trạng thái');
+      const backendMsg = error?.response?.data?.message || error.message || 'Không thể cập nhật trạng thái';
+      if (/không đủ số lượng/i.test(backendMsg)) {
+        toast.error(backendMsg);
+      } else {
+        toast.error(backendMsg);
+      }
+      console.error('❌ Update bill status error:', error);
     } finally {
       setIsLoading(false);
     }
@@ -603,6 +628,10 @@ const TaiQuayAdmin = () => {
       }
       let product = productDetails.find((p) => p.code.toLowerCase() === code.toLowerCase());
       if (product) {
+        if (product.status && !['AVAILABLE','ACTIVE'].includes(product.status)) {
+          toast.error('Sản phẩm đang ngừng bán / không khả dụng');
+          return;
+        }
         await addProductToBill(product.id, productQuantities[product.id] || 1);
         return;
       }
@@ -616,6 +645,10 @@ const TaiQuayAdmin = () => {
       });
       if (response.data.content.length > 0) {
         product = response.data.content[0];
+        if (product.status && !['AVAILABLE','ACTIVE'].includes(product.status)) {
+          toast.error('Sản phẩm đang ngừng bán / không khả dụng');
+          return;
+        }
         await addProductToBill(product.id, productQuantities[product.id] || 1);
       } else {
         toast.error(`Không tìm thấy sản phẩm với mã ${code}`);
@@ -763,7 +796,7 @@ const TaiQuayAdmin = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6 font-sans">
       <ToastContainer
-        position="top-center"
+        position="top-right"
         autoClose={3000}
         hideProgressBar={false}
         newestOnTop
@@ -771,7 +804,6 @@ const TaiQuayAdmin = () => {
         pauseOnHover
         theme="light"
         limit={5}
-        containerId="taiQuayToast"
       />
       <BillManagement
         bills={bills}

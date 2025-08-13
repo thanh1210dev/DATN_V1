@@ -42,7 +42,7 @@ public interface HoaDonRepository extends JpaRepository<Bill, Integer> {
                SUM(b.final_amount) AS tong_doanh_thu
         FROM bill b
         LEFT JOIN account u ON b.employee_id = u.id
-        WHERE b.status = 'PAID'
+        WHERE b.status = 'COMPLETED'
           AND b.bill_type = 'OFFLINE'
           AND b.completion_date BETWEEN :ngayBatDau AND :ngayKetThuc
           AND b.deleted = 0
@@ -59,7 +59,7 @@ public interface HoaDonRepository extends JpaRepository<Bill, Integer> {
                COUNT(b.id) AS so_luong_don_hang,
                SUM(b.final_amount) AS tong_doanh_thu
         FROM bill b
-        WHERE b.status = 'PAID'
+        WHERE b.status = 'COMPLETED'
           AND b.completion_date BETWEEN :ngayBatDau AND :ngayKetThuc
           AND b.deleted = 0
         GROUP BY b.type
@@ -75,7 +75,7 @@ public interface HoaDonRepository extends JpaRepository<Bill, Integer> {
                COUNT(b.id) AS so_lan_su_dung,
                SUM(b.final_amount) AS tong_doanh_thu
         FROM bill b
-        WHERE b.status = 'PAID'
+        WHERE b.status = 'COMPLETED'
           AND b.completion_date BETWEEN :ngayBatDau AND :ngayKetThuc
           AND b.deleted = 0
           AND b.voucher_code IS NOT NULL

@@ -316,7 +316,9 @@ const BillAdmin = () => {
                 </td>
               </tr>
             ) : (
-              bills.map((bill, index) => (
+              bills.map((bill, index) => {
+                const canPrint = bill.status === 'COMPLETED';
+                return (
                 <tr key={bill.id} className="border-b hover:bg-indigo-50 transition-colors">
                   <td className="px-6 py-3 text-center">{page * size + index + 1}</td>
                   <td className="px-6 py-3">{bill.code}</td>
@@ -362,15 +364,22 @@ const BillAdmin = () => {
                       <HiOutlineEye size={16} />
                     </button>
                     <button
-                      onClick={() => handlePrintInvoice(bill.id)}
-                      className="p-1.5 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors bg-blue-600 text-white hover:bg-blue-700"
-                      title="In hóa đơn"
+                      onClick={() => {
+                        if (canPrint) {
+                          handlePrintInvoice(bill.id);
+                        } else {
+                          toast.warn('Chỉ in hóa đơn khi đơn ở trạng thái Hoàn thành');
+                        }
+                      }}
+                      disabled={!canPrint}
+                      className={`p-1.5 rounded-md focus:outline-none focus:ring-2 transition-colors ${canPrint ? 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500' : 'bg-gray-300 text-gray-500 cursor-not-allowed focus:ring-gray-300'}`}
+                      title={canPrint ? 'In hóa đơn' : 'Chỉ có thể in khi trạng thái Hoàn thành'}
                     >
                       <HiOutlinePrinter size={16} />
                     </button>
                   </td>
                 </tr>
-              ))
+              );})
             )}
           </tbody>
         </table>

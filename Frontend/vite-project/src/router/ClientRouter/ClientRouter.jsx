@@ -19,6 +19,7 @@ import ProductList from "../../Pages/Client/ProductPage/ProductList";
 import PaymentResult from "../../Pages/Client/PaymentResult/PaymentResult";
 import OrderLookup from "../../Pages/Client/OrderLookupPage/OrderLookup";
 import GuestCheckout from "../../Pages/Client/GuestCheckout/GuestCheckout";
+import Contact from "../../Pages/Client/ContactPage/Contact";
 
 const ClientRouter = () => {
   return (
@@ -57,10 +58,10 @@ const ClientRouter = () => {
             </PrivateRoute>
           }
         />
+        <Route path="contact" element={<Contact />} />
       </Route>
-      <Route path="/login" element={<LoginPage />} />
-  <Route path="/forgot-password" element={<ForgotPassword />} />
-  <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/oauth2/redirect" element={<OAuth2RedirectHandler />} />
       <Route path="*" element={<div className="p-6 text-center text-gray-500 font-sans text-lg">404 - Không tìm thấy trang</div>} />

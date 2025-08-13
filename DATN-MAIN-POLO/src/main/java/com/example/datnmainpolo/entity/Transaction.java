@@ -29,7 +29,8 @@ public class Transaction {
     @Column(name = "type", length = 50)
     private TransactionType type;
 
-    @Column(name = "total_money", precision = 10, scale = 2)
+    // Increased precision from (10,2) -> (15,2) to allow values up to 999,000,000,000.00 ( ~999 tỷ )
+    @Column(name = "total_money", precision = 15, scale = 2)
     private BigDecimal totalMoney;
 
     @Enumerated(EnumType.STRING)

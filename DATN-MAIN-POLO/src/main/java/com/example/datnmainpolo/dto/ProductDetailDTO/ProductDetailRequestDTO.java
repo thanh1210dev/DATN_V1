@@ -1,12 +1,13 @@
 package com.example.datnmainpolo.dto.ProductDetailDTO;
 
-import com.example.datnmainpolo.enums.ProductStatus;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.util.List;
+
+import com.example.datnmainpolo.enums.ProductStatus;
 
 @Getter
 @Setter
@@ -30,12 +31,11 @@ public class ProductDetailRequestDTO {
     private Integer quantity;
 
     @NotNull(message = "Giá không được để trống")
-    @DecimalMin(value = "0.0", inclusive = false, message = "Giá phải lớn hơn 0")
+    @DecimalMin(value = "0.00", inclusive = false, message = "Giá phải lớn hơn 0")
+    @DecimalMax(value = "999000000000.00", message = "Giá phải nhỏ hơn hoặc bằng 999 tỷ")
+    @Digits(integer = 12, fraction = 2, message = "Giá tối đa 12 chữ số phần nguyên và 2 chữ số thập phân")
     private BigDecimal price;
 
-    @NotNull(message = "Giá nhập không được để trống")
-    @DecimalMin(value = "0.0", inclusive = false, message = "Giá nhập phải lớn hơn 0")
-    private BigDecimal importPrice;
-
-    private ProductStatus status;
+        // importPrice removed; status optional (ignored on create, constrained on update)
+        private ProductStatus status;
 }

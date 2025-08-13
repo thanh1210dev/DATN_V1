@@ -30,9 +30,12 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
         String email = oAuth2User.getAttribute("email");
-
-    UserEntity user = userRepository.findFirstByEmailOrderByIdDesc(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        if (email == null || email.isBlank()) {
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Không lấy được email từ tài khoản Google");
+            return;
+        }
+        UserEntity user = userRepository.findFirstByEmailOrderByIdDesc(email)
+                .orElseThrow(() -> new RuntimeException("User not found for email=" + email));
         String jwtToken = jwtUtil.generateToken(user.getEmail(), user.getRole().name(), user.getId());
 
 

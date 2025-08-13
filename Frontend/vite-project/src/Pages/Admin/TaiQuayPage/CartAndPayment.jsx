@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { HiOutlinePlus, HiOutlineTrash, HiOutlineX, HiOutlineTruck, HiOutlineUser, HiChevronLeft, HiChevronRight } from 'react-icons/hi';
 import Select from 'react-select';
 import { toast } from 'react-toastify';
+import { MONEY_MAX_LABEL, isValidMoney } from '../../../utils/validationConstants';
 import QRCode from 'qrcode';
 import axiosInstance from '../../../Service/axiosInstance';
 
@@ -383,6 +384,10 @@ const CartAndPayment = ({
       toast.error('Vui lòng chọn hóa đơn');
       return;
     }
+    if (!safeBillDetails || safeBillDetails.length === 0) {
+      toast.error('Hóa đơn chưa có sản phẩm, không thể thanh toán');
+      return;
+    }
     const finalAmount = selectedBill.finalAmount || 0;
     if (paymentType === 'CASH') {
       const amount = parseFloat(cashPaid);
@@ -394,8 +399,13 @@ const CartAndPayment = ({
         toast.error('Số tiền phải lớn hơn hoặc bằng tổng thanh toán');
         return;
       }
-      if (amount > 999999999999999.99) {
-        toast.error('Số tiền vượt quá giới hạn cho phép');
+      if (!isValidMoney(amount)) {
+        toast.error(`Số tiền không hợp lệ (≤ ${MONEY_MAX_LABEL}, tối đa 2 số thập phân)`);
+        return;
+      }
+      const confirmCash = window.confirm(`Xác nhận thanh toán tiền mặt số tiền ${amount.toLocaleString()} đ?`);
+      if (!confirmCash) {
+        toast.info('Đã hủy thanh toán tiền mặt');
         return;
       }
       try {
@@ -418,10 +428,15 @@ const CartAndPayment = ({
     } else if (paymentType === 'BANKING') {
       try {
         setIsLoading(true);
-        // MUST create banking transaction first
-        await processPayment();
-        // Now open confirm dialog (qrCode will be generated from bankingDetails)
-        setShowConfirmPaymentModal(true);
+        const ok = window.confirm('Khởi tạo thanh toán chuyển khoản cho hóa đơn này?');
+        if (!ok) {
+          setIsLoading(false);
+          toast.info('Đã hủy khởi tạo thanh toán chuyển khoản');
+          return;
+        }
+        await processPayment(); // tạo giao dịch
+        setShowConfirmPaymentModal(true); // mở modal confirm
+  toast.success('Khởi tạo thanh toán chuyển khoản thành công. Vui lòng xác nhận sau khi nhận tiền.');
       } catch (error) {
         toast.error(error.response?.data?.message || 'Không thể khởi tạo thanh toán chuyển khoản');
       } finally {
@@ -434,6 +449,11 @@ const CartAndPayment = ({
   const handleConfirmBankingPayment = async () => {
     if (!selectedBill) {
       toast.error('Vui lòng chọn hóa đơn');
+      return;
+    }
+    const confirmBanking = window.confirm('Xác nhận đã nhận được tiền chuyển khoản cho hóa đơn này?');
+    if (!confirmBanking) {
+      toast.info('Đã hủy xác nhận thanh toán');
       return;
     }
     try {

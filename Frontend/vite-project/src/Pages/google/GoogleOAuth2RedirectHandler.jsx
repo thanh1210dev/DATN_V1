@@ -8,9 +8,13 @@ const GoogleOAuth2RedirectHandler = () => {
   const location = useLocation();
 
   const getRedirectPathByRole = (role) => {
+    if (!role) return "/";
     switch (role) {
       case "ADMIN":
-        return "/chon-vai-tro";
+        return "/admin"; // vào trang admin chính
+      case "STAFF":
+        return "/admin/ban-hang-tai-quay"; // nhân viên vào thẳng POS
+      // Legacy roles (giữ nếu còn token cũ)
       case "TRUONG_PHONG_PR":
         return "/";
       case "GIANG_VIEN":

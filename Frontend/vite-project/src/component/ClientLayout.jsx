@@ -104,19 +104,6 @@ const ClientLayout = () => {
                 Sản Phẩm
               </NavLink>
               <NavLink
-                to="/best-sellers"
-                className={({ isActive }) =>
-                  `text-sm font-semibold px-3 py-2 rounded-lg transition-all duration-300 ${
-                    isActive
-                      ? "text-purple-700 bg-purple-100"
-                      : "text-gray-600 hover:text-purple-600 hover:bg-purple-50"
-                  }`
-                }
-                style={{ textDecoration: "none" }}
-              >
-                Sản Phẩm Bán Chạy
-              </NavLink>
-              <NavLink
                 to="/contact"
                 className={({ isActive }) =>
                   `text-sm font-semibold px-3 py-2 rounded-lg transition-all duration-300 ${
@@ -248,20 +235,6 @@ const ClientLayout = () => {
                 Sản Phẩm
               </NavLink>
               <NavLink
-                to="/best-sellers"
-                className={({ isActive }) =>
-                  `text-sm font-semibold px-3 py-2 rounded-lg transition-all duration-300 ${
-                    isActive
-                      ? "text-purple-700 bg-purple-100"
-                      : "text-gray-600 hover:text-purple-600 hover:bg-purple-50"
-                  }`
-                }
-                style={{ textDecoration: "none" }}
-                onClick={() => setMenuOpen(false)}
-              >
-                Sản Phẩm Bán Chạy
-              </NavLink>
-              <NavLink
                 to="/contact"
                 className={({ isActive }) =>
                   `text-sm font-semibold px-3 py-2 rounded-lg transition-all duration-300 ${
@@ -359,15 +332,6 @@ const ClientLayout = () => {
                     style={{ textDecoration: "none" }}
                   >
                     Sản Phẩm
-                  </NavLink>
-                </li>
-                <li>
-                  <NavLink
-                    to="/best-sellers"
-                    className="text-purple-100 hover:text-white transition-colors duration-300"
-                    style={{ textDecoration: "none" }}
-                  >
-                    Sản Phẩm Bán Chạy
                   </NavLink>
                 </li>
                 <li>

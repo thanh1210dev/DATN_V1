@@ -24,7 +24,7 @@ public class ProductDetailResponseDTO {
     private String colorCode;
     private Integer quantity;
     private BigDecimal price;
-    private BigDecimal importPrice;
+    // importPrice removed per requirement
     private BigDecimal promotionalPrice;
 
     private Integer soldQuantity = 0;

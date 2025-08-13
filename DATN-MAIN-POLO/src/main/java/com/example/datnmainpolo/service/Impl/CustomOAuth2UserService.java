@@ -26,21 +26,26 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     public OAuth2User loadUser(OAuth2UserRequest userRequest) {
         OAuth2User oAuth2User = super.loadUser(userRequest);
         Map<String, Object> attributes = oAuth2User.getAttributes();
-
+        if (attributes == null) {
+            throw new IllegalStateException("Không lấy được thông tin người dùng từ nhà cung cấp OAuth2");
+        }
         String email = (String) attributes.get("email");
-        String fullName = (String) attributes.get("name");
-        String avatar = (String) attributes.get("picture");
+        if (email == null || email.isBlank()) {
+            throw new IllegalStateException("OAuth2 provider không trả về email");
+        }
+    String fullName = attributes.containsKey("name") ? (String) attributes.get("name") : "Người dùng Google";
+    String avatar = attributes.containsKey("picture") ? (String) attributes.get("picture") : null;
 
-    userRepository.findFirstByEmailOrderByIdDesc(email)
-        .orElseGet(() -> {
+        userRepository.findFirstByEmailOrderByIdDesc(email)
+                .orElseGet(() -> {
                     UserEntity newUser = new UserEntity();
                     newUser.setEmail(email);
                     newUser.setName(fullName);
                     newUser.setAvatar(avatar);
                     newUser.setDeleted(false);
                     newUser.setCreatedAt(Instant.now());
-                    newUser.setPassword(passwordEncoder.encode("defaultOAuthPassword")); // Configure this
-                    newUser.setRole(Role.CLIENT); // Configure default role
+                    newUser.setPassword(passwordEncoder.encode("defaultOAuthPassword"));
+                    newUser.setRole(Role.CLIENT);
                     newUser.setCode("PH" + (10000 + new Random().nextInt(90000)));
                     return userRepository.save(newUser);
                 });

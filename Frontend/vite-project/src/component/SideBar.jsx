@@ -35,7 +35,7 @@ function SideBar({ isOpen }) {
 
   const iconClass = "text-xl";
 
-  const menuItems = [
+  const baseMenu = [
     {
       label: "Thống Kê",
       path: "/admin/dashboard",
@@ -46,11 +46,7 @@ function SideBar({ isOpen }) {
       path: "/admin/ban-hang-tai-quay",
       icon: <HiOutlineShoppingCart className="text-pink-600" />,
     },
-    {
-      label: "Trả hàng",
-      path: "/admin/tra-hang",
-      icon: <HiOutlineReply className="text-red-500" />,
-    },
+   
     {
       label: "Quản Lý Sản Phẩm",
       icon: <HiOutlineCube className="text-green-600" />,
@@ -119,6 +115,15 @@ function SideBar({ isOpen }) {
       icon: <HiOutlineUser className="text-cyan-600" />,
     },
   ];
+
+  // Lọc: STAFF chỉ thấy Bán Hàng Tại Quầy, Quản Lý Sản Phẩm (chỉ danh sách), Danh Sách Hóa Đơn
+  const menuItems = React.useMemo(() => {
+    if (role === 'STAFF') {
+      // STAFF: giữ nguyên toàn bộ submenu của Quản Lý Sản Phẩm
+      return baseMenu.filter(item => ['Bán Hàng Tại Quầy', 'Quản Lý Sản Phẩm', 'Danh Sách Hóa Đơn'].includes(item.label));
+    }
+    return baseMenu;
+  }, [role, baseMenu]);
 
   const handleToggle = (label) => {
     setExpandedItems((prev) => ({

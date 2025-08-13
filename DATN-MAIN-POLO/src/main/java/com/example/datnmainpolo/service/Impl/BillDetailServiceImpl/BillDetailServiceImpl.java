@@ -47,6 +47,14 @@ public class BillDetailServiceImpl implements BillDetailService {
     public BillDetailResponseDTO createBillDetail(Integer billId, BillDetailCreateDTO request) {
         logger.info("=== CREATE BILL DETAIL START ===");
         logger.info("Creating bill detail for bill {} with product {}", billId, request.getProductDetailId());
+        if (request.getProductDetailId() == null) {
+            throw new IllegalArgumentException("Thiếu productDetailId");
+        }
+        // Default quantity = 1 nếu null hoặc < 1
+        if (request.getQuantity() == null || request.getQuantity() < 1) {
+            logger.warn("Quantity null hoặc <1 ({}), auto set = 1", request.getQuantity());
+            request.setQuantity(1);
+        }
         Bill bill = billRepository.findById(billId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
         logger.info("Found bill: ID={}, Code={}, Status={}", bill.getId(), bill.getCode(), bill.getStatus());

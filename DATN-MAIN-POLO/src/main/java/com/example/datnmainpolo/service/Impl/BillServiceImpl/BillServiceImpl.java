@@ -25,6 +25,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -400,7 +402,16 @@ public class BillServiceImpl implements BillService {
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch"));
                 LOGGER.info("🔍 Transaction found: ID={}, Status={}, Type={}", transaction.getId(), transaction.getStatus(), transaction.getType());
 
-                switch (newStatus) {
+                                // If attempting to advance beyond CONFIRMING for a COD order without explicit CONFIRMED step, ensure inventory deduction now
+                                if (bill.getType() == PaymentType.COD
+                                                && currentStatus == OrderStatus.CONFIRMING
+                                                && (newStatus == OrderStatus.PACKED || newStatus == OrderStatus.DELIVERING
+                                                        || newStatus == OrderStatus.DELIVERED || newStatus == OrderStatus.COMPLETED)) {
+                                                LOGGER.info("🔄 Skipped CONFIRMED step for COD bill {} - performing inventory deduction before {}", billId, newStatus);
+                                                deductInventoryForCOD(billId);
+                                }
+
+                                switch (newStatus) {
                         case PENDING:
                                 transaction.setStatus(TransactionStatus.PENDING);
                                 transaction.setNote("Chờ xử lý đơn hàng");
@@ -414,29 +425,9 @@ public class BillServiceImpl implements BillService {
                                 transactionRepository.save(transaction);
                                 break;
                         case CONFIRMED:
-                                // Reduce inventory when order is confirmed (especially for COD orders)
                                 if (bill.getType() == PaymentType.COD) {
                                         LOGGER.info("🔄 Reducing inventory for confirmed COD order {}", billId);
-                                        List<BillDetail> confirmationBillDetails = billDetailRepository.findByBillId(billId);
-                                        for (BillDetail detail : confirmationBillDetails) {
-                                                ProductDetail productDetail = detail.getDetailProduct();
-                                                int availableQuantity = productDetail.getQuantity();
-                                                int requiredQuantity = detail.getQuantity();
-                                                
-                                                if (availableQuantity < requiredQuantity) {
-                                                        throw new RuntimeException("Sản phẩm " + productDetail.getCode() + 
-                                                                " không đủ số lượng trong kho (còn " + availableQuantity + 
-                                                                ", cần " + requiredQuantity + ")");
-                                                }
-                                                
-                                                productDetail.setQuantity(availableQuantity - requiredQuantity);
-                                                if (productDetail.getQuantity() <= 0) {
-                                                        productDetail.setStatus(ProductStatus.OUT_OF_STOCK);
-                                                }
-                                                productDetailRepository.save(productDetail);
-                                                LOGGER.info("🔄 Reduced inventory for product {} by {} units (was: {}, now: {})", 
-                                                        productDetail.getCode(), requiredQuantity, availableQuantity, productDetail.getQuantity());
-                                        }
+                                        deductInventoryForCOD(billId);
                                 }
                                 transaction.setNote("Đã xác nhận đơn hàng");
                                 transaction.setUpdatedAt(Instant.now());
@@ -647,6 +638,12 @@ public class BillServiceImpl implements BillService {
                 Bill bill = billRepository.findById(billId)
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
 
+                // Guard: prevent payment if no products in bill
+                List<BillDetail> currentDetails = billDetailRepository.findByBillId(billId);
+                if (currentDetails == null || currentDetails.isEmpty()) {
+                        throw new RuntimeException("Hóa đơn chưa có sản phẩm, không thể thanh toán");
+                }
+
                 BigDecimal finalAmount = calculateFinalAmount(bill);
                 if (finalAmount == null) {
                         LOGGER.error("Final amount is null for bill {}", billId);
@@ -752,25 +749,49 @@ public class BillServiceImpl implements BillService {
                 }
 
                 List<BillDetail> billDetails = billDetailRepository.findByBillId(savedBill.getId());
+                // ⭐ OFFLINE (tại quầy) phải trừ kho ngay khi thanh toán thành công (trước khi set status PRODUCT)
+                boolean isOfflineImmediate = !hasCustomerInfo; // không có thông tin giao hàng => tại quầy
+                if (isOfflineImmediate) {
+                        LOGGER.info("🔄 Deducting inventory for offline cash bill {}", savedBill.getId());
+                        // Validate toàn bộ trước
+                        for (BillDetail line : billDetails) {
+                                ProductDetail pd = line.getDetailProduct();
+                                if (pd == null) continue;
+                                int avail = pd.getQuantity();
+                                int need = line.getQuantity();
+                                if (avail < need) {
+                                        throw new RuntimeException("Sản phẩm " + pd.getCode() + " không đủ số lượng. Còn: " + avail + ", cần: " + need);
+                                }
+                        }
+                        // Deduct
+                        for (BillDetail line : billDetails) {
+                                ProductDetail pd = line.getDetailProduct();
+                                if (pd == null) continue;
+                                int before = pd.getQuantity();
+                                int after = before - line.getQuantity();
+                                pd.setQuantity(after);
+                                if (after <= 0) {
+                                        pd.setStatus(ProductStatus.OUT_OF_STOCK);
+                                } else {
+                                        pd.setStatus(ProductStatus.AVAILABLE);
+                                }
+                                productDetailRepository.save(pd);
+                                LOGGER.info("🔄 Product {} deducted {} ({} -> {})", pd.getCode(), line.getQuantity(), before, after);
+                        }
+                }
+
                 for (BillDetail billDetail : billDetails) {
                         billDetail.setStatus(BillDetailStatus.PAID);
-                        if (bill.getStatus() == OrderStatus.PENDING) {
-                                // typeOrder removed from BillDetail
-                        }
                         billDetail.setUpdatedAt(Instant.now());
                         billDetail.setUpdatedBy(getActor());
                         billDetailRepository.save(billDetail);
-
-                        // ⭐ Cập nhật ProductDetail status sau khi thanh toán thành công
-                        ProductDetail productDetail = billDetail.getDetailProduct();
-                        if (productDetail != null) {
-                                // Nếu số lượng còn lại > 0 thì AVAILABLE, ngược lại OUT_OF_STOCK
-                                if (productDetail.getQuantity() > 0) {
-                                        productDetail.setStatus(ProductStatus.AVAILABLE);
-                                } else {
-                                        productDetail.setStatus(ProductStatus.OUT_OF_STOCK);
+                        // Sau khi trừ kho (nếu có) đã cập nhật status; nếu ONLINE (hasCustomerInfo) chỉ set status hiển thị
+                        if (!isOfflineImmediate) {
+                                ProductDetail productDetail = billDetail.getDetailProduct();
+                                if (productDetail != null) {
+                                        productDetail.setStatus(productDetail.getQuantity() > 0 ? ProductStatus.AVAILABLE : ProductStatus.OUT_OF_STOCK);
+                                        productDetailRepository.save(productDetail);
                                 }
-                                productDetailRepository.save(productDetail);
                         }
                 }
 
@@ -1258,17 +1279,9 @@ public class BillServiceImpl implements BillService {
                 bill.setUpdatedBy(getActor());
 
                 Bill savedBill = billRepository.save(bill);
-
-                OrderHistory orderHistory = new OrderHistory();
-                orderHistory.setBill(savedBill);
-                orderHistory.setStatusOrder(savedBill.getStatus());
-                orderHistory.setActionDescription("Thêm khách hàng trung thành " + customer.getName() + " vào hóa đơn");
-                orderHistory.setCreatedAt(Instant.now());
-                orderHistory.setUpdatedAt(Instant.now());
-                orderHistory.setCreatedBy(getActor());
-                orderHistory.setUpdatedBy(getActor());
-                orderHistory.setDeleted(false);
-                orderHistoryRepository.save(orderHistory);
+                // Yêu cầu: Không tạo bản ghi lịch sử đơn hàng khi chỉ thêm thông tin khách hàng vào hóa đơn tại quầy
+                // (Trước đây có tạo OrderHistory với action "Thêm khách hàng trung thành ... vào hóa đơn")
+                LOGGER.debug("Skip creating OrderHistory for adding loyal customer to counter bill {} per new requirement", billId);
 
                 return convertToBillResponseDTO(savedBill);
         }
@@ -1288,17 +1301,8 @@ public class BillServiceImpl implements BillService {
                 bill.setCustomer(null);
 
                 Bill savedBill = billRepository.save(bill);
-
-                OrderHistory orderHistory = new OrderHistory();
-                orderHistory.setBill(savedBill);
-                orderHistory.setStatusOrder(savedBill.getStatus());
-                orderHistory.setActionDescription("Thêm khách vãng lai vào hóa đơn");
-                orderHistory.setCreatedAt(Instant.now());
-                orderHistory.setUpdatedAt(Instant.now());
-                orderHistory.setCreatedBy(getActor());
-                orderHistory.setUpdatedBy(getActor());
-                orderHistory.setDeleted(false);
-                orderHistoryRepository.save(orderHistory);
+                // Không tạo lịch sử khi thêm khách vãng lai (yêu cầu mới)
+                LOGGER.debug("Skip creating OrderHistory for adding visiting guest to bill {}", billId);
 
                 return convertToBillResponseDTO(savedBill);
         }
@@ -1324,17 +1328,8 @@ public class BillServiceImpl implements BillService {
                 bill.setUpdatedBy(getActor());
 
                 Bill savedBill = billRepository.save(bill);
-
-                OrderHistory orderHistory = new OrderHistory();
-                orderHistory.setBill(savedBill);
-                orderHistory.setStatusOrder(savedBill.getStatus());
-                orderHistory.setActionDescription("Thêm người dùng " + user.getName() + " vào hóa đơn");
-                orderHistory.setCreatedAt(Instant.now());
-                orderHistory.setUpdatedAt(Instant.now());
-                orderHistory.setCreatedBy(getActor());
-                orderHistory.setUpdatedBy(getActor());
-                orderHistory.setDeleted(false);
-                orderHistoryRepository.save(orderHistory);
+                // Bỏ tạo lịch sử khi thêm user (khách) vào hóa đơn tại quầy
+                LOGGER.debug("Skip creating OrderHistory for adding user {} to bill {}", user.getId(), billId);
 
                 return convertToBillResponseDTO(savedBill);
         }
@@ -1517,4 +1512,36 @@ public class BillServiceImpl implements BillService {
             return fixed.min(totalMoney);
         }
     }
+
+        /**
+         * Deduct inventory for a COD order ensuring sufficient stock for every line.
+         * If any product is short, throw 400 with remaining quantity message (Vietnamese, red toast on FE).
+         */
+        private void deductInventoryForCOD(Integer billId) {
+                List<BillDetail> details = billDetailRepository.findByBillId(billId);
+                // First pass: validate all
+                for (BillDetail detail : details) {
+                        ProductDetail pd = detail.getDetailProduct();
+                        if (pd == null) continue;
+                        int available = pd.getQuantity();
+                        int required = detail.getQuantity();
+                        if (available < required) {
+                                String message = "Sản phẩm " + pd.getCode() + " không đủ số lượng. Còn: " + available + ", cần: " + required;
+                                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
+                        }
+                }
+                // Second pass: deduct
+                for (BillDetail detail : details) {
+                        ProductDetail pd = detail.getDetailProduct();
+                        if (pd == null) continue;
+                        int before = pd.getQuantity();
+                        int newQty = before - detail.getQuantity();
+                        pd.setQuantity(newQty);
+                        if (newQty <= 0) {
+                                pd.setStatus(ProductStatus.OUT_OF_STOCK);
+                        }
+                        productDetailRepository.save(pd);
+                        LOGGER.info("🔄 Deducted {} ({} -> {}) for product {} in bill {}", detail.getQuantity(), before, newQty, pd.getCode(), billId);
+                }
+        }
 }
