@@ -50,22 +50,42 @@ function LoginPage() {
         password,
       });
 
-      const { token, name, id, role } = response.data;
-      localStorage.setItem("token", token);
-      localStorage.setItem("name", name);
-      localStorage.setItem("id", id);
-      localStorage.setItem("selectedRole", role);
+      // Backend trả về idUser (LoginResponse.java), fallback các key khác nếu sau này đổi
+      const { token, name, role, idUser, id, userId, accountId } = response.data;
+      const resolvedId = id || idUser || userId || accountId;
 
-      console.log("JWT Token:", token);
-      console.log("ID:", id);
-      console.log("Role:", role);
+      if (!token) {
+        toast.error("Phản hồi không hợp lệ: thiếu token");
+        console.warn("[LOGIN] Response missing token", response.data);
+        return;
+      }
+      if (!resolvedId) {
+        console.warn("[LOGIN] Không tìm thấy trường ID trong response", response.data);
+      }
+
+      localStorage.setItem("token", token);
+      localStorage.setItem("name", name || "");
+      if (resolvedId) localStorage.setItem("id", resolvedId);
+      if (role) localStorage.setItem("selectedRole", role);
+
+      console.log("[LOGIN] Token:", token.substring(0, 25) + "...");
+      console.log("[LOGIN] ID:", resolvedId);
+      console.log("[LOGIN] Role:", role);
 
       const redirectPath = getRedirectPathByRole(role);
       navigate(redirectPath);
     } catch (error) {
+      const status = error?.response?.status;
       const errData = error?.response?.data;
+      console.warn("[LOGIN_ERROR] status=", status, " data=", errData);
       if (typeof errData === "string") {
         toast.error(errData);
+      } else if (status === 401) {
+        toast.error("Sai tài khoản hoặc mật khẩu");
+      } else if (status === 400) {
+        toast.error("Dữ liệu không hợp lệ");
+      } else if (error.code === 'ERR_NETWORK') {
+        toast.error("Không kết nối được server. Kiểm tra backend");
       } else {
         toast.error("Đã có lỗi xảy ra!");
       }
